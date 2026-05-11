@@ -22,7 +22,7 @@ npm run build
 ```ts
 import { brsa } from "@fedi/blind-rsa-signatures-wasm";
 
-const keys = brsa.generateKeyPair();
+const keys = brsa.KeyPair.generate(2048);
 const message = new TextEncoder().encode("token");
 
 const publicKey = keys.publicKey;
@@ -40,7 +40,7 @@ console.log(publicKey.verify(signature, blinded.messageRandomizer, message));
 ```ts
 import { pbrsa } from "@fedi/blind-rsa-signatures-wasm";
 
-const masterKeys = pbrsa.generateKeyPair();
+const masterKeys = pbrsa.KeyPair.generate(2048);
 const metadata = new TextEncoder().encode("2026-05-11");
 const message = new TextEncoder().encode("token");
 

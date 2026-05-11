@@ -10,7 +10,7 @@ if (!(status instanceof HTMLOutputElement)) {
 try {
   const message = encoder.encode("browser-smoke-message");
 
-  const brsaKeys = brsa.generateKeyPair();
+  const brsaKeys = brsa.KeyPair.generate(2048);
   const brsaPublicKey = brsaKeys.publicKey;
   const brsaSecretKey = brsaKeys.secretKey;
   const brsaBlinded = brsaPublicKey.blind(message);
@@ -26,7 +26,7 @@ try {
   }
 
   const metadata = encoder.encode("browser-smoke-metadata");
-  const pbrsaKeys = pbrsa.generateKeyPair({ modulusBits: 1024 });
+  const pbrsaKeys = pbrsa.KeyPair.generate(1024);
   const derivedKeys = pbrsaKeys.deriveForMetadata(metadata);
   const pbrsaPublicKey = derivedKeys.publicKey;
   const pbrsaSecretKey = derivedKeys.secretKey;
