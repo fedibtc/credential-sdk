@@ -22,14 +22,4 @@
     wasm-bindgen-cli
     wasm-pack
   ];
-
-  scripts.build.exec = "npm run build";
-  scripts.publish-dry-run.exec = "npm run publish:dry-run";
-
-  enterShell = ''
-    echo "blind-rsa-signatures-wasm dev shell"
-    rustc --version
-    wasm-pack --version
-    node --version
-  '';
 }
