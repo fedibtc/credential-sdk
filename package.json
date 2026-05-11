@@ -1,0 +1,43 @@
+{
+  "name": "@fedi/blind-rsa-signatures-wasm",
+  "version": "0.1.0",
+  "description": "WebAssembly bindings for blind-rsa-signatures.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/",
+    "pkg/"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./wasm": {
+      "types": "./pkg/blind_rsa_signatures_wasm.d.ts",
+      "import": "./pkg/blind_rsa_signatures_wasm.js"
+    }
+  },
+  "scripts": {
+    "build": "npm run build:wasm && npm run build:ts",
+    "build:ts": "rm -rf dist && tsc -p tsconfig.json",
+    "build:wasm": "rm -rf pkg && wasm-pack build --target bundler --out-dir pkg && rm -f pkg/.gitignore",
+    "check": "cargo test && npm run build",
+    "clean": "rm -rf dist pkg target",
+    "test:browser:serve": "vite --config vite.browser.config.ts --host 127.0.0.1 --port 4173",
+    "pack:dry-run": "npm pack --dry-run",
+    "prepack": "npm run build",
+    "publish:dry-run": "npm publish --dry-run --access public"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "rollup": "^4.60.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.12",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.6.0"
+  }
+}
