@@ -63,6 +63,8 @@ dependencies = [
  "pkcs1",
  "pkcs8",
  "rsa",
+ "serde",
+ "serde_json",
  "signature",
  "spki",
  "wasm-bindgen",

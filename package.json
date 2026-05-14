@@ -28,8 +28,8 @@
     "build:wasm": "rm -rf pkg && wasm-pack build --target bundler --out-dir pkg && rm -f pkg/.gitignore",
     "clean": "rm -rf dist pkg target",
     "test:rust": "cargo test",
-    "test": "pnpm run build && vitest run",
-    "test:browser:serve": "vite --config vite.browser.config.ts --host 127.0.0.1 --port 4173",
+    "test:ts": "pnpm run build && vitest run",
+    "test": "pnpm run test:rust && pnpm run test:ts",
     "pack:dry-run": "npm pack --dry-run",
     "prepack": "pnpm run build",
     "publish:dry-run": "npm publish --dry-run --access public"

@@ -9,6 +9,10 @@ use blind_rsa_signatures::{
 };
 use wasm_bindgen::prelude::*;
 
+pub mod types;
+
+pub use types::{IssuerBundle, Revocation, SchemaDefinition, VerifiableCredential};
+
 type BrsaKeyPairInner = KeyPairSha384PSSRandomized;
 type BrsaPublicKeyInner = PublicKeySha384PSSRandomized;
 type BrsaSecretKeyInner = SecretKeySha384PSSRandomized;
@@ -27,7 +31,8 @@ pub struct BrsaKeyPair {
 impl BrsaKeyPair {
     #[wasm_bindgen(js_name = generate)]
     pub fn generate(modulus_bits: usize) -> Result<BrsaKeyPair, JsError> {
-        let key_pair = BrsaKeyPairInner::generate(&mut DefaultRng, modulus_bits).map_err(js_error)?;
+        let key_pair =
+            BrsaKeyPairInner::generate(&mut DefaultRng, modulus_bits).map_err(js_error)?;
         Ok(BrsaKeyPair {
             public_key: BrsaPublicKey { inner: key_pair.pk },
             secret_key: BrsaSecretKey { inner: key_pair.sk },
@@ -91,7 +96,10 @@ impl BrsaPublicKey {
 
     pub fn blind(&self, message: Vec<u8>) -> Result<BlindingResultBytes, JsError> {
         Ok(BlindingResultBytes {
-            inner: self.inner.blind(&mut DefaultRng, message).map_err(js_error)?,
+            inner: self
+                .inner
+                .blind(&mut DefaultRng, message)
+                .map_err(js_error)?,
         })
     }
 
@@ -461,7 +469,9 @@ impl BlindingResultBytes {
     }
 }
 
-fn message_randomizer_from_bytes(message_randomizer: Vec<u8>) -> Result<MessageRandomizer, JsError> {
+fn message_randomizer_from_bytes(
+    message_randomizer: Vec<u8>,
+) -> Result<MessageRandomizer, JsError> {
     let message_randomizer: [u8; 32] = message_randomizer
         .try_into()
         .map_err(|_| JsError::new("messageRandomizer must be exactly 32 bytes"))?;
