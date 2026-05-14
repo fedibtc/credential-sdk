@@ -1,88 +1,114 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use tsify::Tsify;
 
+#[tsify::declare]
 pub type Digest = String;
+
+#[tsify::declare]
 pub type BlindMessage = String;
+
+#[tsify::declare]
 pub type PublicKey = String;
+
+#[tsify::declare]
 pub type SignatureValue = String;
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(type = "{ credential: Credential; proof: SignatureProof }")]
 pub struct VerifiableCredential {
     pub credential: Credential,
     pub proof: SignatureProof,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(type = "{ info: CredentialInfo; blind_msg: BlindMessage }")]
 pub struct Credential {
     pub info: CredentialInfo,
     pub blind_msg: BlindMessage,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(type = "{ schema: Digest; issuer_id_pubkey: PublicKey; score: number }")]
 pub struct CredentialInfo {
     pub schema: Digest,
     pub issuer_id_pubkey: PublicKey,
     pub score: u32,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(type = "{ issuer: Issuer; proof: SignatureProof }")]
 pub struct IssuerBundle {
     pub issuer: Issuer,
     pub proof: SignatureProof,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(
+    type = "{ issuer_id_pubkey: PublicKey; issuance_key: PublicKey; revocation: RevocationLocation[] }"
+)]
 pub struct Issuer {
     pub issuer_id_pubkey: PublicKey,
     pub issuance_key: PublicKey,
     pub revocation: Vec<RevocationLocation>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(type = "{ protocol: string; location: string }")]
 pub struct RevocationLocation {
     pub protocol: String,
     pub location: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(type = "{ schema: Schema }")]
 pub struct SchemaDefinition {
     pub schema: Schema,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(
+    type = "{ id: string; version: string; digest: Digest; fields: Record<string, SchemaField> }"
+)]
 pub struct Schema {
     pub id: String,
     pub version: String,
     pub digest: Digest,
+    #[tsify(type = "Record<string, SchemaField>")]
     pub fields: SchemaFields,
 }
 
 pub type SchemaFields = BTreeMap<String, SchemaField>;
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(type = "string | Record<string, SchemaField>")]
 #[serde(untagged)]
 pub enum SchemaField {
     Type(String),
     Object(SchemaFields),
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(type = "{ revocation: RevocationEntry; proof: IssuerSignatureProof }")]
 pub struct Revocation {
     pub revocation: RevocationEntry,
     pub proof: IssuerSignatureProof,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(type = "{ credential_digest: Digest }")]
 pub struct RevocationEntry {
     pub credential_digest: Digest,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(type = "{ signature: SignatureValue }")]
 pub struct SignatureProof {
     pub signature: SignatureValue,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
+#[tsify(type = "{ issuer_id_pubkey: PublicKey; signature: SignatureValue }")]
 pub struct IssuerSignatureProof {
     pub issuer_id_pubkey: PublicKey,
     pub signature: SignatureValue,
