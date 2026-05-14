@@ -16,53 +16,76 @@ type SchemaResult<T> = Result<T, String>;
 const SCHEMA_TYPES: &'static str = r#"
 export type SchemaPrimitiveType = "string" | "number" | "integer" | "boolean" | "object" | "array";
 export type CredentialData = Record<string, unknown>;
-export type SchemaFieldFor<T> =
-  T extends string ? "string" :
-  T extends number ? "number" | "integer" :
-  T extends boolean ? "boolean" :
-  T extends readonly unknown[] ? "array" :
-  T extends CredentialData ? SchemaFieldInput<T> | { fields: SchemaFieldInput<T> } | "object" :
-  SchemaPrimitiveType;
-export type SchemaFieldMap<T extends CredentialData> = {
-  readonly [K in Extract<keyof T, string>]: SchemaFieldFor<T[K]>;
-};
-export type SchemaFieldList<T extends CredentialData> = readonly ({
-  readonly [K in Extract<keyof T, string>]: {
-    readonly name: K;
-    readonly type: SchemaFieldFor<T[K]>;
-  }
-}[Extract<keyof T, string>])[];
-export type SchemaFieldInput<T extends CredentialData> = SchemaFieldMap<T> | SchemaFieldList<T>;
-export interface CredentialSchema<TBlinded extends CredentialData, TVisible extends CredentialData> {
+export type SchemaFieldDefinition =
+  | string
+  | { readonly name: string; readonly type: SchemaPrimitiveType }
+  | { readonly name: string; readonly fields: SchemaFieldList };
+export type SchemaFieldList = readonly SchemaFieldDefinition[];
+export type PrimitiveDataFor<TType> =
+  TType extends "string" ? string :
+  TType extends "number" | "integer" ? number :
+  TType extends "boolean" ? boolean :
+  TType extends "object" ? CredentialData :
+  TType extends "array" ? unknown[] :
+  unknown;
+export type SchemaFieldOutputFor<TField> =
+  TField extends string ? { readonly [K in TField]: "string" } :
+  TField extends { readonly name: infer TName extends string; readonly fields: infer TFields extends SchemaFieldList } ? { readonly [K in TName]: SchemaFieldsFromList<TFields> } :
+  TField extends { readonly name: infer TName extends string; readonly type: infer TType extends SchemaPrimitiveType } ? { readonly [K in TName]: TType } :
+  never;
+export type SchemaFieldDataFor<TField> =
+  TField extends string ? { readonly [K in TField]: string } :
+  TField extends { readonly name: infer TName extends string; readonly fields: infer TFields extends SchemaFieldList } ? { readonly [K in TName]: DataFromSchemaFieldList<TFields> } :
+  TField extends { readonly name: infer TName extends string; readonly type: infer TType extends SchemaPrimitiveType } ? { readonly [K in TName]: PrimitiveDataFor<TType> } :
+  never;
+export type UnionToIntersection<T> =
+  (T extends unknown ? (value: T) => void : never) extends (value: infer TResult) => void ? TResult : never;
+export type Simplify<T> = { readonly [K in keyof T]: T[K] } & {};
+export type SchemaFieldsFromList<TFields extends SchemaFieldList> = Simplify<UnionToIntersection<SchemaFieldOutputFor<TFields[number]>>>;
+export type DataFromSchemaFieldList<TFields extends SchemaFieldList> = Simplify<UnionToIntersection<SchemaFieldDataFor<TFields[number]>>>;
+export interface CredentialSchema<
+  TBlinded extends CredentialData,
+  TVisible extends CredentialData,
+  TBlindedFields = unknown,
+  TVisibleFields = unknown,
+> {
   readonly id: string;
   readonly version: string;
   readonly digest: string;
   readonly fields: {
-    readonly blinded: unknown;
-    readonly visible: unknown;
+    readonly blinded: TBlindedFields;
+    readonly visible: TVisibleFields;
   };
   readonly __types?: {
     readonly blinded: TBlinded;
     readonly visible: TVisible;
   };
 }
-export interface DynamicCredential<TBlinded extends CredentialData, TVisible extends CredentialData> {
+export interface CredentialTemplate<TBlinded extends CredentialData, TVisible extends CredentialData> {
   readonly schema: string;
   readonly data: {
     readonly blinded: TBlinded;
     readonly visible: TVisible;
   };
 }
-export function createSchema<TBlinded extends CredentialData, TVisible extends CredentialData>(
-  blindedFields: SchemaFieldInput<TBlinded>,
-  visibleFields: SchemaFieldInput<TVisible>,
-): CredentialSchema<TBlinded, TVisible>;
+export function createSchema<
+  const TBlindedFields extends SchemaFieldList,
+  const TVisibleFields extends SchemaFieldList,
+>(
+  blindedFields: TBlindedFields,
+  visibleFields: TVisibleFields,
+): CredentialSchema<
+  DataFromSchemaFieldList<TBlindedFields>,
+  DataFromSchemaFieldList<TVisibleFields>,
+  SchemaFieldsFromList<TBlindedFields>,
+  SchemaFieldsFromList<TVisibleFields>
+>;
 export function createCredential<TBlinded extends CredentialData, TVisible extends CredentialData>(
-  schema: CredentialSchema<TBlinded, TVisible>,
+  schema: CredentialSchema<TBlinded, TVisible, unknown, unknown>,
   blindedData: TBlinded,
   visibleData: TVisible,
-): DynamicCredential<TBlinded, TVisible>;
-export function schemaDigest(schema: CredentialSchema<CredentialData, CredentialData>): string;
+): CredentialTemplate<TBlinded, TVisible>;
+export function schemaDigest(schema: CredentialSchema<CredentialData, CredentialData, unknown, unknown>): string;
 "#;
 
 // Keep these arguments as `JsValue`: callers pass ordinary JS objects/arrays,
@@ -169,23 +192,9 @@ pub(crate) fn schema_digest_value(schema: &Value) -> SchemaResult<String> {
 
 fn normalize_schema_fields(fields: Value) -> SchemaResult<Value> {
     match fields {
-        Value::Object(fields) => normalize_schema_field_map(fields),
         Value::Array(fields) => normalize_schema_field_list(fields),
-        _ => Err("schema fields must be an object or field list".to_owned()),
+        _ => Err("schema fields must be a field list".to_owned()),
     }
-}
-
-fn normalize_schema_field_map(fields: Map<String, Value>) -> SchemaResult<Value> {
-    if fields.is_empty() {
-        return Err("schema fields cannot be empty".to_owned());
-    }
-
-    let mut normalized = Map::new();
-    for (name, field) in fields {
-        validate_field_name(&name)?;
-        normalized.insert(name, normalize_schema_field(field)?);
-    }
-    Ok(Value::Object(normalized))
 }
 
 fn normalize_schema_field_list(fields: Vec<Value>) -> SchemaResult<Value> {
@@ -209,11 +218,9 @@ fn normalize_schema_field_list(fields: Vec<Value>) -> SchemaResult<Value> {
 
                 let field = match field.remove("fields") {
                     Some(fields) => normalize_schema_fields(fields)?,
-                    None => normalize_schema_field(
-                        field
-                            .remove("type")
-                            .ok_or_else(|| "field list entries must include type".to_owned())?,
-                    )?,
+                    None => normalize_field_type(field.remove("type").ok_or_else(|| {
+                        "field list entries must include type or fields".to_owned()
+                    })?)?,
                 };
                 normalized.insert(name, field);
             }
@@ -224,25 +231,13 @@ fn normalize_schema_field_list(fields: Vec<Value>) -> SchemaResult<Value> {
     Ok(Value::Object(normalized))
 }
 
-fn normalize_schema_field(field: Value) -> SchemaResult<Value> {
-    match field {
+fn normalize_field_type(field_type: Value) -> SchemaResult<Value> {
+    match field_type {
         Value::String(field_type) => {
             validate_field_type(&field_type)?;
             Ok(Value::String(field_type))
         }
-        Value::Object(mut field) => {
-            if let Some(fields) = field.remove("fields") {
-                return normalize_schema_fields(fields);
-            }
-
-            if let Some(field_type) = field.get("type").and_then(Value::as_str) {
-                validate_field_type(field_type)?;
-                return Ok(Value::String(field_type.to_owned()));
-            }
-
-            normalize_schema_field_map(field)
-        }
-        _ => Err("schema field definitions must be type strings or nested objects".to_owned()),
+        _ => Err("schema field types must be strings".to_owned()),
     }
 }
 
@@ -379,23 +374,23 @@ mod tests {
     #[test]
     fn create_schema_adds_stable_digest() {
         let first = create_schema_value(
-            json!({
-                "holder_pubkey": "string",
-            }),
-            json!({
-                "score": "number",
-                "issuer": "string",
-            }),
+            json!([
+                { "name": "holder_pubkey", "type": "string" },
+            ]),
+            json!([
+                { "name": "score", "type": "number" },
+                { "name": "issuer", "type": "string" },
+            ]),
         )
         .unwrap();
         let second = create_schema_value(
-            json!({
-                "holder_pubkey": "string",
-            }),
-            json!({
-                "issuer": "string",
-                "score": "number",
-            }),
+            json!([
+                { "name": "holder_pubkey", "type": "string" },
+            ]),
+            json!([
+                { "name": "issuer", "type": "string" },
+                { "name": "score", "type": "number" },
+            ]),
         )
         .unwrap();
 
@@ -424,16 +419,19 @@ mod tests {
     #[test]
     fn create_credential_validates_dynamic_data_shape() {
         let schema = create_schema_value(
-            json!({
-                "holder_pubkey": "string",
-            }),
-            json!({
-                "issuer_id_pubkey": "string",
-                "score": "number",
-                "profile": {
-                    "display_name": "string",
+            json!([
+                { "name": "holder_pubkey", "type": "string" },
+            ]),
+            json!([
+                { "name": "issuer_id_pubkey", "type": "string" },
+                { "name": "score", "type": "number" },
+                {
+                    "name": "profile",
+                    "fields": [
+                        { "name": "display_name", "type": "string" },
+                    ],
                 },
-            }),
+            ]),
         )
         .unwrap();
         let credential = create_credential_value(
@@ -459,12 +457,12 @@ mod tests {
     #[test]
     fn create_credential_rejects_extra_fields() {
         let schema = create_schema_value(
-            json!({
-                "holder_pubkey": "string",
-            }),
-            json!({
-                "score": "number",
-            }),
+            json!([
+                { "name": "holder_pubkey", "type": "string" },
+            ]),
+            json!([
+                { "name": "score", "type": "number" },
+            ]),
         )
         .unwrap();
         let credential = create_credential_value(
