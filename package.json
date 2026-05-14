@@ -1,41 +1,24 @@
 {
   "name": "@fedibtc/blind-rsa-signatures-wasm",
-  "private": false,
+  "private": true,
   "version": "0.0.0",
   "description": "WebAssembly bindings for blind-rsa-signatures.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist/",
-    "pkg/"
-  ],
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./wasm": {
-      "types": "./pkg/blind_rsa_signatures_wasm.d.ts",
-      "import": "./pkg/blind_rsa_signatures_wasm.js"
-    }
-  },
   "scripts": {
-    "build": "pnpm run build:wasm && pnpm run build:ts",
-    "build:ts": "rm -rf dist && tsc -p tsconfig.json",
-    "build:wasm": "rm -rf pkg && wasm-pack build --target bundler --out-dir pkg && rm -f pkg/.gitignore",
+    "build": "pnpm run build:wasm",
+    "build:wasm": "rm -rf pkg && wasm-pack build --scope fedibtc --target bundler --out-dir pkg --no-opt && rm -f pkg/.gitignore",
     "clean": "rm -rf dist pkg target",
+    "typecheck": "pnpm run build && tsc -p tsconfig.json",
     "test:rust": "cargo test",
-    "test:ts": "pnpm run build && vitest run",
+    "test:ts": "pnpm run typecheck && vitest run --testTimeout 30000",
     "test": "pnpm run test:rust && pnpm run test:ts",
-    "pack:dry-run": "npm pack --dry-run",
-    "prepack": "pnpm run build",
-    "publish:dry-run": "npm publish --dry-run --access public"
+    "pack": "pnpm run build && wasm-pack pack --pkg-dir pkg",
+    "publish": "pnpm run build && wasm-pack publish --pkg-dir pkg --access public",
+    "publish:dry-run": "pnpm run build && npm publish ./pkg --dry-run --access public"
   },
   "devDependencies": {
-    "esbuild": "^0.28.0",
     "rollup": "^4.60.3",
     "typescript": "^5.9.3",
     "vite": "^8.0.12",

@@ -1,11 +1,9 @@
-# @fedi/blind-rsa-signatures-wasm
+# @fedibtc/blind-rsa-signatures-wasm
 
 WebAssembly bindings for the Rust [`blind-rsa-signatures`](https://crates.io/crates/blind-rsa-signatures) crate.
 
-This package exposes the recommended SHA-384/PSS/randomized configuration for:
-
-- regular blind RSA signatures (`brsa`)
-- partially blind RSA signatures with metadata (`pbrsa`)
+This package exposes the recommended SHA-384/PSS/randomized configuration for regular
+blind RSA signatures and partially blind RSA signatures with metadata.
 
 ## Development
 
@@ -15,7 +13,7 @@ pnpm install
 pnpm run build
 ```
 
-`pnpm run build` uses `wasm-pack build --target bundler --out-dir pkg`, then compiles the TypeScript wrapper into `dist/`.
+`pnpm run build` uses `wasm-pack build --scope fedibtc --target bundler --out-dir pkg`.
 
 Automated smoke coverage runs through Vitest:
 
@@ -23,20 +21,18 @@ Automated smoke coverage runs through Vitest:
 pnpm test
 ```
 
-The browser smoke page is still available for manual checks:
+Publish the generated wasm-pack package:
 
 ```sh
-pnpm run test:browser:serve
+pnpm run publish
 ```
-
-Then open `http://127.0.0.1:4173/test/browser-smoke.html`.
 
 ## Regular Blind RSA
 
 ```ts
-import { brsa } from "@fedi/blind-rsa-signatures-wasm";
+import { BrsaKeyPair } from "@fedibtc/blind-rsa-signatures-wasm";
 
-const keys = brsa.KeyPair.generate(2048);
+const keys = BrsaKeyPair.generate(2048);
 const message = new TextEncoder().encode("token");
 
 const publicKey = keys.publicKey;
@@ -52,9 +48,9 @@ console.log(publicKey.verify(signature, blinded.messageRandomizer, message));
 ## Partially Blind RSA
 
 ```ts
-import { pbrsa } from "@fedi/blind-rsa-signatures-wasm";
+import { PbrsaKeyPair } from "@fedibtc/blind-rsa-signatures-wasm";
 
-const masterKeys = pbrsa.KeyPair.generate(2048);
+const masterKeys = PbrsaKeyPair.generate(2048);
 const metadata = new TextEncoder().encode("2026-05-11");
 const message = new TextEncoder().encode("token");
 

@@ -1,6 +1,7 @@
 [package]
 name = "blind-rsa-signatures-wasm"
-version = "0.1.0"
+repository = "https://github.com/fedibtc/blind-rsa-signatures-wasm"
+version = "0.0.0"
 edition = "2021"
 description = "WebAssembly bindings for the blind-rsa-signatures Rust crate."
 license = "MIT"

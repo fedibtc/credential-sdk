@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "blind-rsa-signatures-wasm"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "blind-rsa-signatures",
  "crypto-bigint",
