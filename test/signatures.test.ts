@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { BrsaKeyPair, PbrsaKeyPair } from "../pkg/blind_rsa_signatures_wasm.js";
+import {
+  BrsaKeyPair,
+  PbrsaKeyPair,
+} from "../pkg/blind_rsa_signatures_wasm.js";
 import type {
   IssuerBundle,
   Revocation,
