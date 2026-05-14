@@ -11,11 +11,25 @@ This package exposes the recommended SHA-384/PSS/randomized configuration for:
 
 ```sh
 devenv shell
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
-`npm run build` uses `wasm-pack build --target bundler --out-dir pkg`, then compiles the TypeScript wrapper into `dist/`.
+`pnpm run build` uses `wasm-pack build --target bundler --out-dir pkg`, then compiles the TypeScript wrapper into `dist/`.
+
+Automated smoke coverage runs through Vitest:
+
+```sh
+pnpm test
+```
+
+The browser smoke page is still available for manual checks:
+
+```sh
+pnpm run test:browser:serve
+```
+
+Then open `http://127.0.0.1:4173/test/browser-smoke.html`.
 
 ## Regular Blind RSA
 

@@ -27,17 +27,24 @@ try {
 
   const metadata = encoder.encode("browser-smoke-metadata");
   const pbrsaKeys = pbrsa.KeyPair.generate(1024);
+  console.log("pbrsaKeys", pbrsaKeys);
   const derivedKeys = pbrsaKeys.deriveForMetadata(metadata);
+  console.log("derivedKeys", derivedKeys);
   const pbrsaPublicKey = derivedKeys.publicKey;
   const pbrsaSecretKey = derivedKeys.secretKey;
+  console.log("pbrsaPublicKey", pbrsaPublicKey);
+  console.log("pbrsaSecretKey", pbrsaSecretKey);
   const pbrsaBlinded = pbrsaPublicKey.blind(message, metadata);
+  console.log("pbrsaBlinded", pbrsaBlinded);
   const pbrsaBlindSignature = pbrsaSecretKey.blindSign(pbrsaBlinded.blindMessage);
+  console.log("pbrsaBlindSignature", pbrsaBlindSignature);
   const pbrsaSignature = pbrsaPublicKey.finalize(
     pbrsaBlindSignature,
     pbrsaBlinded,
     message,
     metadata,
   );
+  console.log("pbrsaSignature (unblinded)", pbrsaSignature);
 
   if (
     !pbrsaPublicKey.verify(

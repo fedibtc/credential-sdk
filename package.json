@@ -1,6 +1,7 @@
 {
-  "name": "@fedi/blind-rsa-signatures-wasm",
-  "version": "0.1.0",
+  "name": "@fedibtc/blind-rsa-signatures-wasm",
+  "private": false,
+  "version": "0.0.0",
   "description": "WebAssembly bindings for blind-rsa-signatures.",
   "license": "MIT",
   "type": "module",
@@ -22,14 +23,14 @@
     }
   },
   "scripts": {
-    "build": "npm run build:wasm && npm run build:ts",
+    "build": "pnpm run build:wasm && pnpm run build:ts",
     "build:ts": "rm -rf dist && tsc -p tsconfig.json",
     "build:wasm": "rm -rf pkg && wasm-pack build --target bundler --out-dir pkg && rm -f pkg/.gitignore",
-    "check": "cargo test && npm run build",
+    "check": "cargo test && pnpm run build",
     "clean": "rm -rf dist pkg target",
     "test:browser:serve": "vite --config vite.browser.config.ts --host 127.0.0.1 --port 4173",
     "pack:dry-run": "npm pack --dry-run",
-    "prepack": "npm run build",
+    "prepack": "pnpm run build",
     "publish:dry-run": "npm publish --dry-run --access public"
   },
   "devDependencies": {
