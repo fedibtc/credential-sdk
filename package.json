@@ -10,6 +10,7 @@
     "build": "pnpm run build:wasm",
     "build:wasm": "rm -rf pkg && wasm-pack build --scope fedibtc --target bundler --out-dir pkg --no-opt && rm -f pkg/.gitignore",
     "clean": "rm -rf dist pkg target",
+    "check": "pnpm run typecheck && pnpm run test",
     "typecheck": "pnpm run build && tsc -p tsconfig.json",
     "test:rust": "cargo test",
     "test:ts": "pnpm run typecheck && vitest run --testTimeout 30000",
