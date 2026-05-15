@@ -1,5 +1,5 @@
 [package]
-name = "blind-rsa-signatures-wasm"
+name = "fedi-credential-sdk"
 repository = "https://github.com/fedibtc/blind-rsa-signatures-wasm"
 version = "0.0.0"
 edition = "2021"

@@ -1,5 +1,5 @@
 {
-  "name": "@fedibtc/blind-rsa-signatures-wasm",
+  "name": "@fedibtc/credential-sdk",
   "private": true,
   "version": "0.0.0",
   "description": "WebAssembly bindings for blind-rsa-signatures.",
