@@ -1,3 +1,4 @@
+use crate::keys::PbrsaKeyPair;
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 use sha2::{Digest as ShaDigest, Sha256};
@@ -43,6 +44,12 @@ export type UnionToIntersection<T> =
 export type Simplify<T> = { readonly [K in keyof T]: T[K] } & {};
 export type SchemaFieldsFromList<TFields extends SchemaFieldList> = Simplify<UnionToIntersection<SchemaFieldOutputFor<TFields[number]>>>;
 export type DataFromSchemaFieldList<TFields extends SchemaFieldList> = Simplify<UnionToIntersection<SchemaFieldDataFor<TFields[number]>>>;
+export type ByteArray = readonly number[];
+export type AnyCredentialSchema = CredentialSchema<CredentialData, CredentialData, unknown, unknown>;
+export type BlindedDataForSchema<TSchema> =
+  TSchema extends CredentialSchema<infer TBlinded, infer _TVisible, unknown, unknown> ? TBlinded : never;
+export type VisibleDataForSchema<TSchema> =
+  TSchema extends CredentialSchema<infer _TBlinded, infer TVisible, unknown, unknown> ? TVisible : never;
 export interface CredentialSchema<
   TBlinded extends CredentialData,
   TVisible extends CredentialData,
@@ -61,11 +68,28 @@ export interface CredentialSchema<
     readonly visible: TVisible;
   };
 }
-export interface CredentialTemplate<TBlinded extends CredentialData, TVisible extends CredentialData> {
+export interface BlindedPayload<TSchema extends AnyCredentialSchema> {
+  readonly schema: string;
+  readonly payload: unknown;
+  readonly __schema: TSchema;
+}
+export interface CredentialTemplate<TSchema extends AnyCredentialSchema> {
   readonly schema: string;
   readonly data: {
-    readonly blinded: TBlinded;
-    readonly visible: TVisible;
+    readonly blinded: BlindedPayload<TSchema>;
+    readonly visible: VisibleDataForSchema<TSchema>;
+  };
+}
+export interface BlindSignedCredential<TSchema extends AnyCredentialSchema> {
+  readonly schema: string;
+  readonly credentialTemplate: CredentialTemplate<TSchema>;
+  readonly proof: {
+    readonly blindSignature: ByteArray;
+    readonly blindMessage: ByteArray;
+    readonly message: ByteArray;
+    readonly metadata: ByteArray;
+    readonly messageRandomizer: ByteArray;
+    readonly blindingSecret: ByteArray;
   };
 }
 export function createSchema<
@@ -80,12 +104,22 @@ export function createSchema<
   SchemaFieldsFromList<TBlindedFields>,
   SchemaFieldsFromList<TVisibleFields>
 >;
-export function createCredential<TBlinded extends CredentialData, TVisible extends CredentialData>(
-  schema: CredentialSchema<TBlinded, TVisible, unknown, unknown>,
-  blindedData: TBlinded,
-  visibleData: TVisible,
-): CredentialTemplate<TBlinded, TVisible>;
-export function schemaDigest(schema: CredentialSchema<CredentialData, CredentialData, unknown, unknown>): string;
+export function blind<TSchema extends AnyCredentialSchema>(
+  schema: TSchema,
+  blindedData: BlindedDataForSchema<TSchema>,
+): BlindedPayload<TSchema>;
+export function createCredential<TSchema extends AnyCredentialSchema>(
+  schema: TSchema,
+  blindedPayload: BlindedPayload<TSchema>,
+  visibleData: VisibleDataForSchema<TSchema>,
+): CredentialTemplate<TSchema>;
+export function blindSignCredential<TSchema extends AnyCredentialSchema>(
+  schema: TSchema,
+  blindedPayload: BlindedPayload<TSchema>,
+  visibleData: VisibleDataForSchema<TSchema>,
+  blindingKeyPair: PbrsaKeyPair,
+): BlindSignedCredential<TSchema>;
+export function schemaDigest(schema: AnyCredentialSchema): string;
 "#;
 
 // Keep these arguments as `JsValue`: callers pass ordinary JS objects/arrays,
@@ -98,20 +132,43 @@ pub fn create_schema(blinded_fields: JsValue, visible_fields: JsValue) -> Result
     to_js_value(&schema)
 }
 
+#[wasm_bindgen(js_name = blind, skip_typescript)]
+pub fn blind(schema: JsValue, blinded_data: JsValue) -> Result<JsValue, JsError> {
+    let schema = serde_wasm_bindgen::from_value(schema).map_err(js_error)?;
+    let blinded_data = serde_wasm_bindgen::from_value(blinded_data).map_err(js_error)?;
+    let blinded_payload = blind_value(schema, blinded_data).map_err(js_error)?;
+    to_js_value(&blinded_payload)
+}
+
 // The phantom type parameters live only in TypeScript. Rust re-validates the
 // schema digest and data shape here so untyped JS callers cannot bypass checks.
 #[wasm_bindgen(js_name = createCredential, skip_typescript)]
 pub fn create_credential(
     schema: JsValue,
-    blinded_data: JsValue,
+    blinded_payload: JsValue,
     visible_data: JsValue,
 ) -> Result<JsValue, JsError> {
     let schema = serde_wasm_bindgen::from_value(schema).map_err(js_error)?;
-    let blinded_data = serde_wasm_bindgen::from_value(blinded_data).map_err(js_error)?;
+    let blinded_payload = serde_wasm_bindgen::from_value(blinded_payload).map_err(js_error)?;
     let visible_data = serde_wasm_bindgen::from_value(visible_data).map_err(js_error)?;
     let credential =
-        create_credential_value(schema, blinded_data, visible_data).map_err(js_error)?;
+        create_credential_value(schema, blinded_payload, visible_data).map_err(js_error)?;
     to_js_value(&credential)
+}
+
+#[wasm_bindgen(js_name = blindSignCredential, skip_typescript)]
+pub fn blind_sign_credential(
+    schema: JsValue,
+    blinded_payload: JsValue,
+    visible_data: JsValue,
+    blinding_key_pair: &PbrsaKeyPair,
+) -> Result<JsValue, JsError> {
+    let schema = serde_wasm_bindgen::from_value(schema).map_err(js_error)?;
+    let blinded_payload = serde_wasm_bindgen::from_value(blinded_payload).map_err(js_error)?;
+    let visible_data = serde_wasm_bindgen::from_value(visible_data).map_err(js_error)?;
+    let signed_credential =
+        blind_sign_credential_value(schema, blinded_payload, visible_data, blinding_key_pair)?;
+    to_js_value(&signed_credential)
 }
 
 #[wasm_bindgen(js_name = schemaDigest, skip_typescript)]
@@ -144,21 +201,110 @@ pub(crate) fn create_schema_value(
     }))
 }
 
+pub(crate) fn blind_value(schema: Value, blinded_data: Value) -> SchemaResult<Value> {
+    let schema = unwrap_schema_definition(&schema)?;
+    let digest = validated_schema_digest(schema)?;
+    let blinded_fields = schema
+        .get("fields")
+        .and_then(|fields| fields.get("blinded"))
+        .ok_or_else(|| "schema.fields.blinded is required".to_owned())?;
+    validate_data_against_fields(&blinded_data, blinded_fields, "blinded")?;
+
+    Ok(json!({
+        "schema": digest,
+        "payload": blinded_data,
+    }))
+}
+
 pub(crate) fn create_credential_value(
     schema: Value,
-    blinded_data: Value,
+    blinded_payload: Value,
     visible_data: Value,
 ) -> SchemaResult<Value> {
     let schema = unwrap_schema_definition(&schema)?;
-    let digest = schema
-        .get("digest")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "schema.digest must be a string".to_owned())?;
-    let expected_digest = schema_digest_value(schema)?;
-    if digest != expected_digest {
-        return Err("schema.digest does not match schema fields".to_owned());
-    }
+    let digest = validate_credential_parts(
+        schema,
+        &blinded_payload,
+        &visible_data,
+        "credential.blinded.payload",
+        "credential.visible",
+    )?;
+    Ok(credential_template_value(
+        digest,
+        blinded_payload,
+        visible_data,
+    ))
+}
 
+fn credential_template_value(digest: String, blinded_payload: Value, visible_data: Value) -> Value {
+    json!({
+        "schema": digest,
+        "data": {
+            "blinded": blinded_payload,
+            "visible": visible_data,
+        },
+    })
+}
+
+pub(crate) fn blind_sign_credential_value(
+    schema: Value,
+    blinded_payload: Value,
+    visible_data: Value,
+    blinding_key_pair: &PbrsaKeyPair,
+) -> Result<Value, JsError> {
+    let schema = unwrap_schema_definition(&schema).map_err(js_error)?;
+    let digest = validate_credential_parts(
+        schema,
+        &blinded_payload,
+        &visible_data,
+        "signedCredential.blinded.payload",
+        "signedCredential.visible",
+    )
+    .map_err(js_error)?;
+    let credential_template = credential_template_value(
+        digest.clone(),
+        blinded_payload.clone(),
+        visible_data.clone(),
+    );
+    let payload = blinded_payload
+        .get("payload")
+        .ok_or_else(|| JsError::new("blinded payload is missing payload data"))?;
+    let message = canonical_json(payload).into_bytes();
+    let metadata = canonical_json(&json!({
+        "schema": digest,
+        "visible": visible_data,
+    }))
+    .into_bytes();
+
+    let derived_key_pair = blinding_key_pair.derive_for_metadata(metadata.clone())?;
+    let public_key = derived_key_pair.public_key();
+    let secret_key = derived_key_pair.secret_key();
+    let blinding_result = public_key.blind(message.clone(), metadata.clone())?;
+    let blind_message = blinding_result.blind_message();
+    let blind_signature = secret_key.blind_sign(blind_message.clone())?;
+
+    Ok(json!({
+        "schema": digest,
+        "credentialTemplate": credential_template,
+        "proof": {
+            "blindSignature": bytes_value(blind_signature),
+            "blindMessage": bytes_value(blind_message),
+            "message": bytes_value(message),
+            "metadata": bytes_value(metadata),
+            "messageRandomizer": bytes_value(blinding_result.message_randomizer()),
+            "blindingSecret": bytes_value(blinding_result.secret()),
+        },
+    }))
+}
+
+fn validate_credential_parts(
+    schema: &Value,
+    blinded_payload: &Value,
+    visible_data: &Value,
+    blinded_path: &str,
+    visible_path: &str,
+) -> SchemaResult<String> {
+    let digest = validated_schema_digest(schema)?;
     let fields = schema
         .get("fields")
         .ok_or_else(|| "schema.fields is required".to_owned())?;
@@ -168,16 +314,32 @@ pub(crate) fn create_credential_value(
     let visible_fields = fields
         .get("visible")
         .ok_or_else(|| "schema.fields.visible is required".to_owned())?;
-    validate_data_against_fields(&blinded_data, blinded_fields, "credential.blinded")?;
-    validate_data_against_fields(&visible_data, visible_fields, "credential.visible")?;
+    let blinded_payload_digest = blinded_payload
+        .get("schema")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "blinded payload schema must be a string".to_owned())?;
+    if blinded_payload_digest != digest {
+        return Err("blinded payload schema does not match credential schema".to_owned());
+    }
 
-    Ok(json!({
-        "schema": digest,
-        "data": {
-            "blinded": blinded_data,
-            "visible": visible_data,
-        },
-    }))
+    let blinded_payload_data = blinded_payload
+        .get("payload")
+        .ok_or_else(|| "blinded payload is missing payload data".to_owned())?;
+    validate_data_against_fields(blinded_payload_data, blinded_fields, blinded_path)?;
+    validate_data_against_fields(visible_data, visible_fields, visible_path)?;
+    Ok(digest)
+}
+
+fn validated_schema_digest(schema: &Value) -> SchemaResult<String> {
+    let digest = schema
+        .get("digest")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "schema.digest must be a string".to_owned())?;
+    let expected_digest = schema_digest_value(schema)?;
+    if digest != expected_digest {
+        return Err("schema.digest does not match schema fields".to_owned());
+    }
+    Ok(digest.to_owned())
 }
 
 pub(crate) fn schema_digest_value(schema: &Value) -> SchemaResult<String> {
@@ -357,6 +519,10 @@ fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+fn bytes_value(bytes: Vec<u8>) -> Value {
+    Value::Array(bytes.into_iter().map(Value::from).collect())
+}
+
 fn to_js_value(value: &impl Serialize) -> Result<JsValue, JsError> {
     value
         .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
@@ -434,11 +600,16 @@ mod tests {
             ]),
         )
         .unwrap();
-        let credential = create_credential_value(
+        let blinded_payload = blind_value(
             schema.clone(),
             json!({
                 "holder_pubkey": "holder",
             }),
+        )
+        .unwrap();
+        let credential = create_credential_value(
+            schema.clone(),
+            blinded_payload,
             json!({
                 "issuer_id_pubkey": "issuer",
                 "score": 7,
@@ -450,7 +621,11 @@ mod tests {
         .unwrap();
 
         assert_eq!(credential["schema"], schema["digest"]);
-        assert_eq!(credential["data"]["blinded"]["holder_pubkey"], "holder");
+        assert_eq!(credential["data"]["blinded"]["schema"], schema["digest"]);
+        assert_eq!(
+            credential["data"]["blinded"]["payload"]["holder_pubkey"],
+            "holder"
+        );
         assert_eq!(credential["data"]["visible"]["score"], 7);
     }
 
@@ -465,11 +640,16 @@ mod tests {
             ]),
         )
         .unwrap();
-        let credential = create_credential_value(
-            schema,
+        let blinded_payload = blind_value(
+            schema.clone(),
             json!({
                 "holder_pubkey": "holder",
             }),
+        )
+        .unwrap();
+        let credential = create_credential_value(
+            schema,
+            blinded_payload,
             json!({
                 "score": 7,
                 "unexpected": true,

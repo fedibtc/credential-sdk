@@ -18,15 +18,6 @@ pub fn validate_credential_issuance_payload(payload: String) -> Result<bool, JsE
     todo!("validate visible credential fields and holder blinded message")
 }
 
-#[wasm_bindgen(js_name = blindSignCredential)]
-pub fn blind_sign_credential(
-    issuance_secret_key: &PbrsaSecretKey,
-    holder_blind_message: Vec<u8>,
-) -> Result<Vec<u8>, JsError> {
-    let _ = (issuance_secret_key, holder_blind_message);
-    todo!("sign holder blinded credential message with derived pbRSA issuer key")
-}
-
 #[wasm_bindgen(js_name = createSignedCredentialResponse)]
 pub fn create_signed_credential_response(
     payload: String,
