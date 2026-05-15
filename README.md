@@ -1,9 +1,76 @@
 # @fedibtc/blind-rsa-signatures-wasm
 
-WebAssembly bindings for the Rust [`blind-rsa-signatures`](https://crates.io/crates/blind-rsa-signatures) crate.
+WebAssembly bindings for a partially blind RSA verifiable credential protocol.
 
-This package exposes the recommended SHA-384/PSS/randomized configuration for regular
-blind RSA signatures and partially blind RSA signatures with metadata.
+The library is intended to own the protocol-sensitive pieces of credential issuance and verification: schema construction, schema digests, holder blinding, issuer partial blind signing, holder finalization, runtime validation, and the WASM/TypeScript API surface around those operations.
+
+It deliberately does not own app concerns such as browser storage, QR codes, Nostr relay I/O, HTTP fetching, UI state, verifier policy, or revocation list refresh jobs.
+
+## Credential Flow
+
+The current protocol shape separates issuer-visible data from holder-hidden data:
+
+```ts
+{
+  credential: {
+    info: {
+      schema: "[schema-digest]",
+      issuer_id_pubkey: "issuer-id-pubkey",
+      score: 7,
+    },
+    blind_msg: "anonymous-holder-public-key",
+  },
+  proof: {
+    signature: "RSA-signature",
+  },
+}
+```
+
+During issuance, `credential.info` is public metadata and `credential.blind_msg` is blinded. The issuer partially blind-signs both pieces together: the hidden message is the blinded payload, and the visible credential info is the public metadata. During finalization, the holder unblinds the signature and gets the final verifiable credential shape above.
+
+## Public API
+
+The current high-level API is:
+
+- `generateIssuerKeys(modulusBits)`
+- `createSchema(blindedFields, visibleFields)`
+- `schemaDigest(schema)`
+- `blind(schema, blindedData)`
+- `createCredential(schema, blindedPayload, visibleData)`
+- `blindSignCredential(schema, blindedPayload, visibleData, issuerKeys)`
+- `finalizeCredential(blindSignedCredential, issuerPublicKey)`
+
+The low-level key surface is intentionally small:
+
+- `PbrsaPublicKey.blind(message, metadata)`
+- `PbrsaSecretKey.blindSign(blindMessage, metadata)`
+- `PbrsaPublicKey.verify(signature, messageRandomizer, message, metadata)`
+
+## Status
+
+This checklist is intentionally shorter than [docs/library-todos.md](docs/library-todos.md). It tracks the major pieces needed before this can be treated as a complete reusable protocol library.
+
+- [x] Rust/WASM build wired through `wasm-pack`
+- [x] pnpm, TypeScript, Vitest, and Rust test workflows
+- [x] Minimal public pbRSA key API for issuer key generation, blinding, partial blind signing, and verification
+- [x] Dynamic credential schemas with TypeScript type inference for blinded and visible fields
+- [x] Schema digesting and order-stable digest tests
+- [x] Runtime validation for schema-shaped visible and blinded credential data
+- [x] Holder blinding flow with retained unblinding state
+- [x] Credential template construction in the protocol credential shape
+- [x] Partial blind signing over hidden `blind_msg` plus visible `credential.info`
+- [x] Holder finalization into a verifiable credential with an unblinded signature
+- [x] Tamper and mismatch tests for schema data, blind-signed credentials, and finalization
+- [x] Initial canonical protocol structs for issuer bundles, credentials, schemas, and revocation objects
+- [ ] Implement issuer bundle creation and verification
+- [ ] Replace issuer issuance stubs with finalized request/response helpers
+- [ ] Implement full `verifyCredential`
+- [ ] Implement credential digesting and revocation creation/verification
+- [ ] Specify canonical JSON encoding formally rather than relying on the current internal canonicalizer
+- [ ] Add typed, machine-readable errors
+- [ ] Add deterministic fixtures and stable test vectors
+- [ ] Add encode/decode helpers for all protocol messages
+- [ ] Complete a security review of domain separation, randomness, key handling, replay risk, and malformed input behavior
 
 ## Development
 
@@ -11,62 +78,14 @@ blind RSA signatures and partially blind RSA signatures with metadata.
 devenv shell
 pnpm install
 pnpm run build
-```
-
-`pnpm run build` uses `wasm-pack build --scope fedibtc --target bundler --out-dir pkg`.
-
-Automated smoke coverage runs through Vitest:
-
-```sh
 pnpm test
 ```
 
-Publish the generated wasm-pack package:
+`pnpm run build` runs `wasm-pack build --scope fedibtc --target bundler --out-dir pkg --no-opt`.
 
-```sh
-pnpm run publish
-```
+Useful scripts:
 
-## Regular Blind RSA
-
-```ts
-import { BrsaKeyPair } from "@fedibtc/blind-rsa-signatures-wasm";
-
-const keys = BrsaKeyPair.generate(2048);
-const message = new TextEncoder().encode("token");
-
-const publicKey = keys.publicKey;
-const secretKey = keys.secretKey;
-
-const blinded = publicKey.blind(message);
-const blindSignature = secretKey.blindSign(blinded.blindMessage);
-const signature = publicKey.finalize(blindSignature, blinded, message);
-
-console.log(publicKey.verify(signature, blinded.messageRandomizer, message));
-```
-
-## Partially Blind RSA
-
-```ts
-import { PbrsaKeyPair } from "@fedibtc/blind-rsa-signatures-wasm";
-
-const masterKeys = PbrsaKeyPair.generate(2048);
-const metadata = new TextEncoder().encode("2026-05-11");
-const message = new TextEncoder().encode("token");
-
-const derivedKeys = masterKeys.deriveForMetadata(metadata);
-const publicKey = derivedKeys.publicKey;
-const secretKey = derivedKeys.secretKey;
-
-const blinded = publicKey.blind(message, metadata);
-const blindSignature = secretKey.blindSign(blinded.blindMessage);
-const signature = publicKey.finalize(blindSignature, blinded, message, metadata);
-
-console.log(
-  publicKey.verify(signature, blinded.messageRandomizer, message, metadata),
-);
-```
-
-Byte inputs are `Uint8Array`. Metadata is byte-exact.
-
-Derived PBRSA keys are Rust-backed WebAssembly objects. They are not serialized as DER or PEM because the underlying Rust crate does not serialize derived keys to standard key formats.
+- `pnpm run test:rust` runs Rust unit tests.
+- `pnpm run test:ts` rebuilds the WASM package, typechecks TypeScript, and runs Vitest.
+- `pnpm run check` runs typecheck and the full test suite.
+- `pnpm run publish:dry-run` builds and validates the generated package before publishing.
