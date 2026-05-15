@@ -1,0 +1,16 @@
+[package]
+name = "blind-rsa-signatures-wasm-next"
+version = "0.1.0"
+edition = "2021"
+description = "WebAssembly bindings for the fedibtc blind RSA credential protocol crate."
+license = "MIT"
+repository = "https://github.com/fedibtc/blind-rsa-signatures-wasm"
+readme = "../../README.md"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+fedibtc-blind-rsa-signatures = { path = "../protocol", version = "0.1.0" }
+serde-wasm-bindgen = "0.6"
+wasm-bindgen = "0.2"

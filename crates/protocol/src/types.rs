@@ -1,89 +1,62 @@
+use crate::schema::SchemaFields;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use tsify::Tsify;
+use serde_json::Value;
 
-#[tsify::declare]
+pub type ByteArray = Vec<u8>;
+pub type CredentialData = Value;
 pub type Digest = String;
-
-#[tsify::declare]
+pub type SchemaName = String;
 pub type PublicKey = String;
-
-#[tsify::declare]
 pub type SignatureValue = String;
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
-#[tsify(type = "{ issuer: Issuer; proof: SignatureProof }")]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct IssuerBundle {
     pub issuer: Issuer,
     pub proof: SignatureProof,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
-#[tsify(
-    type = "{ issuer_id_pubkey: PublicKey; issuance_key: PublicKey; revocation: RevocationLocation[] }"
-)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Issuer {
     pub issuer_id_pubkey: PublicKey,
     pub issuance_key: PublicKey,
     pub revocation: Vec<RevocationLocation>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
-#[tsify(type = "{ protocol: string; location: string }")]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RevocationLocation {
     pub protocol: String,
     pub location: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
-#[tsify(type = "{ schema: Schema }")]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SchemaDefinition {
     pub schema: Schema,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
-#[tsify(
-    type = "{ id: string; version: string; digest: Digest; fields: Record<string, SchemaField> }"
-)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Schema {
     pub id: String,
     pub version: String,
-    pub digest: Digest,
-    #[tsify(type = "Record<string, SchemaField>")]
     pub fields: SchemaFields,
 }
 
-pub type SchemaFields = BTreeMap<String, SchemaField>;
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
-#[tsify(type = "string | Record<string, SchemaField>")]
-#[serde(untagged)]
-pub enum SchemaField {
-    Type(String),
-    Object(SchemaFields),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
-#[tsify(type = "{ revocation: RevocationEntry; proof: IssuerSignatureProof }")]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Revocation {
     pub revocation: RevocationEntry,
     pub proof: IssuerSignatureProof,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
-#[tsify(type = "{ credential_digest: Digest }")]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RevocationEntry {
     pub credential_digest: Digest,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
-#[tsify(type = "{ signature: SignatureValue }")]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SignatureProof {
     pub signature: SignatureValue,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
-#[tsify(type = "{ issuer_id_pubkey: PublicKey; signature: SignatureValue }")]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct IssuerSignatureProof {
     pub issuer_id_pubkey: PublicKey,
     pub signature: SignatureValue,
@@ -124,27 +97,18 @@ mod tests {
             "schema": {
                 "id": "fedi-trust-score",
                 "version": "1.0.0",
-                "digest": "base64url-digest",
                 "fields": {
-                    "info": {
-                        "schema": "string",
-                        "issuer_id_pubkey": "string",
-                        "score": "number"
-                    },
+                    "schema": "string",
+                    "issuer_id_pubkey": "string",
+                    "score": "string",
                     "blind_msg": "string"
                 }
             }
         }))
         .unwrap();
 
-        assert!(matches!(
-            schema_definition.schema.fields["blind_msg"],
-            SchemaField::Type(ref field_type) if field_type == "string"
-        ));
-        assert!(matches!(
-            schema_definition.schema.fields["info"],
-            SchemaField::Object(_)
-        ));
+        assert_eq!(schema_definition.schema.fields["blind_msg"], "string");
+        assert_eq!(schema_definition.schema.fields["score"], "string");
     }
 
     #[test]

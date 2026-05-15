@@ -2,26 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type {
   IssuerBundle,
-  LegacyVerifiableCredential,
   Revocation,
   SchemaDefinition,
 } from "../pkg/blind_rsa_signatures_wasm.js";
 
 describe("protocol types", () => {
   it("typechecks MVP protocol envelopes", () => {
-    const verifiableCredential = {
-      credential: {
-        info: {
-          schema: "base64url-digest",
-          issuer_id_pubkey: "issuer-id-pubkey",
-          score: 7,
-        },
-        blind_msg: "anonymous-holder-public-key",
-      },
-      proof: {
-        signature: "RSA-signature",
-      },
-    } satisfies LegacyVerifiableCredential;
     const issuerBundle = {
       issuer: {
         issuer_id_pubkey: "issuer-id-pubkey",
@@ -62,7 +48,6 @@ describe("protocol types", () => {
       },
     } satisfies Revocation;
 
-    expect(verifiableCredential.credential.info.score).toBe(7);
     expect(issuerBundle.issuer.revocation[0].protocol).toBe("https");
     expect(schemaDefinition.schema.fields.blind_msg).toBe("string");
     expect(revocation.proof.issuer_id_pubkey).toBe("id-public-key");

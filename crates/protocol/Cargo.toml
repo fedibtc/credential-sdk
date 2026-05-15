@@ -1,0 +1,12 @@
+[package]
+name = "fedibtc-blind-rsa-signatures"
+version = "0.1.0"
+edition = "2021"
+description = "Rust-facing credential protocol API for partially blind RSA signatures."
+license = "MIT"
+repository = "https://github.com/fedibtc/blind-rsa-signatures-wasm"
+readme = "../../README.md"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

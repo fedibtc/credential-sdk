@@ -14,4 +14,4 @@ pub use issuer::{
 pub use keys::{
     generate_issuer_keys, BlindingResultBytes, PbrsaKeyPair, PbrsaPublicKey, PbrsaSecretKey,
 };
-pub use types::{IssuerBundle, LegacyVerifiableCredential, Revocation, SchemaDefinition};
+pub use types::{IssuerBundle, Revocation, SchemaDefinition};

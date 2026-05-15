@@ -74,6 +74,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "blind-rsa-signatures-wasm-next"
+version = "0.1.0"
+dependencies = [
+ "fedibtc-blind-rsa-signatures",
+ "serde-wasm-bindgen",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -289,6 +298,14 @@ name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
+
+[[package]]
+name = "fedibtc-blind-rsa-signatures"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "foldhash"
