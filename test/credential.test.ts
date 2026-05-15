@@ -130,9 +130,9 @@ describe("dynamic credential schemas", () => {
     expect(signedCredential.credential.info.score).toBe(7);
     expect(signedCredential.credential.blind_msg.length).toBeGreaterThan(0);
     expect(signedCredential.proof.signature.length).toBeGreaterThan(0);
-    expect(signedCredential.proof.blindMessage.length).toBeGreaterThan(0);
-    expect(signedCredential.proof.metadata.length).toBeGreaterThan(0);
-    expect(signedCredential.proof.message.length).toBeGreaterThan(0);
+    expect(signedCredential.proof.blinded_msg.length).toBeGreaterThan(0);
+    expect(signedCredential.proof.info.length).toBeGreaterThan(0);
+    expect(signedCredential.proof.blind_msg.length).toBeGreaterThan(0);
     expect(credential).toEqual({
       credential: {
         info: {
@@ -153,8 +153,8 @@ describe("dynamic credential schemas", () => {
       publicKey.verify(
         Uint8Array.from(credential.proof.signature),
         Uint8Array.from(signedCredential.proof.messageRandomizer),
-        Uint8Array.from(signedCredential.proof.message),
-        Uint8Array.from(signedCredential.proof.metadata),
+        Uint8Array.from(signedCredential.proof.blind_msg),
+        Uint8Array.from(signedCredential.proof.info),
       ),
     ).toBe(true);
     expect(

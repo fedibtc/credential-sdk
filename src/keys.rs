@@ -30,11 +30,11 @@ impl PbrsaKeyPair {
         Ok(PbrsaKeyPair {
             public_key: PbrsaPublicKey {
                 inner: key_pair.pk,
-                metadata: None,
+                info: None,
             },
             secret_key: PbrsaSecretKey {
                 inner: key_pair.sk,
-                metadata: None,
+                info: None,
             },
         })
     }
@@ -57,20 +57,16 @@ impl PbrsaKeyPair {
 #[derive(Clone)]
 pub struct PbrsaPublicKey {
     inner: PbrsaPublicKeyInner,
-    metadata: Option<Vec<u8>>,
+    info: Option<Vec<u8>>,
 }
 
 #[wasm_bindgen]
 impl PbrsaPublicKey {
-    pub fn blind(
-        &self,
-        message: Vec<u8>,
-        metadata: Vec<u8>,
-    ) -> Result<BlindingResultBytes, JsError> {
-        let public_key = self.inner_for_metadata(&metadata)?;
+    pub fn blind(&self, blind_msg: Vec<u8>, info: Vec<u8>) -> Result<BlindingResultBytes, JsError> {
+        let public_key = self.inner_for_info(&info)?;
         Ok(BlindingResultBytes {
             inner: public_key
-                .blind(&mut DefaultRng, message, Some(&metadata))
+                .blind(&mut DefaultRng, blind_msg, Some(&info))
                 .map_err(js_error)?,
         })
     }
@@ -79,35 +75,35 @@ impl PbrsaPublicKey {
         &self,
         signature: Vec<u8>,
         message_randomizer: Vec<u8>,
-        message: Vec<u8>,
-        metadata: Vec<u8>,
+        blind_msg: Vec<u8>,
+        info: Vec<u8>,
     ) -> Result<bool, JsError> {
-        let public_key = self.inner_for_metadata(&metadata)?;
+        let public_key = self.inner_for_info(&info)?;
         let message_randomizer = Some(message_randomizer_from_bytes(message_randomizer)?);
         Ok(public_key
             .verify(
                 &Signature(signature),
                 message_randomizer,
-                message,
-                Some(&metadata),
+                blind_msg,
+                Some(&info),
             )
             .is_ok())
     }
 }
 
 impl PbrsaPublicKey {
-    fn inner_for_metadata(&self, metadata: &[u8]) -> Result<PbrsaPublicKeyInner, JsError> {
-        if let Some(expected) = &self.metadata {
-            if expected != metadata {
+    fn inner_for_info(&self, info: &[u8]) -> Result<PbrsaPublicKeyInner, JsError> {
+        if let Some(expected) = &self.info {
+            if expected != info {
                 return Err(JsError::new(
-                    "metadata must match the derived PBRSA public key metadata",
+                    "info must match the derived PBRSA public key info",
                 ));
             }
             return Ok(self.inner.clone());
         }
 
         self.inner
-            .derive_public_key_for_metadata(metadata)
+            .derive_public_key_for_metadata(info)
             .map_err(js_error)
     }
 }
@@ -116,28 +112,24 @@ impl PbrsaPublicKey {
 #[derive(Clone)]
 pub struct PbrsaSecretKey {
     inner: PbrsaSecretKeyInner,
-    metadata: Option<Vec<u8>>,
+    info: Option<Vec<u8>>,
 }
 
 #[wasm_bindgen]
 impl PbrsaSecretKey {
     #[wasm_bindgen(js_name = blindSign)]
-    pub fn blind_sign(
-        &self,
-        blind_message: Vec<u8>,
-        metadata: Vec<u8>,
-    ) -> Result<Vec<u8>, JsError> {
-        let secret_key = self.inner_for_metadata(&metadata)?;
-        Ok(secret_key.blind_sign(blind_message).map_err(js_error)?.0)
+    pub fn blind_sign(&self, blind_msg: Vec<u8>, info: Vec<u8>) -> Result<Vec<u8>, JsError> {
+        let secret_key = self.inner_for_info(&info)?;
+        Ok(secret_key.blind_sign(blind_msg).map_err(js_error)?.0)
     }
 }
 
 impl PbrsaSecretKey {
-    fn inner_for_metadata(&self, metadata: &[u8]) -> Result<PbrsaSecretKeyInner, JsError> {
-        if let Some(expected) = &self.metadata {
-            if expected != metadata {
+    fn inner_for_info(&self, info: &[u8]) -> Result<PbrsaSecretKeyInner, JsError> {
+        if let Some(expected) = &self.info {
+            if expected != info {
                 return Err(JsError::new(
-                    "metadata must match the derived PBRSA secret key metadata",
+                    "info must match the derived PBRSA secret key info",
                 ));
             }
             return Ok(self.inner.clone());
@@ -148,7 +140,7 @@ impl PbrsaSecretKey {
             pk: public_key,
             sk: self.inner.clone(),
         }
-        .derive_secret_key_for_metadata(metadata)
+        .derive_secret_key_for_metadata(info)
         .map_err(js_error)
     }
 }
@@ -160,7 +152,7 @@ pub struct BlindingResultBytes {
 
 #[wasm_bindgen]
 impl BlindingResultBytes {
-    #[wasm_bindgen(getter, js_name = blindMessage)]
+    #[wasm_bindgen(getter, js_name = blind_msg)]
     pub fn blind_message(&self) -> Vec<u8> {
         self.inner.blind_message.0.clone()
     }
@@ -182,20 +174,20 @@ impl BlindingResultBytes {
 pub(crate) fn finalize_pbrsa_signature(
     public_key: &PbrsaPublicKey,
     blind_signature: Vec<u8>,
-    blind_message: Vec<u8>,
+    blinded_msg: Vec<u8>,
     secret: Vec<u8>,
     message_randomizer: Vec<u8>,
-    message: Vec<u8>,
-    metadata: Vec<u8>,
+    blind_msg: Vec<u8>,
+    info: Vec<u8>,
 ) -> Result<Vec<u8>, JsError> {
-    let derived_public_key = public_key.inner_for_metadata(&metadata)?;
-    let blinding_result = blinding_result_from_bytes(blind_message, secret, message_randomizer)?;
+    let derived_public_key = public_key.inner_for_info(&info)?;
+    let blinding_result = blinding_result_from_bytes(blinded_msg, secret, message_randomizer)?;
     Ok(derived_public_key
         .finalize(
             &BlindSignature(blind_signature),
             &blinding_result,
-            message,
-            Some(&metadata),
+            blind_msg,
+            Some(&info),
         )
         .map_err(js_error)?
         .0)
@@ -224,4 +216,170 @@ fn blinding_result_from_bytes(
 
 fn js_error(error: impl std::fmt::Display) -> JsError {
     JsError::new(&error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_blind_msg() -> Vec<u8> {
+        b"holder-public-key".to_vec()
+    }
+
+    fn test_info() -> Vec<u8> {
+        br#"{"schema":"sha256:test","score":7}"#.to_vec()
+    }
+
+    #[test]
+    fn issuer_keygen_returns_blinding_and_signing_keys() {
+        let key_pair = generate_issuer_keys(1024).unwrap();
+
+        let public_key = key_pair.public_key();
+        let secret_key = key_pair.secret_key();
+        let info = test_info();
+        let blinded = public_key
+            .blind(test_blind_msg(), info.clone())
+            .expect("public key should blind with info");
+
+        assert!(!blinded.blind_message().is_empty());
+        assert!(!blinded.secret().is_empty());
+        assert_eq!(blinded.message_randomizer().len(), 32);
+        assert!(
+            secret_key
+                .blind_sign(blinded.blind_message(), info)
+                .expect("secret key should blind-sign")
+                .len()
+                > 0
+        );
+    }
+
+    #[test]
+    fn blind_sign_finalize_and_verify_round_trip() {
+        let key_pair = generate_issuer_keys(1024).unwrap();
+        let public_key = key_pair.public_key();
+        let secret_key = key_pair.secret_key();
+        let blind_msg = test_blind_msg();
+        let info = test_info();
+
+        let blinded = public_key.blind(blind_msg.clone(), info.clone()).unwrap();
+        let blind_signature = secret_key
+            .blind_sign(blinded.blind_message(), info.clone())
+            .unwrap();
+        let signature = finalize_pbrsa_signature(
+            &public_key,
+            blind_signature,
+            blinded.blind_message(),
+            blinded.secret(),
+            blinded.message_randomizer(),
+            blind_msg.clone(),
+            info.clone(),
+        )
+        .unwrap();
+
+        assert!(public_key
+            .verify(signature, blinded.message_randomizer(), blind_msg, info,)
+            .unwrap());
+    }
+
+    #[test]
+    fn verify_returns_false_for_tampered_message() {
+        let key_pair = generate_issuer_keys(1024).unwrap();
+        let public_key = key_pair.public_key();
+        let secret_key = key_pair.secret_key();
+        let blind_msg = test_blind_msg();
+        let info = test_info();
+
+        let blinded = public_key.blind(blind_msg.clone(), info.clone()).unwrap();
+        let blind_signature = secret_key
+            .blind_sign(blinded.blind_message(), info.clone())
+            .unwrap();
+        let signature = finalize_pbrsa_signature(
+            &public_key,
+            blind_signature,
+            blinded.blind_message(),
+            blinded.secret(),
+            blinded.message_randomizer(),
+            blind_msg,
+            info.clone(),
+        )
+        .unwrap();
+
+        assert!(!public_key
+            .verify(
+                signature,
+                blinded.message_randomizer(),
+                b"tampered-message".to_vec(),
+                info,
+            )
+            .unwrap());
+    }
+
+    #[test]
+    fn info_bound_keys_work_with_matching_info() {
+        let key_pair = generate_issuer_keys(1024).unwrap();
+        let info = test_info();
+        let derived_public_key = PbrsaPublicKey {
+            inner: key_pair.public_key().inner_for_info(&info).unwrap(),
+            info: Some(info.clone()),
+        };
+        let derived_secret_key = PbrsaSecretKey {
+            inner: key_pair.secret_key().inner_for_info(&info).unwrap(),
+            info: Some(info.clone()),
+        };
+        let blind_msg = test_blind_msg();
+        let blinded = derived_public_key
+            .blind(blind_msg.clone(), info.clone())
+            .unwrap();
+        let blind_signature = derived_secret_key
+            .blind_sign(blinded.blind_message(), info.clone())
+            .unwrap();
+        let signature = finalize_pbrsa_signature(
+            &derived_public_key,
+            blind_signature,
+            blinded.blind_message(),
+            blinded.secret(),
+            blinded.message_randomizer(),
+            blind_msg.clone(),
+            info.clone(),
+        )
+        .unwrap();
+
+        assert!(derived_public_key
+            .verify(signature, blinded.message_randomizer(), blind_msg, info)
+            .unwrap());
+    }
+
+    #[test]
+    fn verify_returns_false_for_wrong_info() {
+        let key_pair = generate_issuer_keys(1024).unwrap();
+        let public_key = key_pair.public_key();
+        let secret_key = key_pair.secret_key();
+        let blind_msg = test_blind_msg();
+        let info = test_info();
+        let wrong_info = b"wrong-info".to_vec();
+
+        let blinded = public_key.blind(blind_msg.clone(), info.clone()).unwrap();
+        let blind_signature = secret_key
+            .blind_sign(blinded.blind_message(), info.clone())
+            .unwrap();
+        let signature = finalize_pbrsa_signature(
+            &public_key,
+            blind_signature,
+            blinded.blind_message(),
+            blinded.secret(),
+            blinded.message_randomizer(),
+            blind_msg.clone(),
+            info,
+        )
+        .unwrap();
+
+        assert!(!public_key
+            .verify(
+                signature,
+                blinded.message_randomizer(),
+                blind_msg,
+                wrong_info,
+            )
+            .unwrap());
+    }
 }

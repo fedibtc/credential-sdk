@@ -26,7 +26,7 @@ The current protocol shape separates issuer-visible data from holder-hidden data
 }
 ```
 
-During issuance, `credential.info` is public metadata and `credential.blind_msg` is blinded. The issuer partially blind-signs both pieces together: the hidden message is the blinded payload, and the visible credential info is the public metadata. During finalization, the holder unblinds the signature and gets the final verifiable credential shape above.
+During issuance, `credential.info` is public and `credential.blind_msg` is blinded. The issuer partially blind-signs both pieces together: `blind_msg` is the hidden payload, and `info` is the visible credential data. During finalization, the holder unblinds the signature and gets the final verifiable credential shape above.
 
 ## Public API
 
@@ -42,9 +42,9 @@ The current high-level API is:
 
 The low-level key surface is intentionally small:
 
-- `PbrsaPublicKey.blind(message, metadata)`
-- `PbrsaSecretKey.blindSign(blindMessage, metadata)`
-- `PbrsaPublicKey.verify(signature, messageRandomizer, message, metadata)`
+- `PbrsaPublicKey.blind(blind_msg, info)`
+- `PbrsaSecretKey.blindSign(blind_msg, info)`
+- `PbrsaPublicKey.verify(signature, messageRandomizer, blind_msg, info)`
 
 ## Status
 

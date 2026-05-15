@@ -89,9 +89,9 @@ export interface BlindSignedCredential<TSchema extends AnyCredentialSchema> {
   };
   readonly proof: {
     readonly signature: ByteArray;
-    readonly blindMessage: ByteArray;
-    readonly message: ByteArray;
-    readonly metadata: ByteArray;
+    readonly blinded_msg: ByteArray;
+    readonly blind_msg: ByteArray;
+    readonly info: ByteArray;
     readonly messageRandomizer: ByteArray;
     readonly blindingSecret: ByteArray;
   };
@@ -300,28 +300,28 @@ pub(crate) fn blind_sign_credential_value(
     )
     .map_err(js_error)?;
     let info = credential_info_value(&digest, &visible_data).map_err(js_error)?;
-    let payload = blinded_payload
+    let blind_msg_data = blinded_payload
         .get("payload")
         .ok_or_else(|| JsError::new("blinded payload is missing payload data"))?;
-    let message = canonical_json(payload).into_bytes();
-    let metadata = canonical_json(&info).into_bytes();
+    let blind_msg = canonical_json(blind_msg_data).into_bytes();
+    let info_bytes = canonical_json(&info).into_bytes();
 
     let public_key = blinding_key_pair.public_key();
     let secret_key = blinding_key_pair.secret_key();
-    let blinding_result = public_key.blind(message.clone(), metadata.clone())?;
-    let blind_message = blinding_result.blind_message();
-    let blind_signature = secret_key.blind_sign(blind_message.clone(), metadata.clone())?;
+    let blinding_result = public_key.blind(blind_msg.clone(), info_bytes.clone())?;
+    let blinded_msg = blinding_result.blind_message();
+    let blind_signature = secret_key.blind_sign(blinded_msg.clone(), info_bytes.clone())?;
 
     Ok(json!({
         "credential": {
             "info": info,
-            "blind_msg": bytes_value(blind_message.clone()),
+            "blind_msg": bytes_value(blinded_msg.clone()),
         },
         "proof": {
             "signature": bytes_value(blind_signature),
-            "blindMessage": bytes_value(blind_message),
-            "message": bytes_value(message),
-            "metadata": bytes_value(metadata),
+            "blinded_msg": bytes_value(blinded_msg),
+            "blind_msg": bytes_value(blind_msg),
+            "info": bytes_value(info_bytes),
             "messageRandomizer": bytes_value(blinding_result.message_randomizer()),
             "blindingSecret": bytes_value(blinding_result.secret()),
         },
@@ -360,47 +360,47 @@ pub(crate) fn finalize_credential_value(
     let blind_signature = proof_bytes(proof, "signature")?;
     let blind_message =
         value_to_bytes(blind_message_value, "signedCredential.credential.blind_msg")?;
-    let proof_blind_message = proof_bytes(proof, "blindMessage")?;
-    if blind_message != proof_blind_message {
+    let proof_blinded_msg = proof_bytes(proof, "blinded_msg")?;
+    if blind_message != proof_blinded_msg {
         return Err(JsError::new(
-            "signedCredential.credential.blind_msg does not match proof blind message",
+            "signedCredential.credential.blind_msg does not match proof blinded_msg",
         ));
     }
-    let message = proof_bytes(proof, "message")?;
-    let metadata = proof_bytes(proof, "metadata")?;
+    let blind_msg = proof_bytes(proof, "blind_msg")?;
+    let info_bytes = proof_bytes(proof, "info")?;
     let message_randomizer = proof_bytes(proof, "messageRandomizer")?;
     let blinding_secret = proof_bytes(proof, "blindingSecret")?;
 
-    let expected_metadata = canonical_json(info).into_bytes();
-    if metadata != expected_metadata {
+    let expected_info = canonical_json(info).into_bytes();
+    if info_bytes != expected_info {
         return Err(JsError::new(
-            "signedCredential.proof.metadata does not match credential info",
+            "signedCredential.proof.info does not match credential info",
         ));
     }
 
-    let blinded_data: Value = serde_json::from_slice(&message).map_err(|error| {
+    let blinded_data: Value = serde_json::from_slice(&blind_msg).map_err(|error| {
         JsError::new(&format!(
-            "signedCredential.proof.message is not valid JSON: {error}"
+            "signedCredential.proof.blind_msg is not valid JSON: {error}"
         ))
     })?;
 
     let message_randomizer_for_verify = message_randomizer.clone();
-    let message_for_verify = message.clone();
-    let metadata_for_verify = metadata.clone();
+    let blind_msg_for_verify = blind_msg.clone();
+    let info_for_verify = info_bytes.clone();
     let signature = finalize_pbrsa_signature(
         blinding_public_key,
         blind_signature,
         blind_message,
         blinding_secret,
         message_randomizer,
-        message,
-        metadata,
+        blind_msg,
+        info_bytes,
     )?;
     if !blinding_public_key.verify(
         signature.clone(),
         message_randomizer_for_verify,
-        message_for_verify,
-        metadata_for_verify,
+        blind_msg_for_verify,
+        info_for_verify,
     )? {
         return Err(JsError::new(
             "finalized credential signature could not be verified",
