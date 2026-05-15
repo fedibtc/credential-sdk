@@ -6,7 +6,7 @@ import {
   createCredential,
   createSchema,
   finalizeCredential,
-  PbrsaKeyPair,
+  generateIssuerKeys,
   schemaDigest,
 } from "../pkg/blind_rsa_signatures_wasm.js";
 import type {
@@ -113,7 +113,7 @@ describe("dynamic credential schemas", () => {
     const blindedPayload = blind(schema, {
       holder_pubkey: "holder-pubkey",
     });
-    const keyPair = PbrsaKeyPair.generate(1024);
+    const keyPair = generateIssuerKeys(1024);
     const signedCredential = blindSignCredential(
       schema,
       blindedPayload,
@@ -123,9 +123,7 @@ describe("dynamic credential schemas", () => {
       },
       keyPair,
     );
-    const publicKey = keyPair.publicKey.deriveForMetadata(
-      Uint8Array.from(signedCredential.proof.metadata),
-    );
+    const publicKey = keyPair.publicKey;
     const credential = finalizeCredential(signedCredential, publicKey);
 
     expect(signedCredential.credential.info.schema).toBe(schema.digest);
@@ -175,7 +173,7 @@ describe("dynamic credential schemas", () => {
     const blindedPayload = blind(schema, {
       holder_pubkey: "holder-pubkey",
     });
-    const keyPair = PbrsaKeyPair.generate(1024);
+    const keyPair = generateIssuerKeys(1024);
     const signedCredential = blindSignCredential(
       schema,
       blindedPayload,
@@ -185,9 +183,7 @@ describe("dynamic credential schemas", () => {
       },
       keyPair,
     );
-    const publicKey = keyPair.publicKey.deriveForMetadata(
-      Uint8Array.from(signedCredential.proof.metadata),
-    );
+    const publicKey = keyPair.publicKey;
 
     expect(() =>
       finalizeCredential(
@@ -221,7 +217,7 @@ describe("dynamic credential schemas", () => {
     expect(() =>
       finalizeCredential(
         signedCredential,
-        keyPair.publicKey.deriveForMetadata(new Uint8Array([1, 2, 3])),
+        generateIssuerKeys(1024).publicKey,
       ),
     ).toThrow();
   });
@@ -237,7 +233,7 @@ describe("dynamic credential schemas", () => {
     const blindedPayload = blind(schema, {
       holder_pubkey: "holder-pubkey",
     });
-    const keys = PbrsaKeyPair.generate(1024);
+    const keys = generateIssuerKeys(1024);
 
     expect(() =>
       blindSignCredential(
@@ -284,7 +280,7 @@ describe("dynamic credential schemas", () => {
       [{ name: "score", type: "number" }],
     );
     const visibleData = { score: 7 };
-    const keys = PbrsaKeyPair.generate(1024);
+    const keys = generateIssuerKeys(1024);
 
     expect(() =>
       blindSignCredential(
@@ -451,7 +447,7 @@ describe("dynamic credential schemas", () => {
           // @ts-expect-error score must be a number for this schema.
           score: "7",
         },
-        PbrsaKeyPair.generate(1024),
+        generateIssuerKeys(1024),
       );
     }).toThrow();
 

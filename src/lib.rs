@@ -12,7 +12,6 @@ pub use issuer::{
     validate_credential_issuance_payload,
 };
 pub use keys::{
-    derive_public_key, generate_issuer_keys, BlindingResultBytes, BrsaKeyPair, BrsaPublicKey,
-    BrsaSecretKey, PbrsaKeyPair, PbrsaPublicKey, PbrsaSecretKey,
+    generate_issuer_keys, BlindingResultBytes, PbrsaKeyPair, PbrsaPublicKey, PbrsaSecretKey,
 };
 pub use types::{IssuerBundle, LegacyVerifiableCredential, Revocation, SchemaDefinition};

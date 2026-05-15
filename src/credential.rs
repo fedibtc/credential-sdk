@@ -306,12 +306,11 @@ pub(crate) fn blind_sign_credential_value(
     let message = canonical_json(payload).into_bytes();
     let metadata = canonical_json(&info).into_bytes();
 
-    let derived_key_pair = blinding_key_pair.derive_for_metadata(metadata.clone())?;
-    let public_key = derived_key_pair.public_key();
-    let secret_key = derived_key_pair.secret_key();
+    let public_key = blinding_key_pair.public_key();
+    let secret_key = blinding_key_pair.secret_key();
     let blinding_result = public_key.blind(message.clone(), metadata.clone())?;
     let blind_message = blinding_result.blind_message();
-    let blind_signature = secret_key.blind_sign(blind_message.clone())?;
+    let blind_signature = secret_key.blind_sign(blind_message.clone(), metadata.clone())?;
 
     Ok(json!({
         "credential": {
