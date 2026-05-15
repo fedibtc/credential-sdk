@@ -2,7 +2,7 @@
 name = "fedibtc-blind-rsa-signatures"
 version = "0.1.0"
 edition = "2021"
-description = "Rust-facing credential protocol API for partially blind RSA signatures."
+description = "Rust-facing, stateless credential protocol API for issuing and verifying partially blinded credentials."
 license = "MIT"
 repository = "https://github.com/fedibtc/blind-rsa-signatures-wasm"
 readme = "../../README.md"

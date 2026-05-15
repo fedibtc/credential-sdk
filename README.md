@@ -2,7 +2,7 @@
 
 WebAssembly bindings for a partially blind RSA verifiable credential protocol.
 
-The library is intended to own the protocol-sensitive pieces of credential issuance and verification: schema construction, schema digests, holder blinding, issuer partial blind signing, holder finalization, runtime validation, and the WASM/TypeScript API surface around those operations.
+The library is intended to own the protocol-sensitive pieces of credential issuance and verification: holder blinding, issuer partial blind signing, holder finalization, runtime validation, and the WASM/TypeScript API surface around those operations.
 
 It deliberately does not own app concerns such as browser storage, QR codes, Nostr relay I/O, HTTP fetching, UI state, verifier policy, or revocation list refresh jobs.
 
@@ -14,7 +14,7 @@ The current protocol shape separates issuer-visible data from holder-hidden data
 {
   credential: {
     info: {
-      schema: "[schema-digest]",
+      schema: "trust-score-v1",
       issuer_id_pubkey: "issuer-id-pubkey",
       score: 7,
     },
@@ -33,11 +33,8 @@ During issuance, `credential.info` is public and `credential.blind_msg` is blind
 The current high-level API is:
 
 - `generateIssuerKeys(modulusBits)`
-- `createSchema(blindedFields, visibleFields)`
-- `schemaDigest(schema)`
-- `blind(schema, blindedData)`
-- `createCredential(schema, blindedPayload, visibleData)`
-- `blindSignCredential(schema, blindedPayload, visibleData, issuerKeys)`
+- `createCredential(blindedData, visibleData)`
+- `blindSignCredential(blindedData, visibleData, issuerKeys)`
 - `finalizeCredential(blindSignedCredential, issuerPublicKey)`
 
 The low-level key surface is intentionally small:
@@ -53,15 +50,12 @@ This checklist is intentionally shorter than [docs/library-todos.md](docs/librar
 - [x] Rust/WASM build wired through `wasm-pack`
 - [x] pnpm, TypeScript, Vitest, and Rust test workflows
 - [x] Minimal public pbRSA key API for issuer key generation, blinding, partial blind signing, and verification
-- [x] Dynamic credential schemas with TypeScript type inference for blinded and visible fields
-- [x] Schema digesting and order-stable digest tests
-- [x] Runtime validation for schema-shaped visible and blinded credential data
 - [x] Holder blinding flow with retained unblinding state
 - [x] Credential template construction in the protocol credential shape
 - [x] Partial blind signing over hidden `blind_msg` plus visible `credential.info`
 - [x] Holder finalization into a verifiable credential with an unblinded signature
-- [x] Tamper and mismatch tests for schema data, blind-signed credentials, and finalization
-- [x] Initial canonical protocol structs for issuer bundles, credentials, schemas, and revocation objects
+- [x] Tamper and mismatch tests for blind-signed credentials and finalization
+- [x] Initial canonical protocol structs for issuer bundles, credentials, and revocation objects
 - [ ] Implement issuer bundle creation and verification
 - [ ] Replace issuer issuance stubs with finalized request/response helpers
 - [ ] Implement full `verifyCredential`
