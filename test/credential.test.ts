@@ -157,9 +157,9 @@ describe("dynamic credential schemas", () => {
         Uint8Array.from(signedCredential.proof.info),
       ),
     ).toBe(true);
-    expect(
-      credential satisfies VerifiableCredential<typeof schema>,
-    ).toBe(credential);
+    expect(credential satisfies VerifiableCredential<typeof schema>).toBe(
+      credential,
+    );
   });
 
   it("rejects finalizing tampered or mismatched blind signed credentials", () => {
@@ -206,8 +206,8 @@ describe("dynamic credential schemas", () => {
           ...signedCredential,
           credential: {
             ...signedCredential.credential,
-            blind_msg: signedCredential.credential.blind_msg.map((byte, index) =>
-              index === 0 ? byte ^ 1 : byte,
+            blind_msg: signedCredential.credential.blind_msg.map(
+              (byte, index) => (index === 0 ? byte ^ 1 : byte),
             ),
           },
         },
@@ -215,10 +215,7 @@ describe("dynamic credential schemas", () => {
       ),
     ).toThrow();
     expect(() =>
-      finalizeCredential(
-        signedCredential,
-        generateIssuerKeys(1024).publicKey,
-      ),
+      finalizeCredential(signedCredential, generateIssuerKeys(1024).publicKey),
     ).toThrow();
   });
 
@@ -360,34 +357,22 @@ describe("dynamic credential schemas", () => {
     });
 
     expect(() =>
-      createCredential(
-        schema,
-        blindedPayload,
-        {
-          issuer_id_pubkey: "issuer-id-pubkey",
-        } as TrustScoreVisibleData,
-      ),
+      createCredential(schema, blindedPayload, {
+        issuer_id_pubkey: "issuer-id-pubkey",
+      } as TrustScoreVisibleData),
     ).toThrow();
     expect(() =>
-      createCredential(
-        schema,
-        blindedPayload,
-        {
-          issuer_id_pubkey: "issuer-id-pubkey",
-          score: 7,
-          unexpected: true,
-        } as TrustScoreVisibleData,
-      ),
+      createCredential(schema, blindedPayload, {
+        issuer_id_pubkey: "issuer-id-pubkey",
+        score: 7,
+        unexpected: true,
+      } as TrustScoreVisibleData),
     ).toThrow();
     expect(() =>
-      createCredential(
-        schema,
-        blindedPayload,
-        {
-          issuer_id_pubkey: "issuer-id-pubkey",
-          score: "7", // should be a number
-        } as unknown as TrustScoreVisibleData,
-      ),
+      createCredential(schema, blindedPayload, {
+        issuer_id_pubkey: "issuer-id-pubkey",
+        score: "7", // should be a number
+      } as unknown as TrustScoreVisibleData),
     ).toThrow();
   });
 
@@ -411,15 +396,11 @@ describe("dynamic credential schemas", () => {
       );
     }).toThrow();
     expect(() => {
-      createCredential(
-        schema,
-        blindedPayload,
-        {
-          issuer_id_pubkey: "issuer-id-pubkey",
-          // @ts-expect-error score must be a number for this schema.
-          score: "7",
-        },
-      );
+      createCredential(schema, blindedPayload, {
+        issuer_id_pubkey: "issuer-id-pubkey",
+        // @ts-expect-error score must be a number for this schema.
+        score: "7",
+      });
     }).toThrow();
     expect(() => {
       createCredential(
