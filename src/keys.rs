@@ -497,6 +497,29 @@ fn blinding_result_from_bytes(
     })
 }
 
+pub(crate) fn finalize_pbrsa_signature(
+    public_key: &PbrsaPublicKey,
+    blind_signature: Vec<u8>,
+    blind_message: Vec<u8>,
+    secret: Vec<u8>,
+    message_randomizer: Vec<u8>,
+    message: Vec<u8>,
+    metadata: Vec<u8>,
+) -> Result<Vec<u8>, JsError> {
+    let metadata = public_key.checked_metadata(&metadata)?;
+    let blinding_result = blinding_result_from_bytes(blind_message, secret, message_randomizer)?;
+    Ok(public_key
+        .inner
+        .finalize(
+            &BlindSignature(blind_signature),
+            &blinding_result,
+            message,
+            Some(metadata),
+        )
+        .map_err(js_error)?
+        .0)
+}
+
 fn js_error(error: impl std::fmt::Display) -> JsError {
     JsError::new(&error.to_string())
 }

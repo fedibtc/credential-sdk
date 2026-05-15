@@ -16,7 +16,7 @@ pub type SignatureValue = String;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Tsify)]
 #[tsify(type = "{ credential: Credential; proof: SignatureProof }")]
-pub struct VerifiableCredential {
+pub struct LegacyVerifiableCredential {
     pub credential: Credential,
     pub proof: SignatureProof,
 }
@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn verifiable_credential_deserializes_from_design_shape() {
-        let credential: VerifiableCredential = serde_json::from_value(json!({
+        let credential: LegacyVerifiableCredential = serde_json::from_value(json!({
             "credential": {
                 "info": {
                     "schema": "base64url-digest",

@@ -1,4 +1,4 @@
-use crate::keys::PbrsaKeyPair;
+use crate::keys::{finalize_pbrsa_signature, PbrsaKeyPair, PbrsaPublicKey};
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 use sha2::{Digest as ShaDigest, Sha256};
@@ -50,6 +50,9 @@ export type BlindedDataForSchema<TSchema> =
   TSchema extends CredentialSchema<infer TBlinded, infer _TVisible, unknown, unknown> ? TBlinded : never;
 export type VisibleDataForSchema<TSchema> =
   TSchema extends CredentialSchema<infer _TBlinded, infer TVisible, unknown, unknown> ? TVisible : never;
+export type CredentialInfoForSchema<TSchema> = Simplify<
+  { readonly schema: string } & VisibleDataForSchema<TSchema>
+>;
 export interface CredentialSchema<
   TBlinded extends CredentialData,
   TVisible extends CredentialData,
@@ -74,22 +77,32 @@ export interface BlindedPayload<TSchema extends AnyCredentialSchema> {
   readonly __schema: TSchema;
 }
 export interface CredentialTemplate<TSchema extends AnyCredentialSchema> {
-  readonly schema: string;
-  readonly data: {
-    readonly blinded: BlindedPayload<TSchema>;
-    readonly visible: VisibleDataForSchema<TSchema>;
+  readonly credential: {
+    readonly info: CredentialInfoForSchema<TSchema>;
+    readonly blind_msg: BlindedDataForSchema<TSchema>;
   };
 }
 export interface BlindSignedCredential<TSchema extends AnyCredentialSchema> {
-  readonly schema: string;
-  readonly credentialTemplate: CredentialTemplate<TSchema>;
+  readonly credential: {
+    readonly info: CredentialInfoForSchema<TSchema>;
+    readonly blind_msg: ByteArray;
+  };
   readonly proof: {
-    readonly blindSignature: ByteArray;
+    readonly signature: ByteArray;
     readonly blindMessage: ByteArray;
     readonly message: ByteArray;
     readonly metadata: ByteArray;
     readonly messageRandomizer: ByteArray;
     readonly blindingSecret: ByteArray;
+  };
+}
+export interface VerifiableCredential<TSchema extends AnyCredentialSchema> {
+  readonly credential: {
+    readonly info: CredentialInfoForSchema<TSchema>;
+    readonly blind_msg: BlindedDataForSchema<TSchema>;
+  };
+  readonly proof: {
+    readonly signature: ByteArray;
   };
 }
 export function createSchema<
@@ -119,6 +132,10 @@ export function blindSignCredential<TSchema extends AnyCredentialSchema>(
   visibleData: VisibleDataForSchema<TSchema>,
   blindingKeyPair: PbrsaKeyPair,
 ): BlindSignedCredential<TSchema>;
+export function finalizeCredential<TSchema extends AnyCredentialSchema>(
+  signedCredential: BlindSignedCredential<TSchema>,
+  blindingPublicKey: PbrsaPublicKey,
+): VerifiableCredential<TSchema>;
 export function schemaDigest(schema: AnyCredentialSchema): string;
 "#;
 
@@ -169,6 +186,16 @@ pub fn blind_sign_credential(
     let signed_credential =
         blind_sign_credential_value(schema, blinded_payload, visible_data, blinding_key_pair)?;
     to_js_value(&signed_credential)
+}
+
+#[wasm_bindgen(js_name = finalizeCredential, skip_typescript)]
+pub fn finalize_credential(
+    signed_credential: JsValue,
+    blinding_public_key: &PbrsaPublicKey,
+) -> Result<JsValue, JsError> {
+    let signed_credential = serde_wasm_bindgen::from_value(signed_credential).map_err(js_error)?;
+    let credential = finalize_credential_value(signed_credential, blinding_public_key)?;
+    to_js_value(&credential)
 }
 
 #[wasm_bindgen(js_name = schemaDigest, skip_typescript)]
@@ -229,21 +256,32 @@ pub(crate) fn create_credential_value(
         "credential.blinded.payload",
         "credential.visible",
     )?;
-    Ok(credential_template_value(
-        digest,
-        blinded_payload,
-        visible_data,
-    ))
+    credential_template_value(&digest, &blinded_payload, &visible_data)
 }
 
-fn credential_template_value(digest: String, blinded_payload: Value, visible_data: Value) -> Value {
-    json!({
-        "schema": digest,
-        "data": {
-            "blinded": blinded_payload,
-            "visible": visible_data,
+fn credential_template_value(
+    digest: &str,
+    blinded_payload: &Value,
+    visible_data: &Value,
+) -> SchemaResult<Value> {
+    let blinded_data = blinded_payload
+        .get("payload")
+        .ok_or_else(|| "blinded payload is missing payload data".to_owned())?;
+    Ok(json!({
+        "credential": {
+            "info": credential_info_value(digest, visible_data)?,
+            "blind_msg": blinded_data,
         },
-    })
+    }))
+}
+
+fn credential_info_value(digest: &str, visible_data: &Value) -> SchemaResult<Value> {
+    let mut info = visible_data
+        .as_object()
+        .ok_or_else(|| "credential.info visible data must be an object".to_owned())?
+        .clone();
+    info.insert("schema".to_owned(), Value::String(digest.to_owned()));
+    Ok(Value::Object(info))
 }
 
 pub(crate) fn blind_sign_credential_value(
@@ -261,20 +299,12 @@ pub(crate) fn blind_sign_credential_value(
         "signedCredential.visible",
     )
     .map_err(js_error)?;
-    let credential_template = credential_template_value(
-        digest.clone(),
-        blinded_payload.clone(),
-        visible_data.clone(),
-    );
+    let info = credential_info_value(&digest, &visible_data).map_err(js_error)?;
     let payload = blinded_payload
         .get("payload")
         .ok_or_else(|| JsError::new("blinded payload is missing payload data"))?;
     let message = canonical_json(payload).into_bytes();
-    let metadata = canonical_json(&json!({
-        "schema": digest,
-        "visible": visible_data,
-    }))
-    .into_bytes();
+    let metadata = canonical_json(&info).into_bytes();
 
     let derived_key_pair = blinding_key_pair.derive_for_metadata(metadata.clone())?;
     let public_key = derived_key_pair.public_key();
@@ -284,15 +314,107 @@ pub(crate) fn blind_sign_credential_value(
     let blind_signature = secret_key.blind_sign(blind_message.clone())?;
 
     Ok(json!({
-        "schema": digest,
-        "credentialTemplate": credential_template,
+        "credential": {
+            "info": info,
+            "blind_msg": bytes_value(blind_message.clone()),
+        },
         "proof": {
-            "blindSignature": bytes_value(blind_signature),
+            "signature": bytes_value(blind_signature),
             "blindMessage": bytes_value(blind_message),
             "message": bytes_value(message),
             "metadata": bytes_value(metadata),
             "messageRandomizer": bytes_value(blinding_result.message_randomizer()),
             "blindingSecret": bytes_value(blinding_result.secret()),
+        },
+    }))
+}
+
+pub(crate) fn finalize_credential_value(
+    signed_credential: Value,
+    blinding_public_key: &PbrsaPublicKey,
+) -> Result<Value, JsError> {
+    let signed_credential = signed_credential
+        .as_object()
+        .ok_or_else(|| JsError::new("signedCredential must be an object"))?;
+    let credential = signed_credential
+        .get("credential")
+        .and_then(Value::as_object)
+        .ok_or_else(|| JsError::new("signedCredential.credential must be an object"))?;
+    let info = credential
+        .get("info")
+        .ok_or_else(|| JsError::new("signedCredential.credential.info is required"))?;
+    let info_object = info
+        .as_object()
+        .ok_or_else(|| JsError::new("signedCredential.credential.info must be an object"))?;
+    let _digest = info_object
+        .get("schema")
+        .and_then(Value::as_str)
+        .ok_or_else(|| JsError::new("signedCredential.credential.info.schema must be a string"))?;
+    let blind_message_value = credential
+        .get("blind_msg")
+        .ok_or_else(|| JsError::new("signedCredential.credential.blind_msg is required"))?;
+    let proof = signed_credential
+        .get("proof")
+        .and_then(Value::as_object)
+        .ok_or_else(|| JsError::new("signedCredential.proof must be an object"))?;
+
+    let blind_signature = proof_bytes(proof, "signature")?;
+    let blind_message =
+        value_to_bytes(blind_message_value, "signedCredential.credential.blind_msg")?;
+    let proof_blind_message = proof_bytes(proof, "blindMessage")?;
+    if blind_message != proof_blind_message {
+        return Err(JsError::new(
+            "signedCredential.credential.blind_msg does not match proof blind message",
+        ));
+    }
+    let message = proof_bytes(proof, "message")?;
+    let metadata = proof_bytes(proof, "metadata")?;
+    let message_randomizer = proof_bytes(proof, "messageRandomizer")?;
+    let blinding_secret = proof_bytes(proof, "blindingSecret")?;
+
+    let expected_metadata = canonical_json(info).into_bytes();
+    if metadata != expected_metadata {
+        return Err(JsError::new(
+            "signedCredential.proof.metadata does not match credential info",
+        ));
+    }
+
+    let blinded_data: Value = serde_json::from_slice(&message).map_err(|error| {
+        JsError::new(&format!(
+            "signedCredential.proof.message is not valid JSON: {error}"
+        ))
+    })?;
+
+    let message_randomizer_for_verify = message_randomizer.clone();
+    let message_for_verify = message.clone();
+    let metadata_for_verify = metadata.clone();
+    let signature = finalize_pbrsa_signature(
+        blinding_public_key,
+        blind_signature,
+        blind_message,
+        blinding_secret,
+        message_randomizer,
+        message,
+        metadata,
+    )?;
+    if !blinding_public_key.verify(
+        signature.clone(),
+        message_randomizer_for_verify,
+        message_for_verify,
+        metadata_for_verify,
+    )? {
+        return Err(JsError::new(
+            "finalized credential signature could not be verified",
+        ));
+    }
+
+    Ok(json!({
+        "credential": {
+            "info": info,
+            "blind_msg": blinded_data,
+        },
+        "proof": {
+            "signature": bytes_value(signature),
         },
     }))
 }
@@ -523,6 +645,32 @@ fn bytes_value(bytes: Vec<u8>) -> Value {
     Value::Array(bytes.into_iter().map(Value::from).collect())
 }
 
+fn proof_bytes(proof: &Map<String, Value>, name: &str) -> Result<Vec<u8>, JsError> {
+    value_to_bytes(
+        proof
+            .get(name)
+            .ok_or_else(|| JsError::new(&format!("signedCredential.proof.{name} is required")))?,
+        &format!("signedCredential.proof.{name}"),
+    )
+}
+
+fn value_to_bytes(value: &Value, path: &str) -> Result<Vec<u8>, JsError> {
+    let values = value
+        .as_array()
+        .ok_or_else(|| JsError::new(&format!("{path} must be a byte array")))?;
+    values
+        .iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let byte = value
+                .as_u64()
+                .ok_or_else(|| JsError::new(&format!("{path}[{index}] must be an integer byte")))?;
+            u8::try_from(byte)
+                .map_err(|_| JsError::new(&format!("{path}[{index}] must be between 0 and 255")))
+        })
+        .collect()
+}
+
 fn to_js_value(value: &impl Serialize) -> Result<JsValue, JsError> {
     value
         .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
@@ -620,13 +768,12 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(credential["schema"], schema["digest"]);
-        assert_eq!(credential["data"]["blinded"]["schema"], schema["digest"]);
+        assert_eq!(credential["credential"]["info"]["schema"], schema["digest"]);
         assert_eq!(
-            credential["data"]["blinded"]["payload"]["holder_pubkey"],
+            credential["credential"]["blind_msg"]["holder_pubkey"],
             "holder"
         );
-        assert_eq!(credential["data"]["visible"]["score"], 7);
+        assert_eq!(credential["credential"]["info"]["score"], 7);
     }
 
     #[test]

@@ -6,9 +6,9 @@ import {
 } from "../pkg/blind_rsa_signatures_wasm.js";
 import type {
   IssuerBundle,
+  LegacyVerifiableCredential,
   Revocation,
   SchemaDefinition,
-  VerifiableCredential,
 } from "../pkg/blind_rsa_signatures_wasm.js";
 
 const encoder = new TextEncoder();
@@ -75,7 +75,7 @@ describe("protocol types", () => {
       proof: {
         signature: "RSA-signature",
       },
-    } satisfies VerifiableCredential;
+    } satisfies LegacyVerifiableCredential;
     const issuerBundle = {
       issuer: {
         issuer_id_pubkey: "issuer-id-pubkey",

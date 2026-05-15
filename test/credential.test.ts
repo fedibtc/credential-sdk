@@ -5,10 +5,14 @@ import {
   blindSignCredential,
   createCredential,
   createSchema,
+  finalizeCredential,
   PbrsaKeyPair,
   schemaDigest,
 } from "../pkg/blind_rsa_signatures_wasm.js";
-import type { BlindedPayload } from "../pkg/blind_rsa_signatures_wasm.js";
+import type {
+  BlindedPayload,
+  VerifiableCredential,
+} from "../pkg/blind_rsa_signatures_wasm.js";
 
 type TrustScoreVisibleData = {
   issuer_id_pubkey: string;
@@ -81,25 +85,21 @@ describe("dynamic credential schemas", () => {
     });
 
     expect(credential).toEqual({
-      schema: schema.digest,
-      data: {
-        blinded: {
+      credential: {
+        info: {
           schema: schema.digest,
-          payload: {
-            holder_pubkey: "holder-pubkey",
-          },
-        },
-        visible: {
           issuer_id_pubkey: "issuer-id-pubkey",
           score: 7,
           verified: true,
         },
+        blind_msg: {
+          holder_pubkey: "holder-pubkey",
+        },
       },
     });
-    expect(credential.schema).toBe(schema.digest);
     expect(blindedPayload.schema).toBe(schema.digest);
-    expect(credential.schema).toBe(schema.digest);
-    expect(credential.data.visible.score).toBe(7);
+    expect(credential.credential.info.schema).toBe(schema.digest);
+    expect(credential.credential.info.score).toBe(7);
   });
 
   it("blind signs a credential template with a PBRSA key pair", () => {
@@ -113,6 +113,7 @@ describe("dynamic credential schemas", () => {
     const blindedPayload = blind(schema, {
       holder_pubkey: "holder-pubkey",
     });
+    const keyPair = PbrsaKeyPair.generate(1024);
     const signedCredential = blindSignCredential(
       schema,
       blindedPayload,
@@ -120,15 +121,109 @@ describe("dynamic credential schemas", () => {
         issuer_id_pubkey: "issuer-id-pubkey",
         score: 7,
       },
-      PbrsaKeyPair.generate(1024),
+      keyPair,
     );
+    const publicKey = keyPair.publicKey.deriveForMetadata(
+      Uint8Array.from(signedCredential.proof.metadata),
+    );
+    const credential = finalizeCredential(signedCredential, publicKey);
 
-    expect(signedCredential.schema).toBe(schema.digest);
-    expect(signedCredential.credentialTemplate.schema).toBe(schema.digest);
-    expect(signedCredential.proof.blindSignature.length).toBeGreaterThan(0);
+    expect(signedCredential.credential.info.schema).toBe(schema.digest);
+    expect(signedCredential.credential.info.score).toBe(7);
+    expect(signedCredential.credential.blind_msg.length).toBeGreaterThan(0);
+    expect(signedCredential.proof.signature.length).toBeGreaterThan(0);
     expect(signedCredential.proof.blindMessage.length).toBeGreaterThan(0);
     expect(signedCredential.proof.metadata.length).toBeGreaterThan(0);
     expect(signedCredential.proof.message.length).toBeGreaterThan(0);
+    expect(credential).toEqual({
+      credential: {
+        info: {
+          schema: schema.digest,
+          issuer_id_pubkey: "issuer-id-pubkey",
+          score: 7,
+        },
+        blind_msg: {
+          holder_pubkey: "holder-pubkey",
+        },
+      },
+      proof: {
+        signature: credential.proof.signature,
+      },
+    });
+    expect(credential.proof.signature.length).toBeGreaterThan(0);
+    expect(
+      publicKey.verify(
+        Uint8Array.from(credential.proof.signature),
+        Uint8Array.from(signedCredential.proof.messageRandomizer),
+        Uint8Array.from(signedCredential.proof.message),
+        Uint8Array.from(signedCredential.proof.metadata),
+      ),
+    ).toBe(true);
+    expect(
+      credential satisfies VerifiableCredential<typeof schema>,
+    ).toBe(credential);
+  });
+
+  it("rejects finalizing tampered or mismatched blind signed credentials", () => {
+    const schema = createSchema(
+      [{ name: "holder_pubkey", type: "string" }],
+      [
+        { name: "issuer_id_pubkey", type: "string" },
+        { name: "score", type: "number" },
+      ],
+    );
+    const blindedPayload = blind(schema, {
+      holder_pubkey: "holder-pubkey",
+    });
+    const keyPair = PbrsaKeyPair.generate(1024);
+    const signedCredential = blindSignCredential(
+      schema,
+      blindedPayload,
+      {
+        issuer_id_pubkey: "issuer-id-pubkey",
+        score: 7,
+      },
+      keyPair,
+    );
+    const publicKey = keyPair.publicKey.deriveForMetadata(
+      Uint8Array.from(signedCredential.proof.metadata),
+    );
+
+    expect(() =>
+      finalizeCredential(
+        {
+          ...signedCredential,
+          credential: {
+            ...signedCredential.credential,
+            info: {
+              ...signedCredential.credential.info,
+              score: 8,
+            },
+          },
+        },
+        publicKey,
+      ),
+    ).toThrow();
+    expect(() =>
+      finalizeCredential(
+        {
+          ...signedCredential,
+          credential: {
+            ...signedCredential.credential,
+            blind_msg: signedCredential.credential.blind_msg.map((byte, index) =>
+              index === 0 ? byte ^ 1 : byte,
+            ),
+          },
+        },
+        publicKey,
+      ),
+    ).toThrow();
+    expect(() =>
+      finalizeCredential(
+        signedCredential,
+        keyPair.publicKey.deriveForMetadata(new Uint8Array([1, 2, 3])),
+      ),
+    ).toThrow();
   });
 
   it("rejects blind signing when visible data does not match the schema", () => {
@@ -252,8 +347,8 @@ describe("dynamic credential schemas", () => {
       },
     });
 
-    expect(credential.data.visible.profile.display_name).toBe("Alice");
-    expect(credential.data.visible.profile.rank).toBe(3);
+    expect(credential.credential.info.profile.display_name).toBe("Alice");
+    expect(credential.credential.info.profile.rank).toBe(3);
   });
 
   it("rejects data with missing, extra, or wrong-typed fields", () => {
