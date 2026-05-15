@@ -11,11 +11,16 @@ type PbrsaKeyPairInner = PartiallyBlindKeyPairSha384PSSRandomized;
 type PbrsaPublicKeyInner = PartiallyBlindPublicKeySha384PSSRandomized;
 type PbrsaSecretKeyInner = PartiallyBlindSecretKeySha384PSSRandomized;
 
+/// Generates an issuer PBRSA key pair for partially blind credential issuance.
+///
+/// The returned key pair exposes only the public key, secret key, and the
+/// protocol operations needed by this library.
 #[wasm_bindgen(js_name = generateIssuerKeys)]
 pub fn generate_issuer_keys(modulus_bits: usize) -> Result<PbrsaKeyPair, JsError> {
     PbrsaKeyPair::generate(modulus_bits)
 }
 
+/// Issuer key pair used for partially blind credential issuance.
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct PbrsaKeyPair {
@@ -42,17 +47,20 @@ impl PbrsaKeyPair {
 
 #[wasm_bindgen]
 impl PbrsaKeyPair {
+    /// Returns the issuer public key used by holders for blinding and by verifiers for signatures.
     #[wasm_bindgen(getter, js_name = publicKey)]
     pub fn public_key(&self) -> PbrsaPublicKey {
         self.public_key.clone()
     }
 
+    /// Returns the issuer secret key used to produce partial blind signatures.
     #[wasm_bindgen(getter, js_name = secretKey)]
     pub fn secret_key(&self) -> PbrsaSecretKey {
         self.secret_key.clone()
     }
 }
 
+/// Issuer public key for PBRSA blinding and signature verification.
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct PbrsaPublicKey {
@@ -62,6 +70,11 @@ pub struct PbrsaPublicKey {
 
 #[wasm_bindgen]
 impl PbrsaPublicKey {
+    /// Blinds holder-hidden credential data for the given issuer-visible credential info.
+    ///
+    /// `blind_msg` is the canonical holder-hidden payload. `info` is the
+    /// canonical issuer-visible credential info and is bound into the PBRSA
+    /// operation as public info.
     pub fn blind(&self, blind_msg: Vec<u8>, info: Vec<u8>) -> Result<BlindingResultBytes, JsError> {
         let public_key = self.inner_for_info(&info)?;
         Ok(BlindingResultBytes {
@@ -71,6 +84,10 @@ impl PbrsaPublicKey {
         })
     }
 
+    /// Verifies a finalized PBRSA signature over `blind_msg` and `info`.
+    ///
+    /// Returns `false` for cryptographic verification failure and `Err` for
+    /// malformed inputs such as an invalid message randomizer length.
     pub fn verify(
         &self,
         signature: Vec<u8>,
@@ -108,6 +125,7 @@ impl PbrsaPublicKey {
     }
 }
 
+/// Issuer secret key for producing PBRSA partial blind signatures.
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct PbrsaSecretKey {
@@ -117,6 +135,10 @@ pub struct PbrsaSecretKey {
 
 #[wasm_bindgen]
 impl PbrsaSecretKey {
+    /// Produces a partial blind signature for a blinded holder message and visible credential info.
+    ///
+    /// `blind_msg` must be the blinded output from `PbrsaPublicKey.blind`.
+    /// `info` must be the same canonical credential info used during blinding.
     #[wasm_bindgen(js_name = blindSign)]
     pub fn blind_sign(&self, blind_msg: Vec<u8>, info: Vec<u8>) -> Result<Vec<u8>, JsError> {
         let secret_key = self.inner_for_info(&info)?;
@@ -145,6 +167,7 @@ impl PbrsaSecretKey {
     }
 }
 
+/// Holder-side blinding state returned from `PbrsaPublicKey.blind`.
 #[wasm_bindgen]
 pub struct BlindingResultBytes {
     inner: BlindingResult,
@@ -152,16 +175,19 @@ pub struct BlindingResultBytes {
 
 #[wasm_bindgen]
 impl BlindingResultBytes {
+    /// Returns the blinded holder message sent to the issuer for signing.
     #[wasm_bindgen(getter, js_name = blind_msg)]
     pub fn blind_message(&self) -> Vec<u8> {
         self.inner.blind_message.0.clone()
     }
 
+    /// Returns the blinding secret retained by the holder until finalization.
     #[wasm_bindgen(getter)]
     pub fn secret(&self) -> Vec<u8> {
         self.inner.secret.0.clone()
     }
 
+    /// Returns the randomized PSS message randomizer needed for final verification.
     #[wasm_bindgen(getter, js_name = messageRandomizer)]
     pub fn message_randomizer(&self) -> Vec<u8> {
         self.inner

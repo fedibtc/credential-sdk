@@ -141,6 +141,12 @@ export function schemaDigest(schema: AnyCredentialSchema): string;
 
 // Keep these arguments as `JsValue`: callers pass ordinary JS objects/arrays,
 // and the custom declarations above provide the generic TypeScript surface.
+/// Creates a dynamic credential schema from separate blinded and visible field lists.
+///
+/// The returned schema includes normalized field maps and a stable digest over
+/// the schema contents. TypeScript callers should use the generated
+/// `createSchema(blindedFields, visibleFields)` declaration for schema-specific
+/// type inference.
 #[wasm_bindgen(js_name = createSchema, skip_typescript)]
 pub fn create_schema(blinded_fields: JsValue, visible_fields: JsValue) -> Result<JsValue, JsError> {
     let blinded_fields = serde_wasm_bindgen::from_value(blinded_fields).map_err(js_error)?;
@@ -149,6 +155,11 @@ pub fn create_schema(blinded_fields: JsValue, visible_fields: JsValue) -> Result
     to_js_value(&schema)
 }
 
+/// Validates and packages holder-hidden credential data for a schema.
+///
+/// The returned blinded payload records the schema digest and the original
+/// holder-hidden data. It is not cryptographically blinded yet; that happens
+/// during `blindSignCredential` when the payload is converted into PBRSA input.
 #[wasm_bindgen(js_name = blind, skip_typescript)]
 pub fn blind(schema: JsValue, blinded_data: JsValue) -> Result<JsValue, JsError> {
     let schema = serde_wasm_bindgen::from_value(schema).map_err(js_error)?;
@@ -157,8 +168,14 @@ pub fn blind(schema: JsValue, blinded_data: JsValue) -> Result<JsValue, JsError>
     to_js_value(&blinded_payload)
 }
 
-// The phantom type parameters live only in TypeScript. Rust re-validates the
-// schema digest and data shape here so untyped JS callers cannot bypass checks.
+/// Assembles an unsigned credential template from a schema, blinded payload, and visible data.
+///
+/// The resulting template has the protocol credential shape:
+/// `credential.info` contains issuer-visible data plus the schema digest, and
+/// `credential.blind_msg` contains the holder-hidden data in unblinded form.
+///
+/// The phantom type parameters live only in TypeScript. Rust re-validates the
+/// schema digest and data shape here so untyped JS callers cannot bypass checks.
 #[wasm_bindgen(js_name = createCredential, skip_typescript)]
 pub fn create_credential(
     schema: JsValue,
@@ -173,6 +190,12 @@ pub fn create_credential(
     to_js_value(&credential)
 }
 
+/// Partially blind-signs a credential using issuer PBRSA keys.
+///
+/// The visible credential `info` is used as PBRSA public info, while
+/// `blind_msg` is the hidden message. The returned blind-signed credential
+/// carries a blinded `credential.blind_msg`, a blind signature in
+/// `proof.signature`, and the holder-side state required for finalization.
 #[wasm_bindgen(js_name = blindSignCredential, skip_typescript)]
 pub fn blind_sign_credential(
     schema: JsValue,
@@ -188,6 +211,11 @@ pub fn blind_sign_credential(
     to_js_value(&signed_credential)
 }
 
+/// Finalizes a blind-signed credential into a holder-stored verifiable credential.
+///
+/// This unblinds the signature, verifies the finalized signature against the
+/// original `blind_msg` and `info`, and returns a credential whose proof
+/// contains the unblinded issuer signature.
 #[wasm_bindgen(js_name = finalizeCredential, skip_typescript)]
 pub fn finalize_credential(
     signed_credential: JsValue,
@@ -198,6 +226,11 @@ pub fn finalize_credential(
     to_js_value(&credential)
 }
 
+/// Computes the stable digest for a credential schema.
+///
+/// The input may be either a schema object or a wrapper containing a `schema`
+/// object. The digest is computed after removing the existing `digest` field,
+/// so it can be used to validate a schema's embedded digest.
 #[wasm_bindgen(js_name = schemaDigest, skip_typescript)]
 pub fn schema_digest(schema: JsValue) -> Result<String, JsError> {
     let schema = serde_wasm_bindgen::from_value(schema).map_err(js_error)?;
