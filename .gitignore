@@ -19,3 +19,6 @@ devenv.local.yaml
 
 # wasm-pack
 /pkg
+
+/.conductor
+/.codex
