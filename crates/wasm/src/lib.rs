@@ -1,242 +1,200 @@
+use blind_rsa_signatures::pbrsa::PartiallyBlindPublicKeySha384PSSRandomized;
 use fedibtc_blind_rsa_signatures as protocol;
+use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(typescript_custom_section)]
 const TYPESCRIPT_SURFACE: &'static str = r#"
-export type CredentialData = Record<string, unknown>;
-export type Simplify<T> = { readonly [K in keyof T]: T[K] } & {};
-export type ByteArray = readonly number[];
-export interface CredentialTemplate<
-  TBlindedData extends CredentialData = CredentialData,
-  TVisibleData extends CredentialData = CredentialData,
-> {
-  readonly credential: {
-    readonly info: Simplify<TVisibleData>;
-    readonly blind_msg: Simplify<TBlindedData>;
-  };
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { readonly [key: string]: JsonValue };
+
+export interface IssuanceRequest {
+  readonly version: 1;
+  readonly blinded_message: string;
 }
-export interface BlindSignedCredential<
-  TBlindedData extends CredentialData = CredentialData,
-  TVisibleData extends CredentialData = CredentialData,
-> {
-  readonly credential: {
-    readonly info: Simplify<TVisibleData>;
-    readonly blind_msg: ByteArray;
-  };
-  readonly proof: {
-    readonly signature: ByteArray;
-    readonly blinded_msg: ByteArray;
-    readonly blind_msg: ByteArray;
-    readonly info: ByteArray;
-    readonly messageRandomizer: ByteArray;
-    readonly blindingSecret: ByteArray;
-  };
+
+export interface IssuanceResponse {
+  readonly version: 1;
+  readonly issuer_id: string;
+  readonly info: JsonValue;
+  readonly blind_signature: string;
 }
-export interface VerifiableCredential<
-  TBlindedData extends CredentialData = CredentialData,
-  TVisibleData extends CredentialData = CredentialData,
-> {
-  readonly credential: {
-    readonly info: Simplify<TVisibleData>;
-    readonly blind_msg: Simplify<TBlindedData>;
-  };
-  readonly proof: {
-    readonly signature: ByteArray;
-  };
+
+export interface Credential {
+  readonly version: 1;
+  readonly issuer_id: string;
+  readonly info: JsonValue;
+  readonly blind_msg: JsonValue;
+  readonly message_randomizer: string;
+  readonly signature: string;
 }
-export function createCredential<
-  const TBlindedData extends CredentialData,
-  const TVisibleData extends CredentialData,
->(
-  blindedData: TBlindedData,
-  visibleData: TVisibleData,
-): CredentialTemplate<TBlindedData, TVisibleData>;
-export function blindSignCredential<
-  const TBlindedData extends CredentialData,
-  const TVisibleData extends CredentialData,
->(
-  blindedData: TBlindedData,
-  visibleData: TVisibleData,
-  blindingKeyPair: PbrsaKeyPair,
-): BlindSignedCredential<TBlindedData, TVisibleData>;
-export function finalizeCredential<
-  const TBlindedData extends CredentialData,
-  const TVisibleData extends CredentialData,
->(
-  signedCredential: BlindSignedCredential<TBlindedData, TVisibleData>,
-  blindingPublicKey: PbrsaPublicKey,
-): VerifiableCredential<TBlindedData, TVisibleData>;
+
+export interface PendingIssuanceResult {
+  readonly request: IssuanceRequest;
+  readonly pending: PendingIssuance;
+}
+
 export function verifyCredential(
-  credential: VerifiableCredential,
   issuerPublicKey: PbrsaPublicKey,
+  credential: Credential,
 ): boolean;
 "#;
 
-#[wasm_bindgen(js_name = generateIssuerKeys)]
-pub fn generate_issuer_keys(modulus_bits: usize) -> Result<PbrsaKeyPair, JsError> {
-    let _ = modulus_bits;
-    todo!("delegate to fedibtc_blind_rsa_signatures::generate_issuer_keys")
+fn from_js<T: DeserializeOwned>(value: JsValue) -> Result<T, JsError> {
+    serde_wasm_bindgen::from_value(value).map_err(|error| JsError::new(&error.to_string()))
 }
 
-#[wasm_bindgen(js_name = createCredential, skip_typescript)]
-pub fn create_credential(blinded_data: JsValue, visible_data: JsValue) -> Result<JsValue, JsError> {
-    let _ = (blinded_data, visible_data);
-    todo!("deserialize JS input and delegate to protocol::create_credential")
+fn to_js<T: Serialize>(value: &T) -> Result<JsValue, JsError> {
+    serde_wasm_bindgen::to_value(value).map_err(|error| JsError::new(&error.to_string()))
 }
 
-#[wasm_bindgen(js_name = blindSignCredential, skip_typescript)]
-pub fn blind_sign_credential(
-    blinded_data: JsValue,
-    visible_data: JsValue,
-    issuer_keys: &PbrsaKeyPair,
-) -> Result<JsValue, JsError> {
-    let _ = (blinded_data, visible_data, issuer_keys);
-    todo!("deserialize JS input and delegate to protocol::blind_sign_credential")
+fn parse_issuer_id(issuer_id: &str) -> Result<protocol::IssuerId, JsError> {
+    nostr::PublicKey::parse(issuer_id)
+        .map(protocol::IssuerId)
+        .map_err(|error| JsError::new(&error.to_string()))
 }
 
-#[wasm_bindgen(js_name = finalizeCredential, skip_typescript)]
-pub fn finalize_credential(
-    signed_credential: JsValue,
-    issuer_public_key: &PbrsaPublicKey,
-) -> Result<JsValue, JsError> {
-    let _ = (signed_credential, issuer_public_key);
-    todo!("deserialize JS input and delegate to protocol::finalize_credential")
-}
-
-#[wasm_bindgen(js_name = verifyCredential, skip_typescript)]
-pub fn verify_credential(
-    credential: JsValue,
-    issuer_public_key: &PbrsaPublicKey,
-) -> Result<bool, JsError> {
-    let _ = (credential, issuer_public_key);
-    todo!("deserialize JS input and delegate to protocol::verify_credential")
-}
-
-#[wasm_bindgen(js_name = createCredentialIssuancePayload)]
-pub fn create_credential_issuance_payload(
-    blinded_data: JsValue,
-    visible_data: JsValue,
-    holder_blind_message: Vec<u8>,
-) -> Result<String, JsError> {
-    let _ = (blinded_data, visible_data, holder_blind_message);
-    todo!("deserialize JS input and delegate to protocol::create_credential_issuance_payload")
-}
-
-#[wasm_bindgen(js_name = validateCredentialIssuancePayload)]
-pub fn validate_credential_issuance_payload(payload: String) -> Result<bool, JsError> {
-    let _ = payload;
-    todo!("deserialize payload and delegate to protocol::validate_credential_issuance_payload")
-}
-
-#[wasm_bindgen(js_name = createSignedCredentialResponse)]
-pub fn create_signed_credential_response(
-    payload: String,
-    blind_signature: Vec<u8>,
-) -> Result<String, JsError> {
-    let _ = (payload, blind_signature);
-    todo!("deserialize payload and delegate to protocol::create_signed_credential_response")
-}
-
-#[wasm_bindgen(js_name = issueCredential)]
-pub fn issue_credential(
-    issuance_secret_key: &PbrsaSecretKey,
-    blinded_data: JsValue,
-    visible_data: JsValue,
-    holder_blind_message: Vec<u8>,
-) -> Result<String, JsError> {
-    let _ = (
-        issuance_secret_key,
-        blinded_data,
-        visible_data,
-        holder_blind_message,
-    );
-    todo!("deserialize JS input and delegate to protocol::issue_credential")
+fn reflect_error(error: JsValue) -> JsError {
+    JsError::new(
+        &error
+            .as_string()
+            .unwrap_or_else(|| "failed to set JS object property".to_owned()),
+    )
 }
 
 #[wasm_bindgen]
 #[derive(Clone)]
-pub struct PbrsaKeyPair {
+pub struct IssuerContext {
     inner: protocol::IssuerContext,
 }
 
 #[wasm_bindgen]
-impl PbrsaKeyPair {
-    #[wasm_bindgen(getter, js_name = publicKey)]
-    pub fn public_key(&self) -> PbrsaPublicKey {
-        let _ = &self.inner;
-        todo!("wrap protocol public key")
+impl IssuerContext {
+    #[wasm_bindgen(js_name = generate)]
+    pub fn generate(issuer_id: String, modulus_bits: usize) -> Result<IssuerContext, JsError> {
+        Ok(Self {
+            inner: protocol::IssuerContext::generate(parse_issuer_id(&issuer_id)?, modulus_bits)?,
+        })
     }
 
-    #[wasm_bindgen(getter, js_name = secretKey)]
-    pub fn secret_key(&self) -> PbrsaSecretKey {
-        let _ = &self.inner;
-        todo!("wrap protocol secret key")
+    #[wasm_bindgen(js_name = fromSecretKeyDer)]
+    pub fn from_secret_key_der(issuer_id: String, der: Vec<u8>) -> Result<IssuerContext, JsError> {
+        Ok(Self {
+            inner: protocol::IssuerContext::from_secret_key_der(
+                parse_issuer_id(&issuer_id)?,
+                &der,
+            )?,
+        })
+    }
+
+    #[wasm_bindgen(getter, js_name = issuerId)]
+    pub fn issuer_id(&self) -> String {
+        self.inner.issuer_id.0.to_string()
+    }
+
+    #[wasm_bindgen(getter, js_name = publicKey)]
+    pub fn public_key(&self) -> PbrsaPublicKey {
+        PbrsaPublicKey {
+            inner: self.inner.public_key(),
+        }
+    }
+
+    #[wasm_bindgen(js_name = secretKeyDer)]
+    pub fn secret_key_der(&self) -> Result<Vec<u8>, JsError> {
+        Ok(self.inner.secret_key_der()?)
+    }
+
+    #[wasm_bindgen(js_name = issueCredential)]
+    pub fn issue_credential(&self, info: JsValue, request: JsValue) -> Result<JsValue, JsError> {
+        let info: serde_json::Value = from_js(info)?;
+        let request: protocol::IssuanceRequest = from_js(request)?;
+        to_js(&self.inner.issue_credential(info, &request)?)
     }
 }
 
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct PbrsaPublicKey {
-    inner: blind_rsa_signatures::pbrsa::PartiallyBlindPublicKeySha384PSSRandomized,
+    inner: PartiallyBlindPublicKeySha384PSSRandomized,
 }
 
 #[wasm_bindgen]
 impl PbrsaPublicKey {
-    pub fn blind(&self, blind_msg: Vec<u8>, info: Vec<u8>) -> Result<BlindingResultBytes, JsError> {
-        let _ = (&self.inner, blind_msg, info);
-        todo!("delegate to protocol::PbrsaPublicKey::blind")
+    #[wasm_bindgen(js_name = fromDer)]
+    pub fn from_der(der: Vec<u8>) -> Result<PbrsaPublicKey, JsError> {
+        Ok(Self {
+            inner: PartiallyBlindPublicKeySha384PSSRandomized::from_der(&der)?,
+        })
     }
 
-    pub fn verify(
+    #[wasm_bindgen(js_name = toDer)]
+    pub fn to_der(&self) -> Result<Vec<u8>, JsError> {
+        Ok(self.inner.to_der()?)
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Clone)]
+pub struct PendingIssuance {
+    inner: protocol::PendingIssuance,
+}
+
+#[wasm_bindgen]
+impl PendingIssuance {
+    #[wasm_bindgen(js_name = createRequest)]
+    pub fn create_request(
+        issuer_public_key: &PbrsaPublicKey,
+        issuer_id: String,
+        info: JsValue,
+        blind_msg: JsValue,
+    ) -> Result<JsValue, JsError> {
+        let info: serde_json::Value = from_js(info)?;
+        let blind_msg: serde_json::Value = from_js(blind_msg)?;
+        let (request, pending) = protocol::PendingIssuance::create_request(
+            &issuer_public_key.inner,
+            parse_issuer_id(&issuer_id)?,
+            info,
+            blind_msg,
+        )?;
+
+        let result = js_sys::Object::new();
+        js_sys::Reflect::set(&result, &JsValue::from_str("request"), &to_js(&request)?)
+            .map_err(reflect_error)?;
+        js_sys::Reflect::set(
+            &result,
+            &JsValue::from_str("pending"),
+            &JsValue::from(PendingIssuance { inner: pending }),
+        )
+        .map_err(reflect_error)?;
+        Ok(result.into())
+    }
+
+    pub fn finalize(
         &self,
-        signature: Vec<u8>,
-        message_randomizer: Vec<u8>,
-        blind_msg: Vec<u8>,
-        info: Vec<u8>,
-    ) -> Result<bool, JsError> {
-        let _ = (&self.inner, signature, message_randomizer, blind_msg, info);
-        todo!("delegate to protocol::PbrsaPublicKey::verify")
+        issuer_public_key: &PbrsaPublicKey,
+        response: JsValue,
+    ) -> Result<JsValue, JsError> {
+        let response: protocol::IssuanceResponse = from_js(response)?;
+        to_js(
+            &self
+                .inner
+                .clone()
+                .finalize(&issuer_public_key.inner, &response)?,
+        )
     }
 }
 
-#[wasm_bindgen]
-#[derive(Clone)]
-pub struct PbrsaSecretKey {
-    inner: protocol::IssuerContext,
-}
-
-#[wasm_bindgen]
-impl PbrsaSecretKey {
-    #[wasm_bindgen(js_name = blindSign)]
-    pub fn blind_sign(&self, blind_msg: Vec<u8>, info: Vec<u8>) -> Result<Vec<u8>, JsError> {
-        let _ = (&self.inner, blind_msg, info);
-        todo!("delegate to protocol::PbrsaSecretKey::blind_sign")
-    }
-}
-
-#[wasm_bindgen]
-#[derive(Clone)]
-pub struct BlindingResultBytes {
-    inner: blind_rsa_signatures::BlindingResult,
-}
-
-#[wasm_bindgen]
-impl BlindingResultBytes {
-    #[wasm_bindgen(getter, js_name = blind_msg)]
-    pub fn blind_message(&self) -> Vec<u8> {
-        self.inner.blind_message.0.clone()
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn secret(&self) -> Vec<u8> {
-        self.inner.secret.0.clone()
-    }
-
-    #[wasm_bindgen(getter, js_name = messageRandomizer)]
-    pub fn message_randomizer(&self) -> Vec<u8> {
-        self.inner
-            .msg_randomizer
-            .map(|randomizer| randomizer.0.to_vec())
-            .unwrap_or_default()
-    }
+#[wasm_bindgen(js_name = verifyCredential)]
+pub fn verify_credential(
+    issuer_public_key: &PbrsaPublicKey,
+    credential: JsValue,
+) -> Result<bool, JsError> {
+    let credential: protocol::Credential = from_js(credential)?;
+    protocol::verify_credential(&issuer_public_key.inner, &credential)?;
+    Ok(true)
 }
