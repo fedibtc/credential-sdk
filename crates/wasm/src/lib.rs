@@ -50,7 +50,9 @@ fn from_js<T: DeserializeOwned>(value: JsValue) -> Result<T, JsError> {
 }
 
 fn to_js<T: Serialize>(value: &T) -> Result<JsValue, JsError> {
-    serde_wasm_bindgen::to_value(value).map_err(|error| JsError::new(&error.to_string()))
+    value
+        .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
+        .map_err(|error| JsError::new(&error.to_string()))
 }
 
 fn parse_issuer_id(issuer_id: &str) -> Result<protocol::IssuerId, JsError> {
