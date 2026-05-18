@@ -8,11 +8,11 @@ import {
   finalizeCredential,
   generateIssuerKeys,
   schemaDigest,
-} from "../pkg/blind_rsa_signatures_wasm.js";
+} from "../pkg/fedi_credential_sdk.js";
 import type {
   BlindedPayload,
   VerifiableCredential,
-} from "../pkg/blind_rsa_signatures_wasm.js";
+} from "../pkg/fedi_credential_sdk.js";
 
 type TrustScoreVisibleData = {
   issuer_id_pubkey: string;

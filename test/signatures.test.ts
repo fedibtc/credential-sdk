@@ -4,7 +4,7 @@ import type {
   IssuerBundle,
   Revocation,
   SchemaDefinition,
-} from "../pkg/blind_rsa_signatures_wasm.js";
+} from "../pkg/fedi_credential_sdk.js";
 
 describe("protocol types", () => {
   it("typechecks MVP protocol envelopes", () => {
