@@ -156,7 +156,7 @@ pub fn issue_credential(
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct PbrsaKeyPair {
-    inner: protocol::PbrsaKeyPair,
+    inner: protocol::IssuerContext,
 }
 
 #[wasm_bindgen]
@@ -177,7 +177,7 @@ impl PbrsaKeyPair {
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct PbrsaPublicKey {
-    inner: protocol::PbrsaPublicKey,
+    inner: blind_rsa_signatures::pbrsa::PartiallyBlindPublicKeySha384PSSRandomized,
 }
 
 #[wasm_bindgen]
@@ -202,7 +202,7 @@ impl PbrsaPublicKey {
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct PbrsaSecretKey {
-    inner: protocol::PbrsaSecretKey,
+    inner: protocol::IssuerContext,
 }
 
 #[wasm_bindgen]
@@ -217,23 +217,26 @@ impl PbrsaSecretKey {
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct BlindingResultBytes {
-    inner: protocol::BlindingResult,
+    inner: blind_rsa_signatures::BlindingResult,
 }
 
 #[wasm_bindgen]
 impl BlindingResultBytes {
     #[wasm_bindgen(getter, js_name = blind_msg)]
     pub fn blind_message(&self) -> Vec<u8> {
-        self.inner.blind_msg.clone()
+        self.inner.blind_message.0.clone()
     }
 
     #[wasm_bindgen(getter)]
     pub fn secret(&self) -> Vec<u8> {
-        self.inner.secret.clone()
+        self.inner.secret.0.clone()
     }
 
     #[wasm_bindgen(getter, js_name = messageRandomizer)]
     pub fn message_randomizer(&self) -> Vec<u8> {
-        self.inner.message_randomizer.clone()
+        self.inner
+            .msg_randomizer
+            .map(|randomizer| randomizer.0.to_vec())
+            .unwrap_or_default()
     }
 }
