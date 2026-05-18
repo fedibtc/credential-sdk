@@ -5,6 +5,8 @@
 //! callers decide what schema, issuer identifiers, holder identifiers, and
 //! claims mean.
 
+pub mod canonical;
 pub mod types;
 
+pub use canonical::*;
 pub use types::*;
