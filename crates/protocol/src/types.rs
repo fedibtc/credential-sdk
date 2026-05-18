@@ -40,15 +40,13 @@ impl<'de> Deserialize<'de> for ProtocolVersion {
     }
 }
 
-/// Opaque issuer identifier.
+/// Issuer identifier.
 ///
-/// This value is supplied by the caller/application layer. The core protocol
-/// treats it only as an identifier and does not derive it from the credential
-/// issuance public key. For current deployments this is expected to be a Nostr
-/// public key or other Nostr identifier string.
+/// Issuer identities are hard-bound to Nostr public keys. Revocation events for
+/// a credential must be signed by the same Nostr public key carried here.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct IssuerId(String);
+pub struct IssuerId(pub nostr::PublicKey);
 
 /// Final holder credential.
 ///

@@ -6,7 +6,9 @@
 //! claims mean.
 
 pub mod canonical;
+pub mod nostr;
 pub mod types;
 
 pub use canonical::*;
+pub use nostr::*;
 pub use types::*;
