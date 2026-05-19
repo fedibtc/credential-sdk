@@ -11,6 +11,9 @@
     "build:wasm": "rm -rf pkg && wasm-pack build crates/wasm --scope fedibtc --target bundler --out-dir ../../pkg --no-opt && rm -f pkg/.gitignore && pnpm run format:pkg",
     "clean": "rm -rf dist pkg target",
     "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
+    "docs": "pnpm run docs:api",
+    "docs:api": "pnpm run build && typedoc",
+    "docs:serve": "pnpm run docs:api && vite dist/docs/api --host 127.0.0.1",
     "format": "biome format --write vitest.config.ts test",
     "format:check": "biome format vitest.config.ts test",
     "format:pkg": "biome format --write --vcs-enabled=false pkg",
@@ -26,6 +29,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
     "rollup": "^4.60.3",
+    "typedoc": "^0.28.19",
     "typescript": "^5.9.3",
     "vite": "^8.0.12",
     "vite-plugin-top-level-await": "^1.6.0",

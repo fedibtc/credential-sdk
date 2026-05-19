@@ -1,0 +1,12 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["pkg/fedi_credential_sdk_wasm.d.ts"],
+  "readme": "README.md",
+  "projectDocuments": ["docs/*.md"],
+  "basePath": ".",
+  "name": "@fedibtc/fedi-credential-sdk-wasm",
+  "includeVersion": true,
+  "out": "dist/docs/api",
+  "highlightLanguages": ["json", "jsx", "sh", "ts"],
+  "suppressCommentWarningsInDeclarationFiles": true
+}
