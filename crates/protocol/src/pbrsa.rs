@@ -1,5 +1,6 @@
 //! Shared PBRSA runtime error handling.
 
+pub use blind_rsa_signatures::pbrsa::PartiallyBlindPublicKeySha384PSSRandomized as PbrsaPublicKey;
 use thiserror::Error;
 
 use crate::PROTOCOL_VERSION_V1;
