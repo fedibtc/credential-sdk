@@ -1,5 +1,6 @@
 //! Shared PBRSA runtime error handling.
 
+use blind_rsa_signatures::pbrsa::PartiallyBlindPublicKeySha384PSSRandomized;
 use thiserror::Error;
 
 use crate::PROTOCOL_VERSION_V1;
@@ -26,5 +27,33 @@ pub(crate) fn check_version(version: crate::ProtocolVersion) -> Result<(), Pbrsa
         Ok(())
     } else {
         Err(PbrsaError::UnsupportedProtocolVersion(version))
+    }
+}
+
+/// Issuer PBRSA public key used for holder blinding and credential verification.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PbrsaPublicKey {
+    inner: PartiallyBlindPublicKeySha384PSSRandomized,
+}
+
+impl PbrsaPublicKey {
+    pub(crate) fn new(inner: PartiallyBlindPublicKeySha384PSSRandomized) -> Self {
+        Self { inner }
+    }
+
+    pub(crate) fn as_inner(&self) -> &PartiallyBlindPublicKeySha384PSSRandomized {
+        &self.inner
+    }
+
+    /// Import a PBRSA public key from DER bytes.
+    pub fn from_der(der: &[u8]) -> Result<Self, PbrsaError> {
+        Ok(Self::new(
+            PartiallyBlindPublicKeySha384PSSRandomized::from_der(der)?,
+        ))
+    }
+
+    /// Export this PBRSA public key as DER bytes.
+    pub fn to_der(&self) -> Result<Vec<u8>, PbrsaError> {
+        Ok(self.inner.to_der()?)
     }
 }

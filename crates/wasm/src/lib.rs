@@ -1,5 +1,4 @@
-use blind_rsa_signatures::pbrsa::PartiallyBlindPublicKeySha384PSSRandomized;
-use fedibtc_blind_rsa_signatures as protocol;
+use fedi_credential_sdk_protocol as protocol;
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -56,9 +55,7 @@ fn to_js<T: Serialize>(value: &T) -> Result<JsValue, JsError> {
 }
 
 fn parse_issuer_id(issuer_id: &str) -> Result<protocol::IssuerId, JsError> {
-    nostr::PublicKey::parse(issuer_id)
-        .map(protocol::IssuerId)
-        .map_err(|error| JsError::new(&error.to_string()))
+    protocol::IssuerId::parse(issuer_id).map_err(|error| JsError::new(&error.to_string()))
 }
 
 fn reflect_error(error: JsValue) -> JsError {
@@ -122,7 +119,7 @@ impl IssuerContext {
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct PbrsaPublicKey {
-    inner: PartiallyBlindPublicKeySha384PSSRandomized,
+    inner: protocol::PbrsaPublicKey,
 }
 
 #[wasm_bindgen]
@@ -130,7 +127,7 @@ impl PbrsaPublicKey {
     #[wasm_bindgen(js_name = fromDer)]
     pub fn from_der(der: Vec<u8>) -> Result<PbrsaPublicKey, JsError> {
         Ok(Self {
-            inner: PartiallyBlindPublicKeySha384PSSRandomized::from_der(&der)?,
+            inner: protocol::PbrsaPublicKey::from_der(&der)?,
         })
     }
 

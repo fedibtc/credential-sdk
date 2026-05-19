@@ -118,21 +118,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blind-rsa-signatures-wasm-next"
-version = "0.1.0"
-dependencies = [
- "blind-rsa-signatures",
- "fedibtc-blind-rsa-signatures",
- "getrandom 0.4.2",
- "js-sys",
- "nostr",
- "serde",
- "serde-wasm-bindgen",
- "serde_json",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -524,7 +509,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fedibtc-blind-rsa-signatures"
+name = "fedi-credential-sdk-protocol"
 version = "0.1.0"
 dependencies = [
  "blind-rsa-signatures",
@@ -536,6 +521,19 @@ dependencies = [
  "serde_with",
  "sha2",
  "thiserror",
+]
+
+[[package]]
+name = "fedi-credential-sdk-wasm"
+version = "0.1.0"
+dependencies = [
+ "fedi-credential-sdk-protocol",
+ "getrandom 0.4.2",
+ "js-sys",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "wasm-bindgen",
 ]
 
 [[package]]

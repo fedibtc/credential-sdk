@@ -6,7 +6,7 @@ import type {
   IssuanceResponse,
   JsonValue,
   PendingIssuanceResult,
-} from "../pkg/blind_rsa_signatures_wasm_next.js";
+} from "../pkg/fedi_credential_sdk_wasm.js";
 
 describe("protocol types", () => {
   it("typechecks issuance request, response, and credential envelopes", () => {

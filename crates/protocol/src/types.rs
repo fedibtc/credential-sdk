@@ -7,6 +7,7 @@ use serde_json::Value;
 use serde_with::{base64::Base64, base64::UrlSafe, formats::Unpadded, serde_as};
 use serde_with::{DeserializeAs, SerializeAs};
 use sha2::{digest::Output, Digest, Sha256};
+use std::str::FromStr;
 use thiserror::Error;
 
 use crate::canonicalize_credential;
@@ -77,6 +78,21 @@ impl<'de> Deserialize<'de> for ProtocolVersion {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct IssuerId(pub nostr::PublicKey);
+
+impl IssuerId {
+    /// Parse an issuer identifier from a hex, bech32, or NIP-21 Nostr public key.
+    pub fn parse(issuer_id: &str) -> Result<Self, nostr::key::Error> {
+        nostr::PublicKey::parse(issuer_id).map(Self)
+    }
+}
+
+impl FromStr for IssuerId {
+    type Err = nostr::key::Error;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::parse(value)
+    }
+}
 
 /// Domain separator prepended to canonical credential JSON before hashing.
 pub const CREDENTIAL_DIGEST_DOMAIN_SEPARATOR: &[u8] = b"fedi-credential/credential-digest/v1\0";
