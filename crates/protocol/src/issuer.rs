@@ -38,7 +38,7 @@ impl IssuerContext {
     }
 
     pub fn public_key(&self) -> PbrsaPublicKey {
-        PbrsaPublicKey::new(self.key_pair.pk.clone())
+        self.key_pair.pk.clone()
     }
 
     pub fn secret_key_der(&self) -> Result<Vec<u8>, PbrsaError> {

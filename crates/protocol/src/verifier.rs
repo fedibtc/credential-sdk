@@ -34,7 +34,7 @@ pub enum VerificationError {
 /// Verify a signed issuer bundle.
 pub fn verify_issuer_bundle(bundle: &IssuerBundle) -> Result<(), VerificationError> {
     validate_revocation_locations(&bundle.issuer.revocation)?;
-    PbrsaPublicKey::from_der(&bundle.issuer.issuance_key)?;
+    PbrsaPublicKey::from_der(&bundle.issuer.issuance_key).map_err(PbrsaError::from)?;
 
     let signing_message = signing_message(
         ISSUER_BUNDLE_SIGNATURE_DOMAIN_SEPARATOR,
@@ -71,9 +71,7 @@ pub fn verify_credential(
     let metadata =
         canonicalize_pbrsa_info(credential.version, &credential.issuer_id, &credential.info)?;
     let message = canonicalize_pbrsa_blind_msg(credential.version, &credential.blind_msg)?;
-    let public_key = issuer_public_key
-        .as_inner()
-        .derive_public_key_for_metadata(&metadata)?;
+    let public_key = issuer_public_key.derive_public_key_for_metadata(&metadata)?;
     public_key.verify(
         &credential.signature,
         Some(credential.message_randomizer),

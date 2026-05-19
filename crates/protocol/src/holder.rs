@@ -28,9 +28,7 @@ impl PendingIssuance {
     ) -> Result<(IssuanceRequest, Self), PbrsaError> {
         let metadata = canonicalize_pbrsa_info(PROTOCOL_VERSION_V1, &issuer_id, &info)?;
         let message = canonicalize_pbrsa_blind_msg(PROTOCOL_VERSION_V1, &blind_msg)?;
-        let public_key = issuer_public_key
-            .as_inner()
-            .derive_public_key_for_metadata(&metadata)?;
+        let public_key = issuer_public_key.derive_public_key_for_metadata(&metadata)?;
         let blinding_result = public_key.blind(&mut DefaultRng, &message, Some(&metadata))?;
 
         let request = IssuanceRequest {
@@ -63,9 +61,7 @@ impl PendingIssuance {
 
         let metadata = canonicalize_pbrsa_info(PROTOCOL_VERSION_V1, &self.issuer_id, &self.info)?;
         let message = canonicalize_pbrsa_blind_msg(PROTOCOL_VERSION_V1, &self.blind_msg)?;
-        let public_key = issuer_public_key
-            .as_inner()
-            .derive_public_key_for_metadata(&metadata)?;
+        let public_key = issuer_public_key.derive_public_key_for_metadata(&metadata)?;
         let signature = public_key.finalize(
             &response.blind_signature,
             &self.blinding_result,

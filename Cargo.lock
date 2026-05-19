@@ -506,7 +506,6 @@ dependencies = [
 name = "fedi-credential-sdk-wasm"
 version = "0.1.0"
 dependencies = [
- "blind-rsa-signatures",
  "fedi-credential-sdk-protocol",
  "getrandom 0.4.2",
  "js-sys",
