@@ -7,7 +7,7 @@
 
 use serde_json::{json, Value};
 
-use crate::{Credential, IssuerId, ProtocolVersion};
+use crate::{Credential, Issuer, IssuerId, ProtocolVersion, RevocationEntry};
 
 /// Canonicalize a JSON value using RFC 8785 / JCS and return UTF-8 bytes.
 ///
@@ -27,6 +27,12 @@ pub const PBRSA_PUBLIC_INFO_CANONICAL_TYPE: &str = "fedibtc.pbrsa.public-info";
 
 /// Canonicalized payload type string for holder-hidden blind-message information.
 pub const PBRSA_BLIND_MSG_CANONICAL_TYPE: &str = "fedibtc.pbrsa.blind-msg";
+
+/// Canonicalized payload type string for issuer bundle signatures.
+pub const ISSUER_BUNDLE_CANONICAL_TYPE: &str = "fedibtc.issuer-bundle";
+
+/// Canonicalized payload type string for signed revocations.
+pub const REVOCATION_CANONICAL_TYPE: &str = "fedibtc.revocation";
 
 /// Build JCS canonical bytes for the PBRSA public credential info.
 ///
@@ -59,6 +65,26 @@ pub fn canonicalize_pbrsa_blind_msg(
         "type": PBRSA_BLIND_MSG_CANONICAL_TYPE,
         "version": version,
         "blind_msg": blind_msg,
+    });
+
+    canonicalize_json_value(&payload)
+}
+
+/// Build JCS canonical bytes for the issuer metadata signed in an issuer bundle.
+pub fn canonicalize_issuer_bundle(issuer: &Issuer) -> serde_json::Result<Vec<u8>> {
+    let payload = json!({
+        "type": ISSUER_BUNDLE_CANONICAL_TYPE,
+        "issuer": issuer,
+    });
+
+    canonicalize_json_value(&payload)
+}
+
+/// Build JCS canonical bytes for a signed revocation payload.
+pub fn canonicalize_revocation(revocation: &RevocationEntry) -> serde_json::Result<Vec<u8>> {
+    let payload = json!({
+        "type": REVOCATION_CANONICAL_TYPE,
+        "revocation": revocation,
     });
 
     canonicalize_json_value(&payload)

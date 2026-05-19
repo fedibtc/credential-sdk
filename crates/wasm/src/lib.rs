@@ -33,10 +33,48 @@ export interface Credential {
   readonly signature: string;
 }
 
+export interface IssuerBundle {
+  readonly issuer: Issuer;
+  readonly proof: SignatureProof;
+}
+
+export interface Issuer {
+  readonly issuer_id_pubkey: string;
+  readonly issuance_key: string;
+  readonly revocation: readonly RevocationLocation[];
+}
+
+export interface RevocationLocation {
+  readonly protocol: string;
+  readonly location: string;
+}
+
+export interface SignatureProof {
+  readonly signature: string;
+}
+
+export interface SignedRevocation {
+  readonly revocation: RevocationEntry;
+  readonly proof: IssuerSignatureProof;
+}
+
+export interface RevocationEntry {
+  readonly credential_digest: string;
+}
+
+export interface IssuerSignatureProof {
+  readonly issuer_id_pubkey: string;
+  readonly signature: string;
+}
+
 export interface PendingIssuanceResult {
   readonly request: IssuanceRequest;
   readonly pending: PendingIssuance;
 }
+
+export function verifyIssuerBundle(issuerBundle: IssuerBundle): boolean;
+
+export function verifyRevocation(revocation: SignedRevocation): boolean;
 
 export function verifyCredential(
   issuerPublicKey: PbrsaPublicKey,
@@ -195,5 +233,19 @@ pub fn verify_credential(
 ) -> Result<bool, JsError> {
     let credential: protocol::Credential = from_js(credential)?;
     protocol::verify_credential(&issuer_public_key.inner, &credential)?;
+    Ok(true)
+}
+
+#[wasm_bindgen(js_name = verifyIssuerBundle)]
+pub fn verify_issuer_bundle(issuer_bundle: JsValue) -> Result<bool, JsError> {
+    let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
+    protocol::verify_issuer_bundle(&issuer_bundle)?;
+    Ok(true)
+}
+
+#[wasm_bindgen(js_name = verifyRevocation)]
+pub fn verify_revocation(revocation: JsValue) -> Result<bool, JsError> {
+    let revocation: protocol::SignedRevocation = from_js(revocation)?;
+    protocol::verify_revocation(&revocation)?;
     Ok(true)
 }

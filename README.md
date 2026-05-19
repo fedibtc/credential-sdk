@@ -32,16 +32,10 @@ During issuance, `credential.info` is public and `credential.blind_msg` is blind
 
 The current high-level API is:
 
-- `generateIssuerKeys(modulusBits)`
+- `generateIssuerKeys()`
 - `createCredential(blindedData, visibleData)`
 - `blindSignCredential(blindedData, visibleData, issuerKeys)`
 - `finalizeCredential(blindSignedCredential, issuerPublicKey)`
-
-The low-level key surface is intentionally small:
-
-- `PbrsaPublicKey.blind(blind_msg, info)`
-- `PbrsaSecretKey.blindSign(blind_msg, info)`
-- `PbrsaPublicKey.verify(signature, messageRandomizer, blind_msg, info)`
 
 ## Status
 
