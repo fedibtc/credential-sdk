@@ -1,10 +1,10 @@
 [package]
-name = "fedibtc-blind-rsa-signatures"
+name = "fedi-credential-sdk-protocol"
 version = "0.1.0"
 edition = "2021"
 description = "Rust-facing, stateless credential protocol API for issuing and verifying partially blinded credentials."
 license = "MIT"
-repository = "https://github.com/fedibtc/blind-rsa-signatures-wasm"
+repository = "https://github.com/fedibtc/credential-sdk"
 readme = "../../README.md"
 
 [dependencies]

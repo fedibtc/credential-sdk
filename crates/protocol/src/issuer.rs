@@ -1,14 +1,11 @@
 //! Issuer-side PBRSA issuance operations.
 
-use blind_rsa_signatures::{
-    pbrsa::{PartiallyBlindKeyPairSha384PSSRandomized, PartiallyBlindPublicKeySha384PSSRandomized},
-    DefaultRng,
-};
+use blind_rsa_signatures::{pbrsa::PartiallyBlindKeyPairSha384PSSRandomized, DefaultRng};
 use serde_json::Value;
 
 use crate::{
     canonicalize_pbrsa_info, pbrsa::check_version, IssuanceRequest, IssuanceResponse, IssuerId,
-    PbrsaError, PROTOCOL_VERSION_V1,
+    PbrsaError, PbrsaPublicKey, PROTOCOL_VERSION_V1,
 };
 
 /// Runtime issuer context containing issuer identity and PBRSA signing key.
@@ -40,7 +37,7 @@ impl IssuerContext {
         }
     }
 
-    pub fn public_key(&self) -> PartiallyBlindPublicKeySha384PSSRandomized {
+    pub fn public_key(&self) -> PbrsaPublicKey {
         self.key_pair.pk.clone()
     }
 

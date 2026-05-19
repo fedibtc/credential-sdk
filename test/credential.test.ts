@@ -5,12 +5,12 @@ import {
   PbrsaPublicKey,
   PendingIssuance,
   verifyCredential,
-} from "../pkg/blind_rsa_signatures_wasm_next.js";
+} from "../pkg/fedi_credential_sdk_wasm.js";
 import type {
   Credential,
   IssuanceResponse,
   PendingIssuanceResult,
-} from "../pkg/blind_rsa_signatures_wasm_next.js";
+} from "../pkg/fedi_credential_sdk_wasm.js";
 
 const issuerId = "11".repeat(32);
 const otherIssuerId = "22".repeat(32);

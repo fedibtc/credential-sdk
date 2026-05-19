@@ -7,6 +7,7 @@ use serde_json::Value;
 use serde_with::{base64::Base64, base64::UrlSafe, formats::Unpadded, serde_as};
 use serde_with::{DeserializeAs, SerializeAs};
 use sha2::{digest::Output, Digest, Sha256};
+use std::str::FromStr;
 use thiserror::Error;
 
 use crate::canonicalize_credential;
@@ -77,6 +78,54 @@ impl<'de> Deserialize<'de> for ProtocolVersion {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct IssuerId(pub nostr::PublicKey);
+
+impl IssuerId {
+    /// Parse an issuer identifier from a hex, bech32, or NIP-21 Nostr public key.
+    pub fn parse(issuer_id: &str) -> Result<Self, nostr::key::Error> {
+        nostr::PublicKey::parse(issuer_id).map(Self)
+    }
+}
+
+impl FromStr for IssuerId {
+    type Err = nostr::key::Error;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::parse(value)
+    }
+}
+
+/// Signed issuer metadata used by verifiers before accepting credentials.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IssuerBundle {
+    pub issuer: Issuer,
+    pub proof: SignatureProof,
+}
+
+/// Issuer metadata signed by the issuer identity key.
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Issuer {
+    pub issuer_id_pubkey: IssuerId,
+    /// DER-encoded PBRSA public key used to verify credentials.
+    ///
+    /// Serializes as unpadded URL-safe base64.
+    #[serde_as(as = "Base64UrlUnpadded")]
+    pub issuance_key: Vec<u8>,
+    pub revocation: Vec<RevocationLocation>,
+}
+
+/// Location where issuer revocations may be published.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevocationLocation {
+    pub protocol: String,
+    pub location: String,
+}
+
+/// Schnorr signature proof encoded as a 64-byte hex string.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignatureProof {
+    pub signature: String,
+}
 
 /// Domain separator prepended to canonical credential JSON before hashing.
 pub const CREDENTIAL_DIGEST_DOMAIN_SEPARATOR: &[u8] = b"fedi-credential/credential-digest/v1\0";
@@ -178,6 +227,28 @@ pub struct IssuanceResponse {
 pub struct Revocation {
     pub issuer_id: IssuerId,
     pub credential_digest: Output<Sha256>,
+}
+
+/// Signed revocation wire object.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignedRevocation {
+    pub revocation: RevocationEntry,
+    pub proof: IssuerSignatureProof,
+}
+
+/// Revocation payload signed by the issuer identity key.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevocationEntry {
+    /// Hex-encoded SHA-256 digest of the finalized credential.
+    pub credential_digest: String,
+}
+
+/// Issuer identity proof for a signed revocation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IssuerSignatureProof {
+    pub issuer_id_pubkey: IssuerId,
+    /// Schnorr signature proof encoded as a 64-byte hex string.
+    pub signature: String,
 }
 
 #[cfg(test)]

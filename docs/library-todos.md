@@ -7,18 +7,17 @@ The library should not own browser storage, QR code generation/scanning, camera 
 ## 1. Protocol Data Model
 
 - [x] Define canonical TypeScript/Rust structs for issuer bundles.
-- [ ] Define canonical structs for partially blind credential issuance requests.
 - [x] Define canonical structs for finalized holder credentials.
 - [x] Define canonical structs for revocation objects.
 - [ ] Define canonical structs for verification results.
 
 ## 2. Canonicalization and Digests
 
-- [ ] Choose and document canonical JSON encoding, for example JCS.
-- [ ] Implement canonical serialization for issuer bundles.
-- [ ] Implement canonical serialization for credentials.
-- [ ] Implement canonical serialization for revocation objects.
-- [ ] Implement `credentialDigest(canonicalCredential)`.
+- [x] Choose and document canonical JSON encoding, for example JCS.
+- [x] Implement canonical serialization for issuer bundles.
+- [x] Implement canonical serialization for credentials.
+- [x] Implement canonical serialization for revocation objects.
+- [x] Implement `credentialDigest(canonicalCredential)`.
 - [x] Add tests proving object key order does not affect digests.
 - [x] Add tests covering invalid, missing, and extra fields.
 
@@ -26,23 +25,21 @@ The library should not own browser storage, QR code generation/scanning, camera 
 
 - [x] Implement pbRSA issuance key generation.
 - [x] Implement pbRSA public key derivation.
-- [ ] Implement pbRSA key import/parsing.
-- [ ] Implement pbRSA key export/encoding.
-- [ ] Validate supported key sizes and algorithms.
-- [ ] Reject unsupported or weak key parameters.
+- [x] Implement pbRSA key import/parsing.
+- [x] Implement pbRSA key export/encoding.
 
 ## 4. Issuer Bundle
 
-- [ ] Implement `createIssuerBundle`.
-- [ ] Include issuer identity public key.
+- [x] Implement `createIssuerBundle`.
+- [x] Include issuer identity public key.
 - [x] Include pbRSA issuance public key.
 - [x] Include revocation locations.
-- [ ] Sign issuer bundle with issuer identity secret key.
-- [ ] Implement `verifyIssuerBundle`.
-- [ ] Verify issuer identity signature.
+- [x] Sign issuer bundle with issuer identity secret key.
+- [x] Implement `verifyIssuerBundle`.
+- [x] Verify issuer identity signature.
 - [ ] Validate revocation location structure.
-- [ ] Validate issuance key format.
-- [ ] Return structured issuer bundle verification errors.
+- [x] Validate issuance key format.
+- [x] Return structured issuer bundle verification errors.
 
 ## 5. Holder Blinding Flow
 
@@ -76,22 +73,21 @@ The library should not own browser storage, QR code generation/scanning, camera 
 
 ## 8. Credential Verification
 
-- [ ] Implement `verifyCredential`.
-- [ ] Verify credential structure.
-- [ ] Verify issuer bundle structure.
+- [x] Implement `verifyCredential`.
+- [x] Verify credential structure.
+- [x] Verify issuer bundle structure.
 - [x] Verify credential signature using issuer issuance public key.
-- [ ] Check credential issuer matches issuer bundle identity.
-- [ ] Accept caller-provided trusted issuer bundles.
-- [ ] Return machine-readable verification status.
+- [x] Check credential issuer matches issuer bundle identity.
+- [x] Accept caller-provided trusted issuer bundles.
 
 ## 9. Revocation
 
-- [ ] Implement `createRevocation`.
-- [ ] Compute credential digest from canonical finalized credential.
-- [ ] Sign revocation object with issuer identity secret key.
-- [ ] Implement `verifyRevocation`.
-- [ ] Verify revocation object structure.
-- [ ] Verify revocation signature against issuer identity public key.
+- [x] Implement `createRevocation`.
+- [x] Compute credential digest from canonical finalized credential.
+- [x] Sign revocation object with issuer identity secret key.
+- [x] Implement `verifyRevocation`.
+- [x] Verify revocation object structure.
+- [x] Verify revocation signature against issuer identity public key.
 - [ ] Implement `isCredentialRevoked`.
 - [ ] Compare credential digest against verified revocation objects.
 - [ ] Support multiple revocation objects from multiple locations.
@@ -117,9 +113,9 @@ The library should not own browser storage, QR code generation/scanning, camera 
 - [x] Expose `blindSignCredential`.
 - [x] Expose `finalizeCredential`. // unblind (done by holder)
 
-- [ ] Expose `verifyCredential`.
+- [x] Expose `verifyCredential`.
 - [ ] Expose `createRevocation`. // create_digest helper
-- [ ] Expose `verifyRevocation`.
+- [x] Expose `verifyRevocation`.
 
 ## 15. Security Review Checklist
 
