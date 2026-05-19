@@ -73,6 +73,8 @@ pnpm test
 
 Useful scripts:
 
+- `pnpm run docs` rebuilds the WASM package and generates the TypeDoc API reference in `dist/docs/api`; run it inside `devenv shell`.
+- `pnpm run docs:serve` rebuilds the API reference and serves it locally with Vite; run it inside `devenv shell`.
 - `pnpm run test:rust` runs Rust unit tests for the full workspace.
 - `pnpm run test:ts` rebuilds the WASM package, typechecks TypeScript, and runs Vitest.
 - `pnpm run check` runs typecheck and the full test suite.
