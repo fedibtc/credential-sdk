@@ -1,55 +1,52 @@
 import { describe, expect, it } from "vitest";
 
 import type {
-  IssuerBundle,
-  Revocation,
-  SchemaDefinition,
-} from "../pkg/blind_rsa_signatures_wasm.js";
+  Credential,
+  IssuanceRequest,
+  IssuanceResponse,
+  JsonValue,
+  PendingIssuanceResult,
+} from "../pkg/blind_rsa_signatures_wasm_next.js";
 
 describe("protocol types", () => {
-  it("typechecks MVP protocol envelopes", () => {
-    const issuerBundle = {
-      issuer: {
-        issuer_id_pubkey: "issuer-id-pubkey",
-        issuance_key: "rsa-pubkey-for-credential-issuance",
-        revocation: [
-          {
-            protocol: "https",
-            location: "https://example.com/revocations",
-          },
-        ],
+  it("typechecks issuance request, response, and credential envelopes", () => {
+    const info = {
+      schema: "trust-score-v1",
+      issuer_id_pubkey:
+        "1111111111111111111111111111111111111111111111111111111111111111",
+      score: 7,
+    } satisfies JsonValue;
+    const request = {
+      version: 1,
+      blinded_message: "base64url-blinded-message",
+    } satisfies IssuanceRequest;
+    const response = {
+      version: 1,
+      issuer_id:
+        "1111111111111111111111111111111111111111111111111111111111111111",
+      info,
+      blind_signature: "base64url-blind-signature",
+    } satisfies IssuanceResponse;
+    const credential = {
+      version: 1,
+      issuer_id:
+        "1111111111111111111111111111111111111111111111111111111111111111",
+      info,
+      blind_msg: {
+        holder_pubkey: "holder-pubkey",
       },
-      proof: {
-        signature: "issuer-signature",
-      },
-    } satisfies IssuerBundle;
-    const schemaDefinition = {
-      schema: {
-        id: "fedi-trust-score",
-        version: "1.0.0",
-        digest: "base64url-digest",
-        fields: {
-          info: {
-            schema: "string",
-            issuer_id_pubkey: "string",
-            score: "number",
-          },
-          blind_msg: "string",
-        },
-      },
-    } satisfies SchemaDefinition;
-    const revocation = {
-      revocation: {
-        credential_digest: "SHA256(canonical_credential)",
-      },
-      proof: {
-        issuer_id_pubkey: "id-public-key",
-        signature: "partially-blinded-signature",
-      },
-    } satisfies Revocation;
+      message_randomizer: "base64url-message-randomizer",
+      signature: "base64url-signature",
+    } satisfies Credential;
+    const pendingIssuance = {
+      request,
+      pending: null as never,
+    } satisfies PendingIssuanceResult;
 
-    expect(issuerBundle.issuer.revocation[0].protocol).toBe("https");
-    expect(schemaDefinition.schema.fields.blind_msg).toBe("string");
-    expect(revocation.proof.issuer_id_pubkey).toBe("id-public-key");
+    expect(response.info).toBe(info);
+    expect(credential.blind_msg).toEqual({ holder_pubkey: "holder-pubkey" });
+    expect(pendingIssuance.request.blinded_message).toBe(
+      "base64url-blinded-message",
+    );
   });
 });

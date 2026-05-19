@@ -75,11 +75,11 @@ pnpm run build
 pnpm test
 ```
 
-`pnpm run build` runs `wasm-pack build --scope fedibtc --target bundler --out-dir pkg --no-opt`.
+`pnpm run build` runs `wasm-pack build crates/wasm --scope fedibtc --target bundler --out-dir ../../pkg --no-opt`. Run it inside `devenv shell` so `secp256k1-sys` uses Nix LLVM clang for wasm32 C code.
 
 Useful scripts:
 
-- `pnpm run test:rust` runs Rust unit tests.
+- `pnpm run test:rust` runs Rust unit tests for the full workspace.
 - `pnpm run test:ts` rebuilds the WASM package, typechecks TypeScript, and runs Vitest.
 - `pnpm run check` runs typecheck and the full test suite.
 - `pnpm run publish:dry-run` builds and validates the generated package before publishing.

@@ -123,6 +123,7 @@ version = "0.1.0"
 dependencies = [
  "blind-rsa-signatures",
  "fedibtc-blind-rsa-signatures",
+ "getrandom 0.4.2",
  "js-sys",
  "nostr",
  "serde",

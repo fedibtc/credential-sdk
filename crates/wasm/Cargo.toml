@@ -13,6 +13,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 blind-rsa-signatures = "0.17.1"
 fedibtc-blind-rsa-signatures = { path = "../protocol", version = "0.1.0" }
+getrandom = { version = "0.4.2", features = ["wasm_js"] }
 js-sys = "0.3"
 nostr = "0.44.2"
 serde = { version = "1.0", features = ["derive"] }
