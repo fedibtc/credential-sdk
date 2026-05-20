@@ -4,9 +4,9 @@ use blind_rsa_signatures::{pbrsa::PartiallyBlindKeyPairSha384PSSRandomized, Defa
 use serde_json::Value;
 
 use crate::{
-    canonicalize_pbrsa_info, Credential, CredentialsError, IssuanceRequest, IssuanceResponse,
-    Issuer, IssuerBundle, IssuerId, PbrsaPublicKey, ProtocolV1, RevocationEntry,
-    RevocationLocation, RevocationProof, SchnorrSignatureProof, SignedRevocation,
+    canonicalize_pbrsa_info, CredentialsError, IssuanceRequest, IssuanceResponse, Issuer,
+    IssuerBundle, IssuerId, PbrsaPublicKey, ProtocolV1, Revocation, RevocationLocation,
+    RevocationProof, SchnorrSignatureProof, SignedCredential, SignedRevocation,
 };
 
 /// Runtime issuer context containing issuer identity and PBRSA signing key.
@@ -79,6 +79,7 @@ impl IssuerContext {
         let signature = self.sign_identity_digest_with_rng(issuer.digest()?, rng);
 
         Ok(IssuerBundle {
+            version: ProtocolV1,
             issuer,
             proof: SchnorrSignatureProof { signature },
         })
@@ -138,14 +139,14 @@ impl IssuerContext {
     /// live outside the core protocol.
     pub fn revoke_credential(
         &self,
-        credential: &Credential,
+        credential: &SignedCredential,
     ) -> Result<SignedRevocation, CredentialsError> {
         self.revoke_credential_with_rng(credential, &mut nostr::secp256k1::rand::rngs::OsRng)
     }
 
     pub(crate) fn revoke_credential_with_rng(
         &self,
-        credential: &Credential,
+        credential: &SignedCredential,
         rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
     ) -> Result<SignedRevocation, CredentialsError> {
         let issuer_id = self.issuer_id();
@@ -153,13 +154,14 @@ impl IssuerContext {
             return Err(CredentialsError::IssuerIdMismatch);
         }
 
-        let revocation = RevocationEntry {
-            credential_digest: credential.digest()?,
+        let revocation = Revocation {
+            credential_digest: credential.credential.digest()?,
         };
 
         let signature = self.sign_identity_digest_with_rng(revocation.digest()?, rng);
 
         Ok(SignedRevocation {
+            version: ProtocolV1,
             revocation,
             proof: RevocationProof {
                 issuer_id_pubkey: issuer_id,

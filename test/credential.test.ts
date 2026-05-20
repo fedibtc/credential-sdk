@@ -6,7 +6,7 @@ import {
   PendingIssuance,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 import type {
-  Credential,
+  SignedCredential,
   IssuanceResponse,
   PendingIssuanceResult,
 } from "../pkg/fedi_credential_sdk_wasm.js";
@@ -66,8 +66,9 @@ describe("credential issuance protocol", () => {
     const credential = pending.finalize(
       issuer.publicKey,
       response,
-    ) as Credential;
+    ) as SignedCredential;
     expect(credential).toMatchObject({
+      version: 1,
       credential: {
         issuer_id_pubkey: issuerId,
         info: credentialInfo,
@@ -99,7 +100,7 @@ describe("credential issuance protocol", () => {
       credentialInfo,
       request,
     ) as IssuanceResponse;
-    expect(pending.finalize(importedPublicKey, response) as Credential).toMatchObject({
+    expect(pending.finalize(importedPublicKey, response) as SignedCredential).toMatchObject({
       credential: {
         issuer_id_pubkey: issuer.issuerId,
         info: credentialInfo,

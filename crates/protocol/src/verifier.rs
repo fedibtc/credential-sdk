@@ -3,15 +3,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, Credential, CredentialsError,
-    IssuerBundle, IssuerId, PbrsaPublicKey, ProtocolV1, RevocationEntry, SignedRevocation,
+    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, CredentialsError, IssuerBundle,
+    IssuerId, PbrsaPublicKey, ProtocolV1, Revocation, SignedCredential, SignedRevocation,
 };
 
 /// Stateful verifier for trusted issuers, revocations, and credentials.
 #[derive(Clone, Default)]
 pub struct VerificationContext {
     issuers: BTreeMap<IssuerId, PbrsaPublicKey>,
-    revocations: BTreeSet<RevocationEntry>,
+    revocations: BTreeSet<Revocation>,
 }
 
 impl VerificationContext {
@@ -47,7 +47,7 @@ impl VerificationContext {
     }
 
     /// Verify a finalized credential against trusted issuers and revocations.
-    pub fn verify_credential(&self, credential: &Credential) -> Result<(), CredentialsError> {
+    pub fn verify_credential(&self, credential: &SignedCredential) -> Result<(), CredentialsError> {
         let issuer_public_key = self
             .issuers
             .get(&credential.credential.issuer_id_pubkey)
@@ -55,8 +55,8 @@ impl VerificationContext {
 
         verify_credential_with_key(issuer_public_key, credential)?;
 
-        let revocation = RevocationEntry {
-            credential_digest: credential.digest()?,
+        let revocation = Revocation {
+            credential_digest: credential.credential.digest()?,
         };
 
         if self.revocations.contains(&revocation) {
@@ -69,7 +69,7 @@ impl VerificationContext {
 
 pub(crate) fn verify_credential_with_key(
     issuer_public_key: &PbrsaPublicKey,
-    credential: &Credential,
+    credential: &SignedCredential,
 ) -> Result<(), CredentialsError> {
     let metadata = canonicalize_pbrsa_info(
         ProtocolV1,

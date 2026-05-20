@@ -7,7 +7,7 @@
 
 use serde_json::{json, Value};
 
-use crate::{Credential, Issuer, IssuerId, ProtocolV1, RevocationEntry};
+use crate::{Credential, Issuer, IssuerId, ProtocolV1, Revocation};
 
 /// Canonicalize a JSON value using RFC 8785 / JCS and return UTF-8 bytes.
 ///
@@ -81,7 +81,7 @@ pub fn canonicalize_issuer_bundle(issuer: &Issuer) -> serde_json::Result<Vec<u8>
 }
 
 /// Build JCS canonical bytes for a signed revocation payload.
-pub fn canonicalize_revocation(revocation: &RevocationEntry) -> serde_json::Result<Vec<u8>> {
+pub fn canonicalize_revocation(revocation: &Revocation) -> serde_json::Result<Vec<u8>> {
     let payload = json!({
         "type": REVOCATION_CANONICAL_TYPE,
         "revocation": revocation,
@@ -90,7 +90,7 @@ pub fn canonicalize_revocation(revocation: &RevocationEntry) -> serde_json::Resu
     canonicalize_json_value(&payload)
 }
 
-/// Build JCS canonical bytes for a finalized credential.
+/// Build JCS canonical bytes for a credential payload.
 pub fn canonicalize_credential(credential: &Credential) -> serde_json::Result<Vec<u8>> {
     let value = serde_json::to_value(credential)?;
     canonicalize_json_value(&value)

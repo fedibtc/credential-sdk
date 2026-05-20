@@ -42,6 +42,7 @@ fn protocol_snapshots() {
 
     insta::assert_json_snapshot!(issuer_bundle, @r###"
     {
+      "version": 1,
       "issuer": {
         "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
         "issuance_key": "MIGeMA0GCSqGSIb3DQEBAQUAA4GMADCBiAKBgHqlcEXhOsb7YTTOFty0DtofgEZMxIXHDGgfjef6dL7wNZ6EBqknxMfT3s40XP32uKbuen2AzFSOC_ml41YiiZSkMh-PLyrmo9LxtpCDh2SIzRDPFb9PiCMmC0uDtebIh6wffxYon4OGlQghC0cE_GavsswisZVlQoNM9OkfSTetAgMBAAE",
@@ -97,6 +98,7 @@ fn protocol_snapshots() {
 
     insta::assert_json_snapshot!(credential, @r###"
     {
+      "version": 1,
       "credential": {
         "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
         "info": {
@@ -112,19 +114,20 @@ fn protocol_snapshots() {
     }
     "###);
 
-    // Revoke the finalized credential and snapshot the signed revocation entry.
+    // Revoke the finalized credential and snapshot the signed revocation.
     let signed_revocation = issuer
         .revoke_credential_with_rng(&credential, &mut nostr_rng)
         .unwrap();
 
     insta::assert_json_snapshot!(signed_revocation, @r###"
     {
+      "version": 1,
       "revocation": {
-        "credential_digest": "sHjaaBVtttTKnOiXjuM29pd3j7ZrxbsGi1IQ2uGr-m4"
+        "credential_digest": "EpSmK8hE6Ovn6Iwn8XtKVmvs0xDGUnGwYB1lu1hT_pU"
       },
       "proof": {
         "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
-        "signature": "HN-vq09hrSHPKrUtuFIInygT8H7ryryNJoStnWs6gsqfhLjuexGCfpefLUqRBw2Y7bafVGXCzjPoGP--u3dBIQ"
+        "signature": "NWjVPR0fs2r5z5BFgMdx_R18RFBIXnIfvL6sWk1N8z5pwhXS_9arex5e1uyfNkBCPVw6wTS13QGqlb_iqECiKw"
       }
     }
     "###);

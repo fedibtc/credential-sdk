@@ -5,8 +5,8 @@ use serde_json::Value;
 
 use crate::{
     canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, verifier::verify_credential_with_key,
-    Credential, CredentialPayload, CredentialProof, CredentialsError, IssuanceRequest,
-    IssuanceResponse, IssuerId, PbrsaPublicKey, ProtocolV1,
+    Credential, CredentialProof, CredentialsError, IssuanceRequest, IssuanceResponse, IssuerId,
+    PbrsaPublicKey, ProtocolV1, SignedCredential,
 };
 
 /// Holder-side pending issuance state.
@@ -61,7 +61,7 @@ impl PendingIssuance {
         self,
         issuer_public_key: &PbrsaPublicKey,
         response: &IssuanceResponse,
-    ) -> Result<Credential, CredentialsError> {
+    ) -> Result<SignedCredential, CredentialsError> {
         if response.issuer_id != self.issuer_id {
             return Err(CredentialsError::IssuerIdMismatch);
         }
@@ -83,8 +83,9 @@ impl PendingIssuance {
             .msg_randomizer
             .ok_or(CredentialsError::MissingMessageRandomizer)?;
 
-        let credential = Credential {
-            credential: CredentialPayload {
+        let credential = SignedCredential {
+            version: ProtocolV1,
+            credential: Credential {
                 issuer_id_pubkey: self.issuer_id,
                 info: self.info,
                 blind_msg: self.blind_msg,

@@ -99,6 +99,7 @@ impl FromStr for IssuerId {
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IssuerBundle {
+    pub version: ProtocolV1,
     pub issuer: Issuer,
     pub proof: SchnorrSignatureProof,
 }
@@ -112,6 +113,11 @@ pub struct SchnorrSignatureProof {
 }
 
 impl IssuerBundle {
+    /// Compute the signature digest for this issuer bundle payload.
+    pub fn digest(&self) -> Result<Output<Sha256>, CredentialsError> {
+        self.issuer.digest()
+    }
+
     /// Verify this issuer bundle's identity signature and return the issuer metadata.
     pub fn verify(&self) -> Result<Issuer, CredentialsError> {
         validate_revocation_locations(&self.issuer.revocation)?;
@@ -119,7 +125,7 @@ impl IssuerBundle {
         verify_identity_signature(
             &self.issuer.issuer_id_pubkey,
             &self.proof.signature,
-            Message::from_digest(self.issuer.digest()?.into()),
+            Message::from_digest(self.digest()?.into()),
         )?;
 
         Ok(self.issuer.clone())
@@ -161,7 +167,8 @@ pub struct RevocationLocation {
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SignedRevocation {
-    pub revocation: RevocationEntry,
+    pub version: ProtocolV1,
+    pub revocation: Revocation,
     pub proof: RevocationProof,
 }
 
@@ -175,12 +182,17 @@ pub struct RevocationProof {
 }
 
 impl SignedRevocation {
-    /// Verify this revocation's issuer signature and return the revocation entry.
-    pub fn verify(&self) -> Result<RevocationEntry, CredentialsError> {
+    /// Compute the signature digest for this revocation payload.
+    pub fn digest(&self) -> Result<Output<Sha256>, CredentialsError> {
+        self.revocation.digest()
+    }
+
+    /// Verify this revocation's issuer signature and return the revocation payload.
+    pub fn verify(&self) -> Result<Revocation, CredentialsError> {
         verify_identity_signature(
             &self.proof.issuer_id_pubkey,
             &self.proof.signature,
-            Message::from_digest(self.revocation.digest()?.into()),
+            Message::from_digest(self.digest()?.into()),
         )?;
 
         Ok(self.revocation.clone())
@@ -190,14 +202,14 @@ impl SignedRevocation {
 /// Revocation payload signed by the issuer identity key.
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct RevocationEntry {
+pub struct Revocation {
     /// SHA-256 digest of the finalized credential.
     #[serde_as(as = "Sha256DigestBase64UrlUnpadded")]
     pub credential_digest: sha2::digest::Output<Sha256>,
 }
 
-impl RevocationEntry {
-    /// Compute the signature digest for this revocation entry.
+impl Revocation {
+    /// Compute the signature digest for this revocation payload.
     pub fn digest(&self) -> Result<Output<Sha256>, CredentialsError> {
         let canonical = canonicalize_revocation(self)?;
         Ok(Sha256::new()
@@ -252,19 +264,20 @@ pub const CREDENTIAL_DIGEST_DOMAIN_SEPARATOR: &[u8] = b"fedi-credential/credenti
 /// will likely contain a Nostr holder public key, but that is application data,
 /// not a protocol-level field.
 ///
-/// The credential revocation digest is computed over the full canonical form of
-/// this object, including `message_randomizer` and `signature`.
+/// The credential revocation digest is computed over the canonical credential
+/// payload, excluding the proof.
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Credential {
-    pub credential: CredentialPayload,
+pub struct SignedCredential {
+    pub version: ProtocolV1,
+    pub credential: Credential,
     pub proof: CredentialProof,
 }
 
 /// Final credential payload signed by the issuance key.
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CredentialPayload {
+pub struct Credential {
     pub issuer_id_pubkey: IssuerId,
     pub info: Value,
     pub blind_msg: Value,
@@ -288,11 +301,7 @@ pub struct CredentialProof {
 }
 
 impl Credential {
-    /// Compute the revocation digest for this finalized credential.
-    ///
-    /// The digest is `SHA256(domain_separator || canonical_credential_json)`,
-    /// where `canonical_credential_json` is the RFC 8785 / JCS canonical JSON
-    /// form of the full serialized credential, including `signature`.
+    /// Compute the revocation digest for this credential payload.
     pub fn digest(&self) -> Result<Output<Sha256>, CredentialsError> {
         let canonical = canonicalize_credential(self)?;
 
@@ -322,7 +331,7 @@ pub struct IssuanceRequest {
 ///
 /// The response includes the issuer-selected `info` JSON and the blind signature.
 /// The holder combines this with their original unblinded `blind_msg` and
-/// message randomizer to assemble a final [`Credential`].
+/// message randomizer to assemble a final [`SignedCredential`].
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IssuanceResponse {
@@ -346,9 +355,10 @@ mod tests {
 
     use super::*;
 
-    fn credential() -> Credential {
-        Credential {
-            credential: CredentialPayload {
+    fn credential() -> SignedCredential {
+        SignedCredential {
+            version: ProtocolV1,
+            credential: Credential {
                 issuer_id_pubkey: IssuerId(nostr::PublicKey::from_byte_array([1u8; 32])),
                 info: json!({
                     "z": 1,
@@ -371,8 +381,9 @@ mod tests {
 
     #[test]
     fn credential_message_randomizer_serializes_as_unpadded_url_safe_base64() {
-        let credential = Credential {
-            credential: CredentialPayload {
+        let credential = SignedCredential {
+            version: ProtocolV1,
+            credential: Credential {
                 issuer_id_pubkey: IssuerId(nostr::PublicKey::from_byte_array([1u8; 32])),
                 info: json!({ "kind": "test" }),
                 blind_msg: json!({ "holder": "alice" }),
@@ -389,7 +400,7 @@ mod tests {
             json!("__________________________________________8")
         );
 
-        let roundtrip: Credential = serde_json::from_value(value).unwrap();
+        let roundtrip: SignedCredential = serde_json::from_value(value).unwrap();
         assert_eq!(
             roundtrip.credential.message_randomizer,
             credential.credential.message_randomizer
@@ -400,22 +411,25 @@ mod tests {
     fn digest_hashes_domain_separator_and_canonical_credential_json() {
         let credential = credential();
 
-        let canonical = canonicalize_credential(&credential).unwrap();
+        let canonical = canonicalize_credential(&credential.credential).unwrap();
         let expected = Sha256::new()
             .chain_update(CREDENTIAL_DIGEST_DOMAIN_SEPARATOR)
             .chain_update(canonical)
             .finalize();
 
-        assert_eq!(credential.digest().unwrap(), expected);
+        assert_eq!(credential.credential.digest().unwrap(), expected);
     }
 
     #[test]
-    fn digest_includes_signature() {
+    fn digest_excludes_signature() {
         let mut first = credential();
         let mut second = credential();
         first.proof.signature = PbrsaSignature(vec![1, 2, 3, 4]);
         second.proof.signature = PbrsaSignature(vec![1, 2, 3, 5]);
 
-        assert_ne!(first.digest().unwrap(), second.digest().unwrap());
+        assert_eq!(
+            first.credential.digest().unwrap(),
+            second.credential.digest().unwrap()
+        );
     }
 }

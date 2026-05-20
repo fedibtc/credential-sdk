@@ -26,12 +26,13 @@ export interface IssuanceResponse {
   readonly blind_signature: string;
 }
 
-export interface Credential {
-  readonly credential: CredentialPayload;
+export interface SignedCredential {
+  readonly version: 1;
+  readonly credential: Credential;
   readonly proof: CredentialProof;
 }
 
-export interface CredentialPayload {
+export interface Credential {
   readonly issuer_id_pubkey: string;
   readonly info: JsonValue;
   readonly blind_msg: JsonValue;
@@ -43,6 +44,7 @@ export interface CredentialProof {
 }
 
 export interface IssuerBundle {
+  readonly version: 1;
   readonly issuer: Issuer;
   readonly proof: SchnorrSignatureProof;
 }
@@ -58,7 +60,8 @@ export interface Issuer {
 }
 
 export interface SignedRevocation {
-  readonly revocation: RevocationEntry;
+  readonly version: 1;
+  readonly revocation: Revocation;
   readonly proof: RevocationProof;
 }
 
@@ -67,7 +70,7 @@ export interface RevocationProof {
   readonly signature: string;
 }
 
-export interface RevocationEntry {
+export interface Revocation {
   /** Unpadded URL-safe base64 encoded SHA-256 digest. */
   readonly credential_digest: string;
 }
@@ -171,7 +174,7 @@ impl IssuerContext {
 
     #[wasm_bindgen(js_name = revokeCredential)]
     pub fn revoke_credential(&self, credential: JsValue) -> Result<JsValue, JsError> {
-        let credential: protocol::Credential = from_js(credential)?;
+        let credential: protocol::SignedCredential = from_js(credential)?;
         to_js(&self.inner.revoke_credential(&credential)?)
     }
 }
@@ -270,7 +273,7 @@ impl VerificationContext {
 
     #[wasm_bindgen(js_name = verifyCredential)]
     pub fn verify_credential(&self, credential: JsValue) -> Result<bool, JsError> {
-        let credential: protocol::Credential = from_js(credential)?;
+        let credential: protocol::SignedCredential = from_js(credential)?;
         self.inner.verify_credential(&credential)?;
         Ok(true)
     }

@@ -8,7 +8,7 @@ import {
   verifyRevocation,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 import type {
-  Credential,
+  SignedCredential,
   IssuerBundle,
   PendingIssuanceResult,
   SignedRevocation,
@@ -25,7 +25,7 @@ function credentialFixture(): {
   issuer: IssuerContext;
   issuerBundle: IssuerBundle;
   signedRevocation: SignedRevocation;
-  credential: Credential;
+  credential: SignedCredential;
 } {
   const issuer = IssuerContext.generate(1024);
   const info = { schema: "fedi-trust-score-v1.0", trust_level: 7 };
@@ -40,7 +40,7 @@ function credentialFixture(): {
   const credential = result.pending.finalize(
     issuer.publicKey,
     response,
-  ) as Credential;
+  ) as SignedCredential;
 
   return {
     issuer,

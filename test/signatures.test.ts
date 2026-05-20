@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type {
-  Credential,
+  SignedCredential,
   IssuanceRequest,
   IssuanceResponse,
   JsonValue,
@@ -28,6 +28,7 @@ describe("protocol types", () => {
       blind_signature: "base64url-blind-signature",
     } satisfies IssuanceResponse;
     const credential = {
+      version: 1,
       credential: {
         issuer_id_pubkey:
           "1111111111111111111111111111111111111111111111111111111111111111",
@@ -38,7 +39,7 @@ describe("protocol types", () => {
       proof: {
         signature: "base64url-signature",
       },
-    } satisfies Credential;
+    } satisfies SignedCredential;
     const pendingIssuance = {
       request,
       pending: null as never,
