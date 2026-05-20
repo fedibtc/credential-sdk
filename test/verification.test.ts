@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  VerificationContext,
   verifyIssuerBundle,
   verifyRevocation,
 } from "../pkg/fedi_credential_sdk_wasm.js";
@@ -79,5 +80,20 @@ describe("revocation verification", () => {
         },
       }),
     ).toThrow();
+  });
+});
+
+describe("verification context", () => {
+  it("accepts trusted issuer bundles and their revocations", () => {
+    const context = new VerificationContext();
+
+    expect(context.addIssuerBundle(issuerBundle)).toBeUndefined();
+    expect(context.addRevocation(signedRevocation)).toBeUndefined();
+  });
+
+  it("rejects revocations from unknown issuers", () => {
+    const context = new VerificationContext();
+
+    expect(() => context.addRevocation(signedRevocation)).toThrow();
   });
 });

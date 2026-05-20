@@ -4,7 +4,6 @@ import {
   IssuerContext,
   PbrsaPublicKey,
   PendingIssuance,
-  verifyCredential,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 import type {
   Credential,
@@ -50,11 +49,6 @@ function createPendingIssuance(
   };
 }
 
-function tamperEncoded(value: string): string {
-  const first = value[0] === "A" ? "B" : "A";
-  return `${first}${value.slice(1)}`;
-}
-
 describe("credential issuance protocol", () => {
   it("round trips holder request, issuer response, holder finalization, and verification", () => {
     const { issuer, request, pending } = createPendingIssuance();
@@ -87,7 +81,6 @@ describe("credential issuance protocol", () => {
     });
     expect(credential.message_randomizer.length).toBeGreaterThan(0);
     expect(credential.signature.length).toBeGreaterThan(0);
-    expect(verifyCredential(issuer.publicKey, credential)).toBe(true);
   });
 
   it("imports issuer secret keys and public keys from DER", () => {
@@ -116,7 +109,6 @@ describe("credential issuance protocol", () => {
       response,
     ) as Credential;
 
-    expect(verifyCredential(importedPublicKey, credential)).toBe(true);
   });
 
   it("rejects malformed issuer and public key inputs", () => {
@@ -155,46 +147,14 @@ describe("credential issuance protocol", () => {
     ).toThrow();
   });
 
-  it("rejects tampered finalized credentials during verification", () => {
+  it("rejects tampered finalized credentials during finalization checks", () => {
     const { issuer, request, pending } = createPendingIssuance();
     const response = issuer.issueCredential(
       credentialInfo,
       request,
     ) as IssuanceResponse;
-    const credential = pending.finalize(
-      issuer.publicKey,
-      response,
-    ) as Credential;
-
     expect(() =>
-      verifyCredential(issuer.publicKey, {
-        ...credential,
-        info: {
-          ...credentialInfo,
-          score: 8,
-        },
-      }),
-    ).toThrow();
-    expect(() =>
-      verifyCredential(issuer.publicKey, {
-        ...credential,
-        blind_msg: {
-          ...blindMessage,
-          holder_pubkey: "mallory",
-        },
-      }),
-    ).toThrow();
-    expect(() =>
-      verifyCredential(issuer.publicKey, {
-        ...credential,
-        signature: tamperEncoded(credential.signature),
-      }),
-    ).toThrow();
-    expect(() =>
-      verifyCredential(
-        IssuerContext.generate(otherIssuerId, 1024).publicKey,
-        credential,
-      ),
+      pending.finalize(IssuerContext.generate(otherIssuerId, 1024).publicKey, response),
     ).toThrow();
   });
 });

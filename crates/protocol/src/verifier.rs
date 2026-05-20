@@ -1,73 +1,78 @@
 //! Verifier-side PBRSA credential verification operations.
 
-use std::str::FromStr;
-
-use nostr::secp256k1::{schnorr::Signature, Message};
-use sha2::{Digest, Sha256};
-use thiserror::Error;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    canonicalize_issuer_bundle, canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info,
-    canonicalize_revocation, pbrsa::check_version, Credential, IssuerBundle, IssuerId, PbrsaError,
-    PbrsaPublicKey, RevocationLocation, SignedRevocation,
+    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, revocation::verified_revocation,
+    verify_issuer_bundle, Credential, CredentialsError, IssuerBundle, IssuerId, PbrsaPublicKey,
+    Revocation, SignedRevocation,
 };
 
-/// Domain separator for issuer bundle identity signatures.
-pub const ISSUER_BUNDLE_SIGNATURE_DOMAIN_SEPARATOR: &[u8] =
-    b"fedi-credential/issuer-bundle-signature/v1\0";
-
-/// Domain separator for revocation identity signatures.
-pub const REVOCATION_SIGNATURE_DOMAIN_SEPARATOR: &[u8] =
-    b"fedi-credential/revocation-signature/v1\0";
-
-/// Errors returned by verifier-side protocol checks.
-#[derive(Debug, Error)]
-pub enum VerificationError {
-    #[error("failed to canonicalize signed payload: {0}")]
-    Canonicalize(#[from] serde_json::Error),
-    #[error(transparent)]
-    Pbrsa(#[from] PbrsaError),
-    #[error("verification failed")]
-    VerificationFailed,
+/// Stateful verifier for trusted issuers, revocations, and credentials.
+#[derive(Clone, Default)]
+pub struct VerificationContext {
+    issuers: BTreeMap<IssuerId, PbrsaPublicKey>,
+    revocations: BTreeSet<Revocation>,
 }
 
-/// Verify a signed issuer bundle.
-pub fn verify_issuer_bundle(bundle: &IssuerBundle) -> Result<(), VerificationError> {
-    validate_revocation_locations(&bundle.issuer.revocation)?;
-    PbrsaPublicKey::from_der(&bundle.issuer.issuance_key).map_err(PbrsaError::from)?;
+impl VerificationContext {
+    /// Create an empty verifier context.
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-    let signing_message = signing_message(
-        ISSUER_BUNDLE_SIGNATURE_DOMAIN_SEPARATOR,
-        &canonicalize_issuer_bundle(&bundle.issuer)?,
-    );
-    verify_identity_signature(
-        &bundle.issuer.issuer_id_pubkey,
-        &bundle.proof.signature,
-        signing_message,
-    )
+    /// Verify and trust an issuer bundle for subsequent credential checks.
+    pub fn add_issuer_bundle(&mut self, bundle: &IssuerBundle) -> Result<(), CredentialsError> {
+        verify_issuer_bundle(bundle)?;
+        let issuer_public_key = PbrsaPublicKey::from_der(&bundle.issuer.issuance_key)
+            .map_err(CredentialsError::from)?;
+
+        self.issuers
+            .insert(bundle.issuer.issuer_id_pubkey.clone(), issuer_public_key);
+
+        Ok(())
+    }
+
+    /// Verify and store a signed revocation from a trusted issuer.
+    pub fn add_revocation(
+        &mut self,
+        signed_revocation: &SignedRevocation,
+    ) -> Result<(), CredentialsError> {
+        let revocation = verified_revocation(signed_revocation)?;
+        if !self.issuers.contains_key(&revocation.issuer_id) {
+            return Err(CredentialsError::UnknownIssuer);
+        }
+
+        self.revocations.insert(revocation);
+        Ok(())
+    }
+
+    /// Verify a finalized credential against trusted issuers and revocations.
+    pub fn verify_credential(&self, credential: &Credential) -> Result<(), CredentialsError> {
+        let issuer_public_key = self
+            .issuers
+            .get(&credential.issuer_id)
+            .ok_or(CredentialsError::UnknownIssuer)?;
+
+        verify_credential_with_key(issuer_public_key, credential)?;
+
+        let revocation = Revocation {
+            issuer_id: credential.issuer_id.clone(),
+            credential_digest: credential.digest()?,
+        };
+
+        if self.revocations.contains(&revocation) {
+            return Err(CredentialsError::CredentialRevoked);
+        }
+
+        Ok(())
+    }
 }
 
-/// Verify a signed revocation object.
-pub fn verify_revocation(revocation: &SignedRevocation) -> Result<(), VerificationError> {
-    parse_sha256_hex(&revocation.revocation.credential_digest)?;
-    let signing_message = signing_message(
-        REVOCATION_SIGNATURE_DOMAIN_SEPARATOR,
-        &canonicalize_revocation(&revocation.revocation)?,
-    );
-
-    verify_identity_signature(
-        &revocation.proof.issuer_id_pubkey,
-        &revocation.proof.signature,
-        signing_message,
-    )
-}
-
-/// Verify a finalized credential.
-pub fn verify_credential(
+pub(crate) fn verify_credential_with_key(
     issuer_public_key: &PbrsaPublicKey,
     credential: &Credential,
-) -> Result<(), PbrsaError> {
-    check_version(credential.version)?;
+) -> Result<(), CredentialsError> {
     let metadata =
         canonicalize_pbrsa_info(credential.version, &credential.issuer_id, &credential.info)?;
     let message = canonicalize_pbrsa_blind_msg(credential.version, &credential.blind_msg)?;
@@ -81,67 +86,28 @@ pub fn verify_credential(
     Ok(())
 }
 
-fn validate_revocation_locations(
-    locations: &[RevocationLocation],
-) -> Result<(), VerificationError> {
-    if locations
-        .iter()
-        .any(|location| location.protocol.is_empty() || location.location.is_empty())
-    {
-        return Err(VerificationError::VerificationFailed);
-    }
-
-    Ok(())
-}
-
-fn signing_message(domain_separator: &[u8], canonical_payload: &[u8]) -> Message {
-    let digest = Sha256::new()
-        .chain_update(domain_separator)
-        .chain_update(canonical_payload)
-        .finalize();
-
-    Message::from_digest(digest.into())
-}
-
-fn verify_identity_signature(
-    issuer_id: &IssuerId,
-    signature: &str,
-    message: Message,
-) -> Result<(), VerificationError> {
-    let signature =
-        Signature::from_str(signature).map_err(|_| VerificationError::VerificationFailed)?;
-    let public_key = issuer_id
-        .0
-        .xonly()
-        .map_err(|_| VerificationError::VerificationFailed)?;
-
-    nostr::SECP256K1
-        .verify_schnorr(&signature, &message, &public_key)
-        .map_err(|_| VerificationError::VerificationFailed)
-}
-
-fn parse_sha256_hex(digest: &str) -> Result<(), VerificationError> {
-    let mut bytes = [0u8; 32];
-    hex::decode_to_slice(digest, &mut bytes).map_err(|_| VerificationError::VerificationFailed)?;
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
-    use crate::{Issuer, IssuerContext, IssuerSignatureProof, RevocationEntry, SignatureProof};
+    use crate::{
+        canonicalize_issuer_bundle, canonicalize_revocation, Issuer, IssuerContext,
+        IssuerSignatureProof, PendingIssuance, RevocationEntry, RevocationLocation, SignatureProof,
+        REVOCATION_SIGNATURE_DOMAIN_SEPARATOR,
+    };
 
     fn sign(keys: &nostr::Keys, domain_separator: &[u8], canonical_payload: &[u8]) -> String {
-        keys.sign_schnorr(&signing_message(domain_separator, canonical_payload))
-            .to_string()
+        keys.sign_schnorr(&crate::revocation::signing_message(
+            domain_separator,
+            canonical_payload,
+        ))
+        .to_string()
     }
 
-    fn issuer_bundle(keys: &nostr::Keys) -> IssuerBundle {
-        let issuer_id = IssuerId(keys.public_key());
-        let issuer_context = IssuerContext::generate(issuer_id.clone(), 1024).unwrap();
+    fn issuer_bundle(keys: &nostr::Keys, issuer_context: &IssuerContext) -> IssuerBundle {
         let issuer = Issuer {
-            issuer_id_pubkey: issuer_id,
+            issuer_id_pubkey: IssuerId(keys.public_key()),
             issuance_key: issuer_context.public_key().to_der().unwrap(),
             revocation: vec![RevocationLocation {
                 protocol: "nostr".to_owned(),
@@ -150,7 +116,7 @@ mod tests {
         };
         let signature = sign(
             keys,
-            ISSUER_BUNDLE_SIGNATURE_DOMAIN_SEPARATOR,
+            crate::ISSUER_BUNDLE_SIGNATURE_DOMAIN_SEPARATOR,
             &canonicalize_issuer_bundle(&issuer).unwrap(),
         );
 
@@ -160,49 +126,22 @@ mod tests {
         }
     }
 
-    #[test]
-    fn verify_issuer_bundle_accepts_signed_bundle() {
-        let keys = nostr::Keys::generate();
-        let bundle = issuer_bundle(&keys);
+    fn credential(issuer_context: &IssuerContext) -> Credential {
+        let issuer_id = issuer_context.issuer_id.clone();
+        let public_key = issuer_context.public_key();
+        let info = json!({ "credential": "test" });
+        let blind_msg = json!({ "holder": "alice" });
 
-        verify_issuer_bundle(&bundle).unwrap();
+        let (request, pending) =
+            PendingIssuance::create_request(&public_key, issuer_id, info.clone(), blind_msg)
+                .unwrap();
+        let response = issuer_context.issue_credential(info, &request).unwrap();
+        pending.finalize(&public_key, &response).unwrap()
     }
 
-    #[test]
-    fn verify_issuer_bundle_rejects_tampering() {
-        let keys = nostr::Keys::generate();
-        let mut bundle = issuer_bundle(&keys);
-        bundle.issuer.revocation[0].location = "wss://evil.example.com".to_owned();
-
-        assert!(matches!(
-            verify_issuer_bundle(&bundle),
-            Err(VerificationError::VerificationFailed)
-        ));
-    }
-
-    #[test]
-    fn verify_revocation_accepts_signed_revocation() {
-        let keys = nostr::Keys::generate();
-        let revocation = signed_revocation(&keys, [7u8; 32]);
-
-        verify_revocation(&revocation).unwrap();
-    }
-
-    #[test]
-    fn verify_revocation_rejects_tampering() {
-        let keys = nostr::Keys::generate();
-        let mut revocation = signed_revocation(&keys, [7u8; 32]);
-        revocation.revocation.credential_digest = hex::encode([8u8; 32]);
-
-        assert!(matches!(
-            verify_revocation(&revocation),
-            Err(VerificationError::VerificationFailed)
-        ));
-    }
-
-    fn signed_revocation(keys: &nostr::Keys, credential_digest: [u8; 32]) -> SignedRevocation {
+    fn signed_revocation(keys: &nostr::Keys, credential: &Credential) -> SignedRevocation {
         let revocation = RevocationEntry {
-            credential_digest: hex::encode(credential_digest),
+            credential_digest: hex::encode(credential.digest().unwrap()),
         };
         let signature = sign(
             keys,
@@ -217,5 +156,50 @@ mod tests {
                 signature,
             },
         }
+    }
+
+    #[test]
+    fn context_verifies_trusted_credential() {
+        let keys = nostr::Keys::generate();
+        let issuer_context = IssuerContext::generate(IssuerId(keys.public_key()), 1024).unwrap();
+        let bundle = issuer_bundle(&keys, &issuer_context);
+        let credential = credential(&issuer_context);
+
+        let mut context = VerificationContext::new();
+        context.add_issuer_bundle(&bundle).unwrap();
+
+        context.verify_credential(&credential).unwrap();
+    }
+
+    #[test]
+    fn context_rejects_unknown_issuer() {
+        let keys = nostr::Keys::generate();
+        let issuer_context = IssuerContext::generate(IssuerId(keys.public_key()), 1024).unwrap();
+        let credential = credential(&issuer_context);
+
+        let context = VerificationContext::new();
+
+        assert!(matches!(
+            context.verify_credential(&credential),
+            Err(CredentialsError::UnknownIssuer)
+        ));
+    }
+
+    #[test]
+    fn context_rejects_revoked_credential() {
+        let keys = nostr::Keys::generate();
+        let issuer_context = IssuerContext::generate(IssuerId(keys.public_key()), 1024).unwrap();
+        let bundle = issuer_bundle(&keys, &issuer_context);
+        let credential = credential(&issuer_context);
+        let signed_revocation = signed_revocation(&keys, &credential);
+
+        let mut context = VerificationContext::new();
+        context.add_issuer_bundle(&bundle).unwrap();
+        context.add_revocation(&signed_revocation).unwrap();
+
+        assert!(matches!(
+            context.verify_credential(&credential),
+            Err(CredentialsError::CredentialRevoked)
+        ));
     }
 }

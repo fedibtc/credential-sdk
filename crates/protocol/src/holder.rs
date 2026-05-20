@@ -4,13 +4,12 @@ use blind_rsa_signatures::{BlindingResult, DefaultRng};
 use serde_json::Value;
 
 use crate::{
-    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, pbrsa::check_version, verify_credential,
-    Credential, IssuanceRequest, IssuanceResponse, IssuerId, PbrsaError, PbrsaPublicKey,
-    PROTOCOL_VERSION_V1,
+    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, verifier::verify_credential_with_key,
+    Credential, CredentialsError, IssuanceRequest, IssuanceResponse, IssuerId, PbrsaPublicKey,
+    ProtocolV1,
 };
 
 /// Holder-side pending issuance state.
-#[derive(Clone, Debug, PartialEq)]
 pub struct PendingIssuance {
     pub issuer_id: IssuerId,
     pub info: Value,
@@ -25,14 +24,14 @@ impl PendingIssuance {
         issuer_id: IssuerId,
         info: Value,
         blind_msg: Value,
-    ) -> Result<(IssuanceRequest, Self), PbrsaError> {
-        let metadata = canonicalize_pbrsa_info(PROTOCOL_VERSION_V1, &issuer_id, &info)?;
-        let message = canonicalize_pbrsa_blind_msg(PROTOCOL_VERSION_V1, &blind_msg)?;
+    ) -> Result<(IssuanceRequest, Self), CredentialsError> {
+        let metadata = canonicalize_pbrsa_info(ProtocolV1, &issuer_id, &info)?;
+        let message = canonicalize_pbrsa_blind_msg(ProtocolV1, &blind_msg)?;
         let public_key = issuer_public_key.derive_public_key_for_metadata(&metadata)?;
         let blinding_result = public_key.blind(&mut DefaultRng, &message, Some(&metadata))?;
 
         let request = IssuanceRequest {
-            version: PROTOCOL_VERSION_V1,
+            version: ProtocolV1,
             blinded_message: blinding_result.blind_message.clone(),
         };
         let pending = Self {
@@ -50,17 +49,16 @@ impl PendingIssuance {
         self,
         issuer_public_key: &PbrsaPublicKey,
         response: &IssuanceResponse,
-    ) -> Result<Credential, PbrsaError> {
-        check_version(response.version)?;
+    ) -> Result<Credential, CredentialsError> {
         if response.issuer_id != self.issuer_id {
-            return Err(PbrsaError::IssuerIdMismatch);
+            return Err(CredentialsError::IssuerIdMismatch);
         }
         if response.info != self.info {
-            return Err(PbrsaError::InfoMismatch);
+            return Err(CredentialsError::InfoMismatch);
         }
 
-        let metadata = canonicalize_pbrsa_info(PROTOCOL_VERSION_V1, &self.issuer_id, &self.info)?;
-        let message = canonicalize_pbrsa_blind_msg(PROTOCOL_VERSION_V1, &self.blind_msg)?;
+        let metadata = canonicalize_pbrsa_info(ProtocolV1, &self.issuer_id, &self.info)?;
+        let message = canonicalize_pbrsa_blind_msg(ProtocolV1, &self.blind_msg)?;
         let public_key = issuer_public_key.derive_public_key_for_metadata(&metadata)?;
         let signature = public_key.finalize(
             &response.blind_signature,
@@ -71,17 +69,17 @@ impl PendingIssuance {
         let message_randomizer = self
             .blinding_result
             .msg_randomizer
-            .ok_or(PbrsaError::MissingMessageRandomizer)?;
+            .ok_or(CredentialsError::MissingMessageRandomizer)?;
 
         let credential = Credential {
-            version: PROTOCOL_VERSION_V1,
+            version: ProtocolV1,
             issuer_id: self.issuer_id,
             info: self.info,
             blind_msg: self.blind_msg,
             message_randomizer,
             signature,
         };
-        verify_credential(issuer_public_key, &credential)?;
+        verify_credential_with_key(issuer_public_key, &credential)?;
         Ok(credential)
     }
 }

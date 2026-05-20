@@ -8,9 +8,8 @@ use serde_with::{base64::Base64, base64::UrlSafe, formats::Unpadded, serde_as};
 use serde_with::{DeserializeAs, SerializeAs};
 use sha2::{digest::Output, Digest, Sha256};
 use std::str::FromStr;
-use thiserror::Error;
 
-use crate::canonicalize_credential;
+use crate::{canonicalize_credential, CredentialsError};
 
 /// Unpadded URL-safe base64 encoding used for byte fields in JSON.
 type Base64UrlUnpadded = Base64<UrlSafe, Unpadded>;
@@ -35,34 +34,33 @@ impl<'de> DeserializeAs<'de, PbrsaMessageRandomizer> for MessageRandomizerBase64
     }
 }
 
-/// Protocol version used by the MVP credential format.
+/// Protocol version marker used by the MVP credential format.
 ///
 /// Version 1 implies the v1 canonicalization and blind-signature suite choices;
 /// those are not repeated as per-credential `suite`/`alg` fields.
-pub const PROTOCOL_VERSION_V1: ProtocolVersion = ProtocolVersion(1);
-
-/// Protocol version.
 ///
-/// Only version 1 is currently supported. Deserialization rejects all other
-/// version numbers.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-#[serde(transparent)]
-pub struct ProtocolVersion(u16);
+/// Serializes as the JSON number `1`. Deserialization rejects all other version
+/// numbers.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProtocolV1;
 
-impl ProtocolVersion {
-    pub fn get(self) -> u16 {
-        self.0
+impl Serialize for ProtocolV1 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u8(1)
     }
 }
 
-impl<'de> Deserialize<'de> for ProtocolVersion {
+impl<'de> Deserialize<'de> for ProtocolV1 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let version = u16::deserialize(deserializer)?;
-        if version == PROTOCOL_VERSION_V1.0 {
-            Ok(Self(version))
+        if version == 1 {
+            Ok(Self)
         } else {
             Err(serde::de::Error::custom(format_args!(
                 "unsupported protocol version: {version}"
@@ -79,63 +77,16 @@ impl<'de> Deserialize<'de> for ProtocolVersion {
 #[serde(transparent)]
 pub struct IssuerId(pub nostr::PublicKey);
 
-impl IssuerId {
-    /// Parse an issuer identifier from a hex, bech32, or NIP-21 Nostr public key.
-    pub fn parse(issuer_id: &str) -> Result<Self, nostr::key::Error> {
-        nostr::PublicKey::parse(issuer_id).map(Self)
-    }
-}
-
 impl FromStr for IssuerId {
     type Err = nostr::key::Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::parse(value)
+        nostr::PublicKey::parse(value).map(Self)
     }
-}
-
-/// Signed issuer metadata used by verifiers before accepting credentials.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IssuerBundle {
-    pub issuer: Issuer,
-    pub proof: SignatureProof,
-}
-
-/// Issuer metadata signed by the issuer identity key.
-#[serde_as]
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Issuer {
-    pub issuer_id_pubkey: IssuerId,
-    /// DER-encoded PBRSA public key used to verify credentials.
-    ///
-    /// Serializes as unpadded URL-safe base64.
-    #[serde_as(as = "Base64UrlUnpadded")]
-    pub issuance_key: Vec<u8>,
-    pub revocation: Vec<RevocationLocation>,
-}
-
-/// Location where issuer revocations may be published.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RevocationLocation {
-    pub protocol: String,
-    pub location: String,
-}
-
-/// Schnorr signature proof encoded as a 64-byte hex string.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SignatureProof {
-    pub signature: String,
 }
 
 /// Domain separator prepended to canonical credential JSON before hashing.
 pub const CREDENTIAL_DIGEST_DOMAIN_SEPARATOR: &[u8] = b"fedi-credential/credential-digest/v1\0";
-
-/// Errors returned while computing a credential digest.
-#[derive(Debug, Error)]
-pub enum CredentialDigestError {
-    #[error("failed to canonicalize credential JSON: {0}")]
-    CanonicalizeCredential(serde_json::Error),
-}
 
 /// Final holder credential.
 ///
@@ -150,7 +101,7 @@ pub enum CredentialDigestError {
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Credential {
-    pub version: ProtocolVersion,
+    pub version: ProtocolV1,
     pub issuer_id: IssuerId,
     pub info: Value,
     pub blind_msg: Value,
@@ -173,9 +124,8 @@ impl Credential {
     /// The digest is `SHA256(domain_separator || canonical_credential_json)`,
     /// where `canonical_credential_json` is the RFC 8785 / JCS canonical JSON
     /// form of the full serialized credential, including `signature`.
-    pub fn digest(&self) -> Result<Output<Sha256>, CredentialDigestError> {
-        let canonical =
-            canonicalize_credential(self).map_err(CredentialDigestError::CanonicalizeCredential)?;
+    pub fn digest(&self) -> Result<Output<Sha256>, CredentialsError> {
+        let canonical = canonicalize_credential(self)?;
 
         let mut hasher = Sha256::new();
         hasher.update(CREDENTIAL_DIGEST_DOMAIN_SEPARATOR);
@@ -191,7 +141,7 @@ impl Credential {
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IssuanceRequest {
-    pub version: ProtocolVersion,
+    pub version: ProtocolV1,
     /// PBRSA blinded message bytes sent by the holder during issuance.
     ///
     /// Serializes as unpadded URL-safe base64.
@@ -207,7 +157,7 @@ pub struct IssuanceRequest {
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IssuanceResponse {
-    pub version: ProtocolVersion,
+    pub version: ProtocolV1,
     pub issuer_id: IssuerId,
     pub info: Value,
     /// PBRSA blind signature bytes returned by the issuer during issuance.
@@ -215,40 +165,6 @@ pub struct IssuanceResponse {
     /// Serializes as unpadded URL-safe base64.
     #[serde_as(as = "Base64UrlUnpadded")]
     pub blind_signature: PbrsaBlindSignature,
-}
-
-/// Runtime revocation target.
-///
-/// Authentication, discovery, and wire serialization of revocations are handled
-/// by an external trust or transport layer, e.g. Nostr events signed by an
-/// issuer key. The core protocol only needs the issuer and finalized credential
-/// digest that a revocation targets.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Revocation {
-    pub issuer_id: IssuerId,
-    pub credential_digest: Output<Sha256>,
-}
-
-/// Signed revocation wire object.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SignedRevocation {
-    pub revocation: RevocationEntry,
-    pub proof: IssuerSignatureProof,
-}
-
-/// Revocation payload signed by the issuer identity key.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RevocationEntry {
-    /// Hex-encoded SHA-256 digest of the finalized credential.
-    pub credential_digest: String,
-}
-
-/// Issuer identity proof for a signed revocation.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IssuerSignatureProof {
-    pub issuer_id_pubkey: IssuerId,
-    /// Schnorr signature proof encoded as a 64-byte hex string.
-    pub signature: String,
 }
 
 #[cfg(test)]
@@ -263,7 +179,7 @@ mod tests {
 
     fn credential() -> Credential {
         Credential {
-            version: PROTOCOL_VERSION_V1,
+            version: ProtocolV1,
             issuer_id: IssuerId(nostr::PublicKey::from_byte_array([1u8; 32])),
             info: json!({
                 "z": 1,
@@ -284,7 +200,7 @@ mod tests {
     #[test]
     fn credential_message_randomizer_serializes_as_unpadded_url_safe_base64() {
         let credential = Credential {
-            version: PROTOCOL_VERSION_V1,
+            version: ProtocolV1,
             issuer_id: IssuerId(nostr::PublicKey::from_byte_array([1u8; 32])),
             info: json!({ "kind": "test" }),
             blind_msg: json!({ "holder": "alice" }),

@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use fedi_credential_sdk_protocol as protocol;
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -75,11 +77,6 @@ export interface PendingIssuanceResult {
 export function verifyIssuerBundle(issuerBundle: IssuerBundle): boolean;
 
 export function verifyRevocation(revocation: SignedRevocation): boolean;
-
-export function verifyCredential(
-  issuerPublicKey: PbrsaPublicKey,
-  credential: Credential,
-): boolean;
 "#;
 
 fn from_js<T: DeserializeOwned>(value: JsValue) -> Result<T, JsError> {
@@ -93,7 +90,7 @@ fn to_js<T: Serialize>(value: &T) -> Result<JsValue, JsError> {
 }
 
 fn parse_issuer_id(issuer_id: &str) -> Result<protocol::IssuerId, JsError> {
-    protocol::IssuerId::parse(issuer_id).map_err(|error| JsError::new(&error.to_string()))
+    protocol::IssuerId::from_str(issuer_id).map_err(|error| JsError::new(&error.to_string()))
 }
 
 fn reflect_error(error: JsValue) -> JsError {
@@ -176,7 +173,6 @@ impl PbrsaPublicKey {
 }
 
 #[wasm_bindgen]
-#[derive(Clone)]
 pub struct PendingIssuance {
     inner: protocol::PendingIssuance,
 }
@@ -200,6 +196,7 @@ impl PendingIssuance {
         )?;
 
         let result = js_sys::Object::new();
+        // review: what is this code?
         js_sys::Reflect::set(&result, &JsValue::from_str("request"), &to_js(&request)?)
             .map_err(reflect_error)?;
         js_sys::Reflect::set(
@@ -212,28 +209,47 @@ impl PendingIssuance {
     }
 
     pub fn finalize(
-        &self,
+        self,
         issuer_public_key: &PbrsaPublicKey,
         response: JsValue,
     ) -> Result<JsValue, JsError> {
         let response: protocol::IssuanceResponse = from_js(response)?;
-        to_js(
-            &self
-                .inner
-                .clone()
-                .finalize(&issuer_public_key.inner, &response)?,
-        )
+        to_js(&self.inner.finalize(&issuer_public_key.inner, &response)?)
     }
 }
 
-#[wasm_bindgen(js_name = verifyCredential)]
-pub fn verify_credential(
-    issuer_public_key: &PbrsaPublicKey,
-    credential: JsValue,
-) -> Result<bool, JsError> {
-    let credential: protocol::Credential = from_js(credential)?;
-    protocol::verify_credential(&issuer_public_key.inner, &credential)?;
-    Ok(true)
+#[wasm_bindgen]
+pub struct VerificationContext {
+    inner: protocol::VerificationContext,
+}
+
+#[wasm_bindgen]
+impl VerificationContext {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> VerificationContext {
+        Self {
+            inner: protocol::VerificationContext::new(),
+        }
+    }
+
+    #[wasm_bindgen(js_name = addIssuerBundle)]
+    pub fn add_issuer_bundle(&mut self, issuer_bundle: JsValue) -> Result<(), JsError> {
+        let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
+        Ok(self.inner.add_issuer_bundle(&issuer_bundle)?)
+    }
+
+    #[wasm_bindgen(js_name = addRevocation)]
+    pub fn add_revocation(&mut self, revocation: JsValue) -> Result<(), JsError> {
+        let revocation: protocol::SignedRevocation = from_js(revocation)?;
+        Ok(self.inner.add_revocation(&revocation)?)
+    }
+
+    #[wasm_bindgen(js_name = verifyCredential)]
+    pub fn verify_credential(&self, credential: JsValue) -> Result<bool, JsError> {
+        let credential: protocol::Credential = from_js(credential)?;
+        self.inner.verify_credential(&credential)?;
+        Ok(true)
+    }
 }
 
 #[wasm_bindgen(js_name = verifyIssuerBundle)]
