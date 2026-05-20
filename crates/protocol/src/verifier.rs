@@ -24,11 +24,10 @@ impl VerificationContext {
     /// Verify and trust an issuer bundle for subsequent credential checks.
     pub fn add_issuer_bundle(&mut self, bundle: &IssuerBundle) -> Result<(), CredentialsError> {
         verify_issuer_bundle(bundle)?;
-        let issuer_public_key = PbrsaPublicKey::from_der(&bundle.issuer.issuance_key)
-            .map_err(CredentialsError::from)?;
-
-        self.issuers
-            .insert(bundle.issuer.issuer_id_pubkey.clone(), issuer_public_key);
+        self.issuers.insert(
+            bundle.issuer.issuer_id_pubkey.clone(),
+            bundle.issuer.issuance_key.clone(),
+        );
 
         Ok(())
     }
@@ -84,122 +83,4 @@ pub(crate) fn verify_credential_with_key(
         Some(&metadata),
     )?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use serde_json::json;
-
-    use super::*;
-    use crate::{
-        canonicalize_issuer_bundle, canonicalize_revocation, Issuer, IssuerContext,
-        IssuerSignatureProof, PendingIssuance, RevocationEntry, RevocationLocation, SignatureProof,
-        REVOCATION_SIGNATURE_DOMAIN_SEPARATOR,
-    };
-
-    fn sign(keys: &nostr::Keys, domain_separator: &[u8], canonical_payload: &[u8]) -> String {
-        keys.sign_schnorr(&crate::revocation::signing_message(
-            domain_separator,
-            canonical_payload,
-        ))
-        .to_string()
-    }
-
-    fn issuer_bundle(keys: &nostr::Keys, issuer_context: &IssuerContext) -> IssuerBundle {
-        let issuer = Issuer {
-            issuer_id_pubkey: IssuerId(keys.public_key()),
-            issuance_key: issuer_context.public_key().to_der().unwrap(),
-            revocation: vec![RevocationLocation {
-                protocol: "nostr".to_owned(),
-                location: "wss://relay.example.com".to_owned(),
-            }],
-        };
-        let signature = sign(
-            keys,
-            crate::ISSUER_BUNDLE_SIGNATURE_DOMAIN_SEPARATOR,
-            &canonicalize_issuer_bundle(&issuer).unwrap(),
-        );
-
-        IssuerBundle {
-            issuer,
-            proof: SignatureProof { signature },
-        }
-    }
-
-    fn credential(issuer_context: &IssuerContext) -> Credential {
-        let issuer_id = issuer_context.issuer_id.clone();
-        let public_key = issuer_context.public_key();
-        let info = json!({ "credential": "test" });
-        let blind_msg = json!({ "holder": "alice" });
-
-        let (request, pending) =
-            PendingIssuance::create_request(&public_key, issuer_id, info.clone(), blind_msg)
-                .unwrap();
-        let response = issuer_context.issue_credential(info, &request).unwrap();
-        pending.finalize(&public_key, &response).unwrap()
-    }
-
-    fn signed_revocation(keys: &nostr::Keys, credential: &Credential) -> SignedRevocation {
-        let revocation = RevocationEntry {
-            credential_digest: hex::encode(credential.digest().unwrap()),
-        };
-        let signature = sign(
-            keys,
-            REVOCATION_SIGNATURE_DOMAIN_SEPARATOR,
-            &canonicalize_revocation(&revocation).unwrap(),
-        );
-
-        SignedRevocation {
-            revocation,
-            proof: IssuerSignatureProof {
-                issuer_id_pubkey: IssuerId(keys.public_key()),
-                signature,
-            },
-        }
-    }
-
-    #[test]
-    fn context_verifies_trusted_credential() {
-        let keys = nostr::Keys::generate();
-        let issuer_context = IssuerContext::generate(IssuerId(keys.public_key()), 1024).unwrap();
-        let bundle = issuer_bundle(&keys, &issuer_context);
-        let credential = credential(&issuer_context);
-
-        let mut context = VerificationContext::new();
-        context.add_issuer_bundle(&bundle).unwrap();
-
-        context.verify_credential(&credential).unwrap();
-    }
-
-    #[test]
-    fn context_rejects_unknown_issuer() {
-        let keys = nostr::Keys::generate();
-        let issuer_context = IssuerContext::generate(IssuerId(keys.public_key()), 1024).unwrap();
-        let credential = credential(&issuer_context);
-
-        let context = VerificationContext::new();
-
-        assert!(matches!(
-            context.verify_credential(&credential),
-            Err(CredentialsError::UnknownIssuer)
-        ));
-    }
-
-    #[test]
-    fn context_rejects_revoked_credential() {
-        let keys = nostr::Keys::generate();
-        let issuer_context = IssuerContext::generate(IssuerId(keys.public_key()), 1024).unwrap();
-        let bundle = issuer_bundle(&keys, &issuer_context);
-        let credential = credential(&issuer_context);
-        let signed_revocation = signed_revocation(&keys, &credential);
-
-        let mut context = VerificationContext::new();
-        context.add_issuer_bundle(&bundle).unwrap();
-        context.add_revocation(&signed_revocation).unwrap();
-
-        assert!(matches!(
-            context.verify_credential(&credential),
-            Err(CredentialsError::CredentialRevoked)
-        ));
-    }
 }

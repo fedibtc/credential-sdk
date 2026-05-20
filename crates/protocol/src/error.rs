@@ -10,6 +10,8 @@ pub enum CredentialsError {
     BlindRsa(#[from] blind_rsa_signatures::Error),
     #[error("failed to build canonicalized payload: {0}")]
     Canonicalize(#[from] serde_json::Error),
+    #[error("invalid Nostr key: {0}")]
+    NostrKey(#[from] nostr::key::Error),
     #[error("issuer_id does not match")]
     IssuerIdMismatch,
     #[error("issuance response info does not match")]

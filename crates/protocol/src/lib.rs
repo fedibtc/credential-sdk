@@ -19,3 +19,6 @@ pub use issuer::*;
 pub use revocation::*;
 pub use types::*;
 pub use verifier::*;
+
+#[cfg(test)]
+mod tests;

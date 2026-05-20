@@ -1,6 +1,6 @@
 //! Holder-side PBRSA issuance operations.
 
-use blind_rsa_signatures::{BlindingResult, DefaultRng};
+use blind_rsa_signatures::BlindingResult;
 use serde_json::Value;
 
 use crate::{
@@ -25,10 +25,22 @@ impl PendingIssuance {
         info: Value,
         blind_msg: Value,
     ) -> Result<(IssuanceRequest, Self), CredentialsError> {
+        let mut rng = blind_rsa_signatures::DefaultRng;
+
+        Self::create_request_with_rng(issuer_public_key, issuer_id, info, blind_msg, &mut rng)
+    }
+
+    pub(crate) fn create_request_with_rng(
+        issuer_public_key: &PbrsaPublicKey,
+        issuer_id: IssuerId,
+        info: Value,
+        blind_msg: Value,
+        rng: &mut (impl blind_rsa_signatures::reexports::rsa::rand_core::CryptoRng + ?Sized),
+    ) -> Result<(IssuanceRequest, Self), CredentialsError> {
         let metadata = canonicalize_pbrsa_info(ProtocolV1, &issuer_id, &info)?;
         let message = canonicalize_pbrsa_blind_msg(ProtocolV1, &blind_msg)?;
         let public_key = issuer_public_key.derive_public_key_for_metadata(&metadata)?;
-        let blinding_result = public_key.blind(&mut DefaultRng, &message, Some(&metadata))?;
+        let blinding_result = public_key.blind(rng, &message, Some(&metadata))?;
 
         let request = IssuanceRequest {
             version: ProtocolV1,

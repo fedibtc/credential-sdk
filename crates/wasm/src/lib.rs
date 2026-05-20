@@ -110,25 +110,25 @@ pub struct IssuerContext {
 #[wasm_bindgen]
 impl IssuerContext {
     #[wasm_bindgen(js_name = generate)]
-    pub fn generate(issuer_id: String, modulus_bits: usize) -> Result<IssuerContext, JsError> {
+    pub fn generate(modulus_bits: usize) -> Result<IssuerContext, JsError> {
         Ok(Self {
-            inner: protocol::IssuerContext::generate(parse_issuer_id(&issuer_id)?, modulus_bits)?,
+            inner: protocol::IssuerContext::generate(modulus_bits)?,
         })
     }
 
     #[wasm_bindgen(js_name = fromSecretKeyDer)]
-    pub fn from_secret_key_der(issuer_id: String, der: Vec<u8>) -> Result<IssuerContext, JsError> {
+    pub fn from_secret_key_der(
+        nostr_secret_key: String,
+        der: Vec<u8>,
+    ) -> Result<IssuerContext, JsError> {
         Ok(Self {
-            inner: protocol::IssuerContext::from_secret_key_der(
-                parse_issuer_id(&issuer_id)?,
-                &der,
-            )?,
+            inner: protocol::IssuerContext::from_secret_key_der(&nostr_secret_key, &der)?,
         })
     }
 
     #[wasm_bindgen(getter, js_name = issuerId)]
     pub fn issuer_id(&self) -> String {
-        self.inner.issuer_id.0.to_string()
+        self.inner.issuer_id().0.to_string()
     }
 
     #[wasm_bindgen(getter, js_name = publicKey)]
@@ -143,11 +143,29 @@ impl IssuerContext {
         Ok(self.inner.secret_key_der()?)
     }
 
+    #[wasm_bindgen(js_name = nostrSecretKey)]
+    pub fn nostr_secret_key(&self) -> String {
+        self.inner.nostr_secret_key()
+    }
+
     #[wasm_bindgen(js_name = issueCredential)]
     pub fn issue_credential(&self, info: JsValue, request: JsValue) -> Result<JsValue, JsError> {
         let info: serde_json::Value = from_js(info)?;
         let request: protocol::IssuanceRequest = from_js(request)?;
         to_js(&self.inner.issue_credential(info, &request)?)
+    }
+
+    #[wasm_bindgen(js_name = issuerBundle)]
+    pub fn issuer_bundle(&self, revocation: JsValue) -> Result<JsValue, JsError> {
+        let revocation: Vec<protocol::RevocationLocation> = from_js(revocation)?;
+        to_js(&self.inner.issuer_bundle(revocation)?)
+    }
+
+    #[wasm_bindgen(js_name = revokeCredential)]
+    pub fn revoke_credential(&self, credential: JsValue) -> Result<JsValue, JsError> {
+        let credential: protocol::Credential = from_js(credential)?;
+        let revocation = self.inner.revoke_credential(&credential)?;
+        to_js(&self.inner.sign_revocation(&revocation)?)
     }
 }
 

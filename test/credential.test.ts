@@ -13,8 +13,6 @@ import type {
 
 const issuerId = "11".repeat(32);
 const otherIssuerId = "22".repeat(32);
-const issuerNpub =
-  "npub1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygse4sl3h";
 
 const credentialInfo = {
   schema: "trust-score-v1",
@@ -29,7 +27,7 @@ const blindMessage = {
 };
 
 function createPendingIssuance(
-  issuer = IssuerContext.generate(issuerId, 1024),
+  issuer = IssuerContext.generate(1024),
 ): {
   issuer: IssuerContext;
   request: PendingIssuanceResult["request"];
@@ -52,6 +50,7 @@ function createPendingIssuance(
 describe("credential issuance protocol", () => {
   it("round trips holder request, issuer response, holder finalization, and verification", () => {
     const { issuer, request, pending } = createPendingIssuance();
+    const issuerId = issuer.issuerId;
 
     expect(issuer.issuerId).toBe(issuerId);
     expect(request.version).toBe(1);
@@ -84,14 +83,14 @@ describe("credential issuance protocol", () => {
   });
 
   it("imports issuer secret keys and public keys from DER", () => {
-    const issuer = IssuerContext.generate(issuerId, 1024);
+    const issuer = IssuerContext.generate(1024);
     const importedIssuer = IssuerContext.fromSecretKeyDer(
-      `nostr:${issuerNpub}`,
+      issuer.nostrSecretKey(),
       issuer.secretKeyDer(),
     );
     const importedPublicKey = PbrsaPublicKey.fromDer(issuer.publicKey.toDer());
 
-    expect(importedIssuer.issuerId).toBe(issuerId);
+    expect(importedIssuer.issuerId).toBe(issuer.issuerId);
     expect(Array.from(importedIssuer.publicKey.toDer())).toEqual(
       Array.from(issuer.publicKey.toDer()),
     );
@@ -104,16 +103,17 @@ describe("credential issuance protocol", () => {
       credentialInfo,
       request,
     ) as IssuanceResponse;
-    const credential = pending.finalize(
-      importedPublicKey,
-      response,
-    ) as Credential;
-
+    expect(pending.finalize(importedPublicKey, response) as Credential).toMatchObject({
+      issuer_id: issuer.issuerId,
+      info: credentialInfo,
+      blind_msg: blindMessage,
+    });
   });
 
   it("rejects malformed issuer and public key inputs", () => {
-    expect(() => IssuerContext.generate("not-a-hex-key", 1024)).toThrow();
-    expect(() => IssuerContext.generate("00", 1024)).toThrow();
+    expect(() =>
+      IssuerContext.fromSecretKeyDer("not-a-hex-key", new Uint8Array([1, 2, 3])),
+    ).toThrow();
     expect(() => PbrsaPublicKey.fromDer(new Uint8Array([1, 2, 3]))).toThrow();
   });
 
@@ -141,7 +141,7 @@ describe("credential issuance protocol", () => {
     ).toThrow();
     expect(() =>
       pending.finalize(
-        IssuerContext.generate(otherIssuerId, 1024).publicKey,
+        IssuerContext.generate(1024).publicKey,
         response,
       ),
     ).toThrow();
@@ -154,7 +154,7 @@ describe("credential issuance protocol", () => {
       request,
     ) as IssuanceResponse;
     expect(() =>
-      pending.finalize(IssuerContext.generate(otherIssuerId, 1024).publicKey, response),
+      pending.finalize(IssuerContext.generate(1024).publicKey, response),
     ).toThrow();
   });
 });
