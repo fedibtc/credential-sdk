@@ -27,16 +27,27 @@ export interface IssuanceResponse {
 }
 
 export interface Credential {
-  readonly version: 1;
-  readonly issuer_id: string;
+  readonly credential: CredentialPayload;
+  readonly proof: CredentialProof;
+}
+
+export interface CredentialPayload {
+  readonly issuer_id_pubkey: string;
   readonly info: JsonValue;
   readonly blind_msg: JsonValue;
   readonly message_randomizer: string;
+}
+
+export interface CredentialProof {
   readonly signature: string;
 }
 
 export interface IssuerBundle {
   readonly issuer: Issuer;
+  readonly proof: SchnorrSignatureProof;
+}
+
+export interface SchnorrSignatureProof {
   readonly signature: string;
 }
 
@@ -48,11 +59,15 @@ export interface Issuer {
 
 export interface SignedRevocation {
   readonly revocation: RevocationEntry;
+  readonly proof: RevocationProof;
+}
+
+export interface RevocationProof {
+  readonly issuer_id_pubkey: string;
   readonly signature: string;
 }
 
 export interface RevocationEntry {
-  readonly issuer_id_pubkey: string;
   /** Unpadded URL-safe base64 encoded SHA-256 digest. */
   readonly credential_digest: string;
 }

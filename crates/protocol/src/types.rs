@@ -100,6 +100,13 @@ impl FromStr for IssuerId {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IssuerBundle {
     pub issuer: Issuer,
+    pub proof: SchnorrSignatureProof,
+}
+
+/// Schnorr signature proof encoded for JSON.
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SchnorrSignatureProof {
     #[serde_as(as = "SchnorrSignatureBase64UrlUnpadded")]
     pub signature: Signature,
 }
@@ -111,7 +118,7 @@ impl IssuerBundle {
 
         verify_identity_signature(
             &self.issuer.issuer_id_pubkey,
-            &self.signature,
+            &self.proof.signature,
             Message::from_digest(self.issuer.digest()?.into()),
         )?;
 
@@ -155,6 +162,14 @@ pub struct RevocationLocation {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SignedRevocation {
     pub revocation: RevocationEntry,
+    pub proof: RevocationProof,
+}
+
+/// Issuer proof for a signed revocation.
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevocationProof {
+    pub issuer_id_pubkey: IssuerId,
     #[serde_as(as = "SchnorrSignatureBase64UrlUnpadded")]
     pub signature: Signature,
 }
@@ -163,8 +178,8 @@ impl SignedRevocation {
     /// Verify this revocation's issuer signature and return the revocation entry.
     pub fn verify(&self) -> Result<RevocationEntry, CredentialsError> {
         verify_identity_signature(
-            &self.revocation.issuer_id_pubkey,
-            &self.signature,
+            &self.proof.issuer_id_pubkey,
+            &self.proof.signature,
             Message::from_digest(self.revocation.digest()?.into()),
         )?;
 
@@ -176,7 +191,6 @@ impl SignedRevocation {
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct RevocationEntry {
-    pub issuer_id_pubkey: IssuerId,
     /// SHA-256 digest of the finalized credential.
     #[serde_as(as = "Sha256DigestBase64UrlUnpadded")]
     pub credential_digest: sha2::digest::Output<Sha256>,
@@ -243,8 +257,15 @@ pub const CREDENTIAL_DIGEST_DOMAIN_SEPARATOR: &[u8] = b"fedi-credential/credenti
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Credential {
-    pub version: ProtocolV1,
-    pub issuer_id: IssuerId,
+    pub credential: CredentialPayload,
+    pub proof: CredentialProof,
+}
+
+/// Final credential payload signed by the issuance key.
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CredentialPayload {
+    pub issuer_id_pubkey: IssuerId,
     pub info: Value,
     pub blind_msg: Value,
     /// PBRSA message randomizer used when preparing the signed message.
@@ -253,6 +274,12 @@ pub struct Credential {
     /// signature. It serializes as unpadded URL-safe base64.
     #[serde_as(as = "MessageRandomizerBase64UrlUnpadded")]
     pub message_randomizer: PbrsaMessageRandomizer,
+}
+
+/// Issuance proof for a finalized credential payload.
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CredentialProof {
     /// PBRSA credential signature bytes.
     ///
     /// Serializes as unpadded URL-safe base64.
@@ -321,43 +348,52 @@ mod tests {
 
     fn credential() -> Credential {
         Credential {
-            version: ProtocolV1,
-            issuer_id: IssuerId(nostr::PublicKey::from_byte_array([1u8; 32])),
-            info: json!({
-                "z": 1,
-                "a": {
-                    "b": true,
-                    "a": false,
-                },
-            }),
-            blind_msg: json!({
-                "holder": "alice",
-                "nonce": 7,
-            }),
-            message_randomizer: PbrsaMessageRandomizer([9u8; 32]),
-            signature: PbrsaSignature(vec![1, 2, 3, 4]),
+            credential: CredentialPayload {
+                issuer_id_pubkey: IssuerId(nostr::PublicKey::from_byte_array([1u8; 32])),
+                info: json!({
+                    "z": 1,
+                    "a": {
+                        "b": true,
+                        "a": false,
+                    },
+                }),
+                blind_msg: json!({
+                    "holder": "alice",
+                    "nonce": 7,
+                }),
+                message_randomizer: PbrsaMessageRandomizer([9u8; 32]),
+            },
+            proof: CredentialProof {
+                signature: PbrsaSignature(vec![1, 2, 3, 4]),
+            },
         }
     }
 
     #[test]
     fn credential_message_randomizer_serializes_as_unpadded_url_safe_base64() {
         let credential = Credential {
-            version: ProtocolV1,
-            issuer_id: IssuerId(nostr::PublicKey::from_byte_array([1u8; 32])),
-            info: json!({ "kind": "test" }),
-            blind_msg: json!({ "holder": "alice" }),
-            message_randomizer: PbrsaMessageRandomizer([0xff; 32]),
-            signature: PbrsaSignature(vec![1, 2, 3]),
+            credential: CredentialPayload {
+                issuer_id_pubkey: IssuerId(nostr::PublicKey::from_byte_array([1u8; 32])),
+                info: json!({ "kind": "test" }),
+                blind_msg: json!({ "holder": "alice" }),
+                message_randomizer: PbrsaMessageRandomizer([0xff; 32]),
+            },
+            proof: CredentialProof {
+                signature: PbrsaSignature(vec![1, 2, 3]),
+            },
         };
 
         let value = serde_json::to_value(&credential).unwrap();
         assert_eq!(
-            value["message_randomizer"],
+            value["credential"]["message_randomizer"],
             json!("__________________________________________8")
         );
 
         let roundtrip: Credential = serde_json::from_value(value).unwrap();
-        assert_eq!(roundtrip.message_randomizer, credential.message_randomizer);
+        assert_eq!(
+            roundtrip.credential.message_randomizer,
+            credential.credential.message_randomizer
+        );
     }
 
     #[test]
@@ -377,8 +413,8 @@ mod tests {
     fn digest_includes_signature() {
         let mut first = credential();
         let mut second = credential();
-        first.signature = PbrsaSignature(vec![1, 2, 3, 4]);
-        second.signature = PbrsaSignature(vec![1, 2, 3, 5]);
+        first.proof.signature = PbrsaSignature(vec![1, 2, 3, 4]);
+        second.proof.signature = PbrsaSignature(vec![1, 2, 3, 5]);
 
         assert_ne!(first.digest().unwrap(), second.digest().unwrap());
     }

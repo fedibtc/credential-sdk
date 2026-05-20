@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, Credential, CredentialsError,
-    IssuerBundle, IssuerId, PbrsaPublicKey, RevocationEntry, SignedRevocation,
+    IssuerBundle, IssuerId, PbrsaPublicKey, ProtocolV1, RevocationEntry, SignedRevocation,
 };
 
 /// Stateful verifier for trusted issuers, revocations, and credentials.
@@ -35,7 +35,10 @@ impl VerificationContext {
         signed_revocation: &SignedRevocation,
     ) -> Result<(), CredentialsError> {
         let revocation = signed_revocation.verify()?;
-        if !self.issuers.contains_key(&revocation.issuer_id_pubkey) {
+        if !self
+            .issuers
+            .contains_key(&signed_revocation.proof.issuer_id_pubkey)
+        {
             return Err(CredentialsError::UnknownIssuer);
         }
 
@@ -47,13 +50,12 @@ impl VerificationContext {
     pub fn verify_credential(&self, credential: &Credential) -> Result<(), CredentialsError> {
         let issuer_public_key = self
             .issuers
-            .get(&credential.issuer_id)
+            .get(&credential.credential.issuer_id_pubkey)
             .ok_or(CredentialsError::UnknownIssuer)?;
 
         verify_credential_with_key(issuer_public_key, credential)?;
 
         let revocation = RevocationEntry {
-            issuer_id_pubkey: credential.issuer_id.clone(),
             credential_digest: credential.digest()?,
         };
 
@@ -69,13 +71,16 @@ pub(crate) fn verify_credential_with_key(
     issuer_public_key: &PbrsaPublicKey,
     credential: &Credential,
 ) -> Result<(), CredentialsError> {
-    let metadata =
-        canonicalize_pbrsa_info(credential.version, &credential.issuer_id, &credential.info)?;
-    let message = canonicalize_pbrsa_blind_msg(credential.version, &credential.blind_msg)?;
+    let metadata = canonicalize_pbrsa_info(
+        ProtocolV1,
+        &credential.credential.issuer_id_pubkey,
+        &credential.credential.info,
+    )?;
+    let message = canonicalize_pbrsa_blind_msg(ProtocolV1, &credential.credential.blind_msg)?;
     let public_key = issuer_public_key.derive_public_key_for_metadata(&metadata)?;
     public_key.verify(
-        &credential.signature,
-        Some(credential.message_randomizer),
+        &credential.proof.signature,
+        Some(credential.credential.message_randomizer),
         &message,
         Some(&metadata),
     )?;

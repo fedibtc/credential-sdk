@@ -15,16 +15,11 @@ const issuerId = "11".repeat(32);
 const otherIssuerId = "22".repeat(32);
 
 const credentialInfo = {
-  schema: "trust-score-v1",
-  issuer_id_pubkey: issuerId,
-  score: 7,
-  verified: true,
+  schema: "fedi-trust-score-v1.0",
+  trust_level: 7,
 };
 
-const blindMessage = {
-  holder_pubkey: "holder-pubkey",
-  nonce: 7,
-};
+const blindMessage = "anonymous-holder-public-key";
 
 function createPendingIssuance(
   issuer = IssuerContext.generate(1024),
@@ -55,7 +50,7 @@ describe("credential issuance protocol", () => {
     expect(issuer.issuerId).toBe(issuerId);
     expect(request.version).toBe(1);
     expect(request.blinded_message.length).toBeGreaterThan(0);
-    expect(request.blinded_message).not.toContain(blindMessage.holder_pubkey);
+    expect(request.blinded_message).not.toContain(blindMessage);
 
     const response = issuer.issueCredential(
       credentialInfo,
@@ -73,13 +68,14 @@ describe("credential issuance protocol", () => {
       response,
     ) as Credential;
     expect(credential).toMatchObject({
-      version: 1,
-      issuer_id: issuerId,
-      info: credentialInfo,
-      blind_msg: blindMessage,
+      credential: {
+        issuer_id_pubkey: issuerId,
+        info: credentialInfo,
+        blind_msg: blindMessage,
+      },
     });
-    expect(credential.message_randomizer.length).toBeGreaterThan(0);
-    expect(credential.signature.length).toBeGreaterThan(0);
+    expect(credential.credential.message_randomizer.length).toBeGreaterThan(0);
+    expect(credential.proof.signature.length).toBeGreaterThan(0);
   });
 
   it("imports issuer secret keys and public keys from DER", () => {
@@ -104,9 +100,11 @@ describe("credential issuance protocol", () => {
       request,
     ) as IssuanceResponse;
     expect(pending.finalize(importedPublicKey, response) as Credential).toMatchObject({
-      issuer_id: issuer.issuerId,
-      info: credentialInfo,
-      blind_msg: blindMessage,
+      credential: {
+        issuer_id_pubkey: issuer.issuerId,
+        info: credentialInfo,
+        blind_msg: blindMessage,
+      },
     });
   });
 
@@ -135,7 +133,7 @@ describe("credential issuance protocol", () => {
         ...response,
         info: {
           ...credentialInfo,
-          score: 8,
+          trust_level: 8,
         },
       }),
     ).toThrow();
@@ -154,7 +152,10 @@ describe("credential issuance protocol", () => {
       request,
     ) as IssuanceResponse;
     expect(() =>
-      pending.finalize(IssuerContext.generate(1024).publicKey, response),
+      pending.finalize(issuer.publicKey, {
+        ...response,
+        blind_signature: response.blind_signature.slice(1),
+      }),
     ).toThrow();
   });
 });

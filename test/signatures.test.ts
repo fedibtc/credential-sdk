@@ -14,7 +14,7 @@ describe("protocol types", () => {
       schema: "trust-score-v1",
       issuer_id_pubkey:
         "1111111111111111111111111111111111111111111111111111111111111111",
-      score: 7,
+      trust_level: 7,
     } satisfies JsonValue;
     const request = {
       version: 1,
@@ -28,15 +28,16 @@ describe("protocol types", () => {
       blind_signature: "base64url-blind-signature",
     } satisfies IssuanceResponse;
     const credential = {
-      version: 1,
-      issuer_id:
-        "1111111111111111111111111111111111111111111111111111111111111111",
-      info,
-      blind_msg: {
-        holder_pubkey: "holder-pubkey",
+      credential: {
+        issuer_id_pubkey:
+          "1111111111111111111111111111111111111111111111111111111111111111",
+        info,
+        blind_msg: "anonymous-holder-public-key",
+        message_randomizer: "base64url-message-randomizer",
       },
-      message_randomizer: "base64url-message-randomizer",
-      signature: "base64url-signature",
+      proof: {
+        signature: "base64url-signature",
+      },
     } satisfies Credential;
     const pendingIssuance = {
       request,
@@ -44,7 +45,7 @@ describe("protocol types", () => {
     } satisfies PendingIssuanceResult;
 
     expect(response.info).toBe(info);
-    expect(credential.blind_msg).toEqual({ holder_pubkey: "holder-pubkey" });
+    expect(credential.credential.blind_msg).toBe("anonymous-holder-public-key");
     expect(pendingIssuance.request.blinded_message).toBe(
       "base64url-blinded-message",
     );

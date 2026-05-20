@@ -16,7 +16,7 @@ The current protocol shape separates issuer-visible data from holder-hidden data
     info: {
       schema: "trust-score-v1",
       issuer_id_pubkey: "issuer-id-pubkey",
-      score: 7,
+      trust_level: 7,
     },
     blind_msg: "anonymous-holder-public-key",
   },

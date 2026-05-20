@@ -22,14 +22,10 @@ fn protocol_snapshots() {
         <PbrsaRng as blind_rsa_signatures::reexports::rand::SeedableRng>::from_seed(pbrsa_seed);
 
     let credential_info = json!({
-        "schema": "trust-score-v1",
-        "level": 7,
-        "verified": true,
+        "schema": "fedi-trust-score-v1.0",
+        "trust_level": 7,
     });
-    let blind_msg = json!({
-        "holder_pubkey": "holder-pubkey",
-        "nonce": 42,
-    });
+    let blind_msg = json!("anonymous-holder-public-key");
 
     // Create issuer metadata before any holder interaction.
     let issuer = issuer_context(&mut nostr_rng, &mut pbrsa_rng);
@@ -56,7 +52,9 @@ fn protocol_snapshots() {
           }
         ]
       },
-      "signature": "c4Rz47oxQemLLJwnZnbCyN7Oa_NtvhPLKviQ8SceCBU8bMYipn2jAynuNkKAK_0PSQWsvYGxOuthQtNUc42kaw"
+      "proof": {
+        "signature": "c4Rz47oxQemLLJwnZnbCyN7Oa_NtvhPLKviQ8SceCBU8bMYipn2jAynuNkKAK_0PSQWsvYGxOuthQtNUc42kaw"
+      }
     }
     "###);
 
@@ -73,7 +71,7 @@ fn protocol_snapshots() {
     insta::assert_json_snapshot!(request, @r###"
     {
       "version": 1,
-      "blinded_message": "U3cBLAo8aDgo-11EB6c6ULdR89NGGV6PBzRWQ5M8uC_b8cbaAicIoDI3CSmmSCG78qSb5l4GUBHHfzJwNxOYHHzmKOxphBpR-QXggQ40b8RK_vWARGji1gjfHO1BtgqeAOv3Ax91JXQWh9vt_sR4S7gziz5_V6kn3dUwNtOFQVw"
+      "blinded_message": "K587hG6bByh52YnF6KzRLtv7EUKDvgbnltzCjOBMwN6l2Y6oTtjUQT0MmXiRx3czB4ln5YgtkAg3iZUYAdii67BfVeHsTqxHrFG8q-y0njcspjHi9zXhuJHtdV8ZXkU-bBoPLU5L0wkN7BcI8IXPQEpCJzKBd2acOCvNkVi5bVQ"
     }
     "###);
 
@@ -87,11 +85,10 @@ fn protocol_snapshots() {
       "version": 1,
       "issuer_id": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
       "info": {
-        "level": 7,
-        "schema": "trust-score-v1",
-        "verified": true
+        "schema": "fedi-trust-score-v1.0",
+        "trust_level": 7
       },
-      "blind_signature": "a63kve0Yy6jM_XvZXmRdQo4i2p8PaV9YFFRrOjxqMHHI1_D6ZNImpAxguy6sehxOTF8j1y23So1WD1eK-UiwP21QHx2Mu3Ietqj4MUqWmvqg13IA8qjLFOG1w2nzmadWmrl204HbsVUU5CdpzzUhdGD7Mj3t-mwG_249PLsWtQ0"
+      "blind_signature": "AiXt7EYA3K-S6SHdCJaFH4vL1bAZgzw5KkL8O4b7z36JSAr8fbxWr67Dsfo4i4JRTDPXhT8TT8KXlOY2BMynxsFyJY4NGd_4B9XWtQfaNcVxhWL6nIQshvevEfjVg0mLO9LuNA12W4c1gnOMTGbCZjJl6hHOMLx8CF4wBuCWdxg"
     }
     "###);
 
@@ -100,19 +97,18 @@ fn protocol_snapshots() {
 
     insta::assert_json_snapshot!(credential, @r###"
     {
-      "version": 1,
-      "issuer_id": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
-      "info": {
-        "level": 7,
-        "schema": "trust-score-v1",
-        "verified": true
+      "credential": {
+        "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
+        "info": {
+          "schema": "fedi-trust-score-v1.0",
+          "trust_level": 7
+        },
+        "blind_msg": "anonymous-holder-public-key",
+        "message_randomizer": "esz5fHBn-obcvSswhfHLrN8_HcpnUuIkmXlhsKIwgaM"
       },
-      "blind_msg": {
-        "holder_pubkey": "holder-pubkey",
-        "nonce": 42
-      },
-      "message_randomizer": "esz5fHBn-obcvSswhfHLrN8_HcpnUuIkmXlhsKIwgaM",
-      "signature": "JmLeoUbgQbzBccAtLTmd4_fYRBzvFiciPlnj9NzTvW5yGNn-8ZISbvJEhqf_fXaxutkBn64Z1_ZEa5tWbPTa0PsRGyiGRmJy7THDiClpZkIQL-QBBM5hK7EL3ASbcXvAOFnnWz8kzy4SHrp-IF-OroeQFrBTY5wK5aAsOWzDAEs"
+      "proof": {
+        "signature": "R15KwA-9G3sBg9bypTyqB2QHPK1_qeTxrkMI4QfQ2XeBVnu41GQIxG_uctmqRpTVBSXQdDpTlK8RypKm8vzK1uZhxW6r-QC5GgOnhX3RPVFM_AZF_Q4o6HuOziNA4XmWmmU0sXUMSe-T2GAhT8KrX8sVIlCic4cmjtA0N9bBKjE"
+      }
     }
     "###);
 
@@ -124,10 +120,12 @@ fn protocol_snapshots() {
     insta::assert_json_snapshot!(signed_revocation, @r###"
     {
       "revocation": {
-        "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
-        "credential_digest": "Z7YbufSHKIhZzXx2dibh4yijEI9Mja315c9sqnTHJt4"
+        "credential_digest": "sHjaaBVtttTKnOiXjuM29pd3j7ZrxbsGi1IQ2uGr-m4"
       },
-      "signature": "zjz_E9vhVb4-TXu7ZCsLk41w9nYadAxuRzA4T2og6vyyoAhvUxkHSnH4ul443A_MMr5VTHQDa9cw10jHhyvbfg"
+      "proof": {
+        "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
+        "signature": "HN-vq09hrSHPKrUtuFIInygT8H7ryryNJoStnWs6gsqfhLjuexGCfpefLUqRBw2Y7bafVGXCzjPoGP--u3dBIQ"
+      }
     }
     "###);
     let other_issuer = issuer_context(&mut nostr_rng, &mut pbrsa_rng);
@@ -175,7 +173,7 @@ fn protocol_snapshots() {
     let mut tampered_bundle = issuer_bundle.clone();
     tampered_bundle.issuer.revocation[0].location = "wss://evil.example.com".to_owned();
 
-    credential.blind_msg = json!({ "holder_pubkey": "mallory", "nonce": 42 });
+    credential.credential.blind_msg = json!("mallory-public-key");
     let mut verifier = VerificationContext::new();
     verifier.add_issuer_bundle(&issuer_bundle).unwrap();
 

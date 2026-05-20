@@ -28,8 +28,8 @@ function credentialFixture(): {
   credential: Credential;
 } {
   const issuer = IssuerContext.generate(1024);
-  const info = { credential: "test" };
-  const blindMsg = { holder: "alice" };
+  const info = { schema: "fedi-trust-score-v1.0", trust_level: 7 };
+  const blindMsg = "anonymous-holder-public-key";
   const result = PendingIssuance.createRequest(
     issuer.publicKey,
     issuer.issuerId,

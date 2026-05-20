@@ -46,7 +46,7 @@ pub fn canonicalize_pbrsa_info(
     let payload = json!({
         "type": PBRSA_PUBLIC_INFO_CANONICAL_TYPE,
         "version": version,
-        "issuer_id": issuer_id,
+        "issuer_id_pubkey": issuer_id,
         "info": info,
     });
 
@@ -144,7 +144,7 @@ mod tests {
 
         let canonicalized = canonicalize_pbrsa_info(ProtocolV1, &issuer_id, &info).unwrap();
         let expected = format!(
-            r#"{{"info":{{"a":{{"a":false,"b":true}},"z":1}},"issuer_id":"{}","type":"{}","version":1}}"#,
+            r#"{{"info":{{"a":{{"a":false,"b":true}},"z":1}},"issuer_id_pubkey":"{}","type":"{}","version":1}}"#,
             issuer_id.0, PBRSA_PUBLIC_INFO_CANONICAL_TYPE,
         );
 
