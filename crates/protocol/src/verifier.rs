@@ -3,16 +3,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, revocation::verified_revocation,
-    verify_issuer_bundle, Credential, CredentialsError, IssuerBundle, IssuerId, PbrsaPublicKey,
-    Revocation, SignedRevocation,
+    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, Credential, CredentialsError,
+    IssuerBundle, IssuerId, PbrsaPublicKey, RevocationEntry, SignedRevocation,
 };
 
 /// Stateful verifier for trusted issuers, revocations, and credentials.
 #[derive(Clone, Default)]
 pub struct VerificationContext {
     issuers: BTreeMap<IssuerId, PbrsaPublicKey>,
-    revocations: BTreeSet<Revocation>,
+    revocations: BTreeSet<RevocationEntry>,
 }
 
 impl VerificationContext {
@@ -23,11 +22,9 @@ impl VerificationContext {
 
     /// Verify and trust an issuer bundle for subsequent credential checks.
     pub fn add_issuer_bundle(&mut self, bundle: &IssuerBundle) -> Result<(), CredentialsError> {
-        verify_issuer_bundle(bundle)?;
-        self.issuers.insert(
-            bundle.issuer.issuer_id_pubkey.clone(),
-            bundle.issuer.issuance_key.clone(),
-        );
+        let issuer = bundle.verify()?;
+        self.issuers
+            .insert(issuer.issuer_id_pubkey.clone(), issuer.issuance_key.clone());
 
         Ok(())
     }
@@ -37,8 +34,8 @@ impl VerificationContext {
         &mut self,
         signed_revocation: &SignedRevocation,
     ) -> Result<(), CredentialsError> {
-        let revocation = verified_revocation(signed_revocation)?;
-        if !self.issuers.contains_key(&revocation.issuer_id) {
+        let revocation = signed_revocation.verify()?;
+        if !self.issuers.contains_key(&revocation.issuer_id_pubkey) {
             return Err(CredentialsError::UnknownIssuer);
         }
 
@@ -55,8 +52,8 @@ impl VerificationContext {
 
         verify_credential_with_key(issuer_public_key, credential)?;
 
-        let revocation = Revocation {
-            issuer_id: credential.issuer_id.clone(),
+        let revocation = RevocationEntry {
+            issuer_id_pubkey: credential.issuer_id.clone(),
             credential_digest: credential.digest()?,
         };
 

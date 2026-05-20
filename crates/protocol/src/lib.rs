@@ -8,7 +8,7 @@ pub mod canonical;
 pub mod error;
 pub mod holder;
 pub mod issuer;
-pub mod revocation;
+mod serde;
 pub mod types;
 pub mod verifier;
 
@@ -16,7 +16,6 @@ pub use canonical::*;
 pub use error::*;
 pub use holder::*;
 pub use issuer::*;
-pub use revocation::*;
 pub use types::*;
 pub use verifier::*;
 

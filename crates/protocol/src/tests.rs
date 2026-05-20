@@ -56,9 +56,7 @@ fn protocol_snapshots() {
           }
         ]
       },
-      "proof": {
-        "signature": "738473e3ba3141e98b2c9c276676c2c8dece6bf36dbe13cb2af890f1271e08153c6cc622a67da30329ee3642802bfd0f4905acbd81b13aeb6142d354738da46b"
-      }
+      "signature": "c4Rz47oxQemLLJwnZnbCyN7Oa_NtvhPLKviQ8SceCBU8bMYipn2jAynuNkKAK_0PSQWsvYGxOuthQtNUc42kaw"
     }
     "###);
 
@@ -119,20 +117,17 @@ fn protocol_snapshots() {
     "###);
 
     // Revoke the finalized credential and snapshot the signed revocation entry.
-    let revocation = issuer.revoke_credential(&credential).unwrap();
     let signed_revocation = issuer
-        .sign_revocation_with_rng(&revocation, &mut nostr_rng)
+        .revoke_credential_with_rng(&credential, &mut nostr_rng)
         .unwrap();
 
     insta::assert_json_snapshot!(signed_revocation, @r###"
     {
       "revocation": {
-        "credential_digest": "67b61bb9f487288859cd7c767626e1e328a3108f4c8dadf5e5cf6caa74c726de"
-      },
-      "proof": {
         "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
-        "signature": "42e7cf3f268f697a016ae0c987588cc64e8ac8dc40616c090bf186f6c9ff29e9f6c977ff50276971a85f422c49d21b37c279067a23b9c30304ad39265c6be54b"
-      }
+        "credential_digest": "Z7YbufSHKIhZzXx2dibh4yijEI9Mja315c9sqnTHJt4"
+      },
+      "signature": "zjz_E9vhVb4-TXu7ZCsLk41w9nYadAxuRzA4T2og6vyyoAhvUxkHSnH4ul443A_MMr5VTHQDa9cw10jHhyvbfg"
     }
     "###);
     let other_issuer = issuer_context(&mut nostr_rng, &mut pbrsa_rng);
@@ -186,7 +181,7 @@ fn protocol_snapshots() {
 
     insta::assert_json_snapshot!(json!({
         "tampered_credential": verifier.verify_credential(&credential).unwrap_err().to_string(),
-        "tampered_bundle": crate::verify_issuer_bundle(&tampered_bundle).unwrap_err().to_string(),
+        "tampered_bundle": tampered_bundle.verify().unwrap_err().to_string(),
         "wrong_issuer_revoke": other_issuer.revoke_credential(&credential).unwrap_err().to_string(),
     }), @r###"
     {

@@ -37,7 +37,7 @@ export interface Credential {
 
 export interface IssuerBundle {
   readonly issuer: Issuer;
-  readonly proof: SignatureProof;
+  readonly signature: string;
 }
 
 export interface Issuer {
@@ -46,27 +46,20 @@ export interface Issuer {
   readonly revocation: readonly RevocationLocation[];
 }
 
-export interface RevocationLocation {
-  readonly protocol: string;
-  readonly location: string;
-}
-
-export interface SignatureProof {
-  readonly signature: string;
-}
-
 export interface SignedRevocation {
   readonly revocation: RevocationEntry;
-  readonly proof: IssuerSignatureProof;
+  readonly signature: string;
 }
 
 export interface RevocationEntry {
+  readonly issuer_id_pubkey: string;
+  /** Unpadded URL-safe base64 encoded SHA-256 digest. */
   readonly credential_digest: string;
 }
 
-export interface IssuerSignatureProof {
-  readonly issuer_id_pubkey: string;
-  readonly signature: string;
+export interface RevocationLocation {
+  readonly protocol: string;
+  readonly location: string;
 }
 
 export interface PendingIssuanceResult {
@@ -164,8 +157,7 @@ impl IssuerContext {
     #[wasm_bindgen(js_name = revokeCredential)]
     pub fn revoke_credential(&self, credential: JsValue) -> Result<JsValue, JsError> {
         let credential: protocol::Credential = from_js(credential)?;
-        let revocation = self.inner.revoke_credential(&credential)?;
-        to_js(&self.inner.sign_revocation(&revocation)?)
+        to_js(&self.inner.revoke_credential(&credential)?)
     }
 }
 
@@ -214,7 +206,6 @@ impl PendingIssuance {
         )?;
 
         let result = js_sys::Object::new();
-        // review: what is this code?
         js_sys::Reflect::set(&result, &JsValue::from_str("request"), &to_js(&request)?)
             .map_err(reflect_error)?;
         js_sys::Reflect::set(
@@ -273,13 +264,13 @@ impl VerificationContext {
 #[wasm_bindgen(js_name = verifyIssuerBundle)]
 pub fn verify_issuer_bundle(issuer_bundle: JsValue) -> Result<bool, JsError> {
     let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
-    protocol::verify_issuer_bundle(&issuer_bundle)?;
+    issuer_bundle.verify()?;
     Ok(true)
 }
 
 #[wasm_bindgen(js_name = verifyRevocation)]
 pub fn verify_revocation(revocation: JsValue) -> Result<bool, JsError> {
     let revocation: protocol::SignedRevocation = from_js(revocation)?;
-    protocol::verify_revocation(&revocation)?;
+    revocation.verify()?;
     Ok(true)
 }

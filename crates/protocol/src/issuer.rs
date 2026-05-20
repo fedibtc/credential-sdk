@@ -4,11 +4,9 @@ use blind_rsa_signatures::{pbrsa::PartiallyBlindKeyPairSha384PSSRandomized, Defa
 use serde_json::Value;
 
 use crate::{
-    canonicalize_issuer_bundle, canonicalize_pbrsa_info, canonicalize_revocation, signing_message,
-    Credential, CredentialsError, IssuanceRequest, IssuanceResponse, Issuer, IssuerBundle,
-    IssuerId, IssuerSignatureProof, PbrsaPublicKey, ProtocolV1, Revocation, RevocationEntry,
-    RevocationLocation, SignatureProof, SignedRevocation, ISSUER_BUNDLE_SIGNATURE_DOMAIN_SEPARATOR,
-    REVOCATION_SIGNATURE_DOMAIN_SEPARATOR,
+    canonicalize_pbrsa_info, Credential, CredentialsError, IssuanceRequest, IssuanceResponse,
+    Issuer, IssuerBundle, IssuerId, PbrsaPublicKey, ProtocolV1, RevocationEntry,
+    RevocationLocation, SignedRevocation,
 };
 
 /// Runtime issuer context containing issuer identity and PBRSA signing key.
@@ -78,16 +76,9 @@ impl IssuerContext {
             issuance_key: self.public_key(),
             revocation,
         };
-        let signature = self.sign_identity_with_rng(
-            ISSUER_BUNDLE_SIGNATURE_DOMAIN_SEPARATOR,
-            &canonicalize_issuer_bundle(&issuer)?,
-            rng,
-        );
+        let signature = self.sign_identity_digest_with_rng(issuer.digest()?, rng);
 
-        Ok(IssuerBundle {
-            issuer,
-            proof: SignatureProof { signature },
-        })
+        Ok(IssuerBundle { issuer, signature })
     }
 
     pub fn secret_key_der(&self) -> Result<Vec<u8>, CredentialsError> {
@@ -137,76 +128,50 @@ impl IssuerContext {
         })
     }
 
-    /// Build the revocation target for a finalized credential issued by this issuer.
+    /// Build and sign the revocation for a finalized credential issued by this issuer.
     ///
     /// This computes the finalized credential digest and binds it to this issuer
-    /// identity. It does not sign, publish, or transport the revocation; those
-    /// concerns live in the revocation layer.
+    /// identity. It does not publish or transport the revocation; those concerns
+    /// live outside the core protocol.
     pub fn revoke_credential(
         &self,
         credential: &Credential,
-    ) -> Result<Revocation, CredentialsError> {
+    ) -> Result<SignedRevocation, CredentialsError> {
+        self.revoke_credential_with_rng(credential, &mut nostr::secp256k1::rand::rngs::OsRng)
+    }
+
+    pub(crate) fn revoke_credential_with_rng(
+        &self,
+        credential: &Credential,
+        rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
+    ) -> Result<SignedRevocation, CredentialsError> {
         let issuer_id = self.issuer_id();
         if credential.issuer_id != issuer_id {
             return Err(CredentialsError::IssuerIdMismatch);
         }
 
-        let credential_digest = credential.digest()?;
-
-        Ok(Revocation {
-            issuer_id,
-            credential_digest,
-        })
-    }
-
-    /// Sign a revocation target with this issuer's Nostr identity key.
-    pub fn sign_revocation(
-        &self,
-        revocation: &Revocation,
-    ) -> Result<SignedRevocation, CredentialsError> {
-        self.sign_revocation_with_rng(revocation, &mut nostr::secp256k1::rand::rngs::OsRng)
-    }
-
-    pub(crate) fn sign_revocation_with_rng(
-        &self,
-        revocation: &Revocation,
-        rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
-    ) -> Result<SignedRevocation, CredentialsError> {
-        let issuer_id = self.issuer_id();
-        if revocation.issuer_id != issuer_id {
-            return Err(CredentialsError::IssuerIdMismatch);
-        }
-
         let revocation = RevocationEntry {
-            credential_digest: hex::encode(revocation.credential_digest),
+            issuer_id_pubkey: issuer_id,
+            credential_digest: credential.digest()?,
         };
-        let signature = self.sign_identity_with_rng(
-            REVOCATION_SIGNATURE_DOMAIN_SEPARATOR,
-            &canonicalize_revocation(&revocation)?,
-            rng,
-        );
+
+        let signature = self.sign_identity_digest_with_rng(revocation.digest()?, rng);
 
         Ok(SignedRevocation {
             revocation,
-            proof: IssuerSignatureProof {
-                issuer_id_pubkey: issuer_id,
-                signature,
-            },
+            signature,
         })
     }
 
-    fn sign_identity_with_rng(
+    fn sign_identity_digest_with_rng(
         &self,
-        domain_separator: &[u8],
-        canonical_payload: &[u8],
+        digest: sha2::digest::Output<sha2::Sha256>,
         rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
-    ) -> String {
-        self.identity_keys
-            .sign_schnorr_with_ctx(
-                nostr::SECP256K1,
-                &signing_message(domain_separator, canonical_payload),
-                rng,
-            )
-            .to_string()
+    ) -> nostr::secp256k1::schnorr::Signature {
+        self.identity_keys.sign_schnorr_with_ctx(
+            nostr::SECP256K1,
+            &nostr::secp256k1::Message::from_digest(digest.into()),
+            rng,
+        )
     }
 }

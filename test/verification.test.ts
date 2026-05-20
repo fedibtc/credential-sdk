@@ -91,8 +91,9 @@ describe("revocation verification", () => {
       verifyRevocation({
         ...signedRevocation,
         revocation: {
+          ...signedRevocation.revocation,
           credential_digest:
-            "0808080808080808080808080808080808080808080808080808080808080808",
+            "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
         },
       }),
     ).toThrow();

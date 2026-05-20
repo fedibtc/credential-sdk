@@ -2,6 +2,7 @@ use blind_rsa_signatures::{
     BlindMessage as PbrsaBlindMessage, BlindSignature as PbrsaBlindSignature,
     MessageRandomizer as PbrsaMessageRandomizer, Signature as PbrsaSignature,
 };
+use nostr::secp256k1::{schnorr::Signature, Message};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use serde_with::{base64::Base64, base64::UrlSafe, formats::Unpadded, serde_as};
@@ -9,7 +10,14 @@ use serde_with::{DeserializeAs, SerializeAs};
 use sha2::{digest::Output, Digest, Sha256};
 use std::str::FromStr;
 
-use crate::{canonicalize_credential, CredentialsError};
+use crate::serde::{
+    PbrsaPublicKeyBase64UrlUnpadded, SchnorrSignatureBase64UrlUnpadded,
+    Sha256DigestBase64UrlUnpadded,
+};
+use crate::{
+    canonicalize_credential, canonicalize_issuer_bundle, canonicalize_revocation, CredentialsError,
+    PbrsaPublicKey,
+};
 
 /// Unpadded URL-safe base64 encoding used for byte fields in JSON.
 type Base64UrlUnpadded = Base64<UrlSafe, Unpadded>;
@@ -71,8 +79,7 @@ impl<'de> Deserialize<'de> for ProtocolV1 {
 
 /// Issuer identifier.
 ///
-/// Issuer identities are hard-bound to Nostr public keys. Revocation events for
-/// a credential must be signed by the same Nostr public key carried here.
+/// Issuer identities are hard-bound to Nostr public keys.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct IssuerId(pub nostr::PublicKey);
@@ -83,6 +90,141 @@ impl FromStr for IssuerId {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         nostr::PublicKey::parse(value).map(Self)
     }
+}
+
+// Revocation transport, issuer-bundle publication, and trust-list policy can
+// change without breaking the core credential protocol.
+
+/// Signed issuer metadata used by verifiers before accepting credentials.
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IssuerBundle {
+    pub issuer: Issuer,
+    #[serde_as(as = "SchnorrSignatureBase64UrlUnpadded")]
+    pub signature: Signature,
+}
+
+impl IssuerBundle {
+    /// Verify this issuer bundle's identity signature and return the issuer metadata.
+    pub fn verify(&self) -> Result<Issuer, CredentialsError> {
+        validate_revocation_locations(&self.issuer.revocation)?;
+
+        verify_identity_signature(
+            &self.issuer.issuer_id_pubkey,
+            &self.signature,
+            Message::from_digest(self.issuer.digest()?.into()),
+        )?;
+
+        Ok(self.issuer.clone())
+    }
+}
+
+/// Issuer metadata signed by the issuer identity key.
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Issuer {
+    pub issuer_id_pubkey: IssuerId,
+    /// PBRSA public key used to verify credentials.
+    ///
+    /// Serializes as DER encoded with unpadded URL-safe base64.
+    #[serde_as(as = "PbrsaPublicKeyBase64UrlUnpadded")]
+    pub issuance_key: PbrsaPublicKey,
+    pub revocation: Vec<RevocationLocation>,
+}
+
+impl Issuer {
+    /// Compute the signature digest for this issuer metadata.
+    pub fn digest(&self) -> Result<Output<Sha256>, CredentialsError> {
+        let canonical = canonicalize_issuer_bundle(self)?;
+        Ok(Sha256::new()
+            .chain_update(ISSUER_BUNDLE_SIGNATURE_DOMAIN_SEPARATOR)
+            .chain_update(canonical)
+            .finalize())
+    }
+}
+
+/// Location where issuer revocations may be published.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevocationLocation {
+    pub protocol: String,
+    pub location: String,
+}
+
+/// Signed revocation wire object.
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignedRevocation {
+    pub revocation: RevocationEntry,
+    #[serde_as(as = "SchnorrSignatureBase64UrlUnpadded")]
+    pub signature: Signature,
+}
+
+impl SignedRevocation {
+    /// Verify this revocation's issuer signature and return the revocation entry.
+    pub fn verify(&self) -> Result<RevocationEntry, CredentialsError> {
+        verify_identity_signature(
+            &self.revocation.issuer_id_pubkey,
+            &self.signature,
+            Message::from_digest(self.revocation.digest()?.into()),
+        )?;
+
+        Ok(self.revocation.clone())
+    }
+}
+
+/// Revocation payload signed by the issuer identity key.
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct RevocationEntry {
+    pub issuer_id_pubkey: IssuerId,
+    /// SHA-256 digest of the finalized credential.
+    #[serde_as(as = "Sha256DigestBase64UrlUnpadded")]
+    pub credential_digest: sha2::digest::Output<Sha256>,
+}
+
+impl RevocationEntry {
+    /// Compute the signature digest for this revocation entry.
+    pub fn digest(&self) -> Result<Output<Sha256>, CredentialsError> {
+        let canonical = canonicalize_revocation(self)?;
+        Ok(Sha256::new()
+            .chain_update(REVOCATION_SIGNATURE_DOMAIN_SEPARATOR)
+            .chain_update(canonical)
+            .finalize())
+    }
+}
+
+/// Domain separator for issuer bundle identity signatures.
+pub const ISSUER_BUNDLE_SIGNATURE_DOMAIN_SEPARATOR: &[u8] =
+    b"fedi-credential/issuer-bundle-signature/v1\0";
+
+/// Domain separator for revocation identity signatures.
+pub const REVOCATION_SIGNATURE_DOMAIN_SEPARATOR: &[u8] =
+    b"fedi-credential/revocation-signature/v1\0";
+
+fn validate_revocation_locations(locations: &[RevocationLocation]) -> Result<(), CredentialsError> {
+    if locations
+        .iter()
+        .any(|location| location.protocol.is_empty() || location.location.is_empty())
+    {
+        return Err(CredentialsError::VerificationFailed);
+    }
+
+    Ok(())
+}
+
+fn verify_identity_signature(
+    issuer_id: &IssuerId,
+    signature: &Signature,
+    message: Message,
+) -> Result<(), CredentialsError> {
+    let public_key = issuer_id
+        .0
+        .xonly()
+        .map_err(|_| CredentialsError::VerificationFailed)?;
+
+    nostr::SECP256K1
+        .verify_schnorr(signature, &message, &public_key)
+        .map_err(|_| CredentialsError::VerificationFailed)
 }
 
 /// Domain separator prepended to canonical credential JSON before hashing.
