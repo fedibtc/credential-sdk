@@ -1,66 +1,58 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import type {
   IssuerBundle,
-  PendingIssuanceResult,
-  SignedCredential,
+  JsonValue,
+  RevocationLocation,
   SignedRevocation,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 import {
-  IssuerContext,
   PendingIssuance,
   VerificationContext,
-  verifyIssuerBundle,
-  verifyRevocation,
 } from "../pkg/fedi_credential_sdk_wasm.js";
+import { createTestIssuer } from "./fixtures.js";
 
 const revocationLocations = [
   {
     location: "wss://relay.example.com",
     protocol: "nostr",
   },
-];
+] satisfies readonly RevocationLocation[];
 
-function credentialFixture(): {
-  issuer: IssuerContext;
-  issuerBundle: IssuerBundle;
-  signedRevocation: SignedRevocation;
-  credential: SignedCredential;
-} {
-  const issuer = IssuerContext.generate();
-  const issuerBundle = issuer.issuerBundle(revocationLocations) as IssuerBundle;
-  const info = { schema: "fedi-trust-score-v1.0", trust_level: 7 };
-  const blindMsg = "anonymous-holder-public-key";
+const credentialInfo = {
+  schema: "fedi-trust-score-v1.0",
+  trust_level: 7,
+} satisfies JsonValue;
+
+const blindMessage = "anonymous-holder-public-key";
+
+let issuerBundle: IssuerBundle;
+let signedRevocation: SignedRevocation;
+
+beforeAll(() => {
+  const issuer = createTestIssuer();
+  issuerBundle = issuer.issuerBundle(revocationLocations);
   const result = PendingIssuance.createRequest(
     issuerBundle,
-    info,
-    blindMsg,
-  ) as PendingIssuanceResult;
-  const response = issuer.issueCredential(info, result.request);
-  const credential = result.pending.finalize(
-    issuerBundle,
-    response,
-  ) as SignedCredential;
-
-  return {
-    issuer,
-    issuerBundle,
-    signedRevocation: issuer.revokeCredential(credential) as SignedRevocation,
-    credential,
-  };
-}
+    credentialInfo,
+    blindMessage,
+  );
+  const response = issuer.issueCredential(credentialInfo, result.request);
+  const credential = result.pending.finalize(issuerBundle, response);
+  signedRevocation = issuer.revokeCredential(credential);
+});
 
 describe("issuer bundle verification", () => {
   it("accepts a signed issuer bundle", () => {
-    const { issuerBundle } = credentialFixture();
+    const context = new VerificationContext();
 
-    expect(verifyIssuerBundle(issuerBundle)).toBe(true);
+    expect(context.addIssuerBundle(issuerBundle)).toBeUndefined();
   });
 
   it("rejects tampered issuer bundle metadata", () => {
-    const { issuerBundle } = credentialFixture();
+    const context = new VerificationContext();
 
     expect(() =>
-      verifyIssuerBundle({
+      context.addIssuerBundle({
         ...issuerBundle,
         issuer: {
           ...issuerBundle.issuer,
@@ -78,16 +70,19 @@ describe("issuer bundle verification", () => {
 
 describe("revocation verification", () => {
   it("accepts a signed revocation", () => {
-    const { signedRevocation } = credentialFixture();
+    const context = new VerificationContext();
 
-    expect(verifyRevocation(signedRevocation)).toBe(true);
+    context.addIssuerBundle(issuerBundle);
+    expect(context.addRevocation(signedRevocation)).toBeUndefined();
   });
 
   it("rejects tampered revocation data", () => {
-    const { signedRevocation } = credentialFixture();
+    const context = new VerificationContext();
+
+    context.addIssuerBundle(issuerBundle);
 
     expect(() =>
-      verifyRevocation({
+      context.addRevocation({
         ...signedRevocation,
         revocation: {
           ...signedRevocation.revocation,
@@ -100,7 +95,6 @@ describe("revocation verification", () => {
 
 describe("verification context", () => {
   it("accepts trusted issuer bundles and their revocations", () => {
-    const { issuerBundle, signedRevocation } = credentialFixture();
     const context = new VerificationContext();
 
     expect(context.addIssuerBundle(issuerBundle)).toBeUndefined();
@@ -108,7 +102,6 @@ describe("verification context", () => {
   });
 
   it("rejects revocations from unknown issuers", () => {
-    const { signedRevocation } = credentialFixture();
     const context = new VerificationContext();
 
     expect(() => context.addRevocation(signedRevocation)).toThrow();

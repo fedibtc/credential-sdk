@@ -1,8 +1,8 @@
 use serde_json::json;
 
 use crate::{
-    HolderContext, IssuerContext, PendingIssuance, ProtocolV1, Revocation, RevocationLocation,
-    RevocationProof, SignedCredential, SignedRevocation, VerificationContext,
+    HolderContext, IssuerContext, IssuerSecretKeys, PendingIssuance, ProtocolV1, Revocation,
+    RevocationLocation, RevocationProof, SignedCredential, SignedRevocation, VerificationContext,
 };
 
 const TEST_RNG_SEED: u64 = 0x5eed_f00d_cafe_babe;
@@ -10,9 +10,24 @@ const TEST_RNG_SEED: u64 = 0x5eed_f00d_cafe_babe;
 type NostrRng = nostr::secp256k1::rand::rngs::StdRng;
 type PbrsaRng = blind_rsa_signatures::reexports::rand::rngs::StdRng;
 
-fn issuer_context(nostr_rng: &mut NostrRng, pbrsa_rng: &mut PbrsaRng) -> IssuerContext {
-    let identity_keys = nostr::Keys::generate_with_rng(nostr_rng);
-    IssuerContext::generate_with_rng(identity_keys, pbrsa_rng).unwrap()
+// Keygen is super slow which makes the tests take minutes to run.
+// This hard codes issuer keys for tests so they run in seconds.
+fn test_issuer_secret_keys() -> IssuerSecretKeys {
+    serde_json::from_value(json!({
+        "issuer_id_secret_key": "76127aa07dc3a3dcad06c8f8835ff997adb9c542868434bc47d16f1c9ba860b8",
+        "issuance_secret_key": "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDAQ1EwvOUFvlSU0vvwrRFsZoFtswUS1kdp0zxpmSF1clbKtpuY2TXkhSsOXMtAy2Ci2tCQ1_bqviht3pYTuF2KkBFa_0lbNXf1-jVbjckvWhjVfQoTNUn9QzvUPQklSBEokEXgHjvhI4vASaCWStl7Os5FfZW6MJ7CPNuSLouuIoI9aWTplP2-PD4DC9kzP3sRBSugVvx6CgPjPCq9T1eQzy52Ed18bpY0IKgvBkKnnc2j2JuvDENRDX2KxLHjpymDJhrMC_pSTxSnUMOncozdw-HI7E1I7t59gWiXz0S8Uk5kom2NS2x4QUkFKjpxQwarupAObUhtnDaLjCrszybxAgMBAAECggEAMxqxng7XoWsx-E0MgrC-DN5CUPJgyt0CJnLrf_YgGqPFxiQ7v6kc1h0_kJXBwPtOOHuJLLb6_vKEtI-RvLQoyQf6VQG-cewIcu2K-Ub6zwdXyoduAiUMAbG5WXTP1YUOaoXOzP-8Ut-r6fSoJsrGfCbpZTc4cUEzMdYTVwvgPOyhJr66lD26wWMnJD7hk8qi54lhpWG2fkwR61eSKhO_sBLUYXPywxkGVLRfXVpXZxxr8EDMDsxeD03Y6rZOMAS3-g4xv8-dIGFjbIPH_VsZn8g8eRmtAaaVLoDGfphaOfP5JSYw76QLzj5Y0Slzf3wUaaK3dxbAQoUIKi_RaCb7sQKBgQDRcOQ9hqQTF0g5TovWw8nLwJyCPrbqcjDT6MuQYDWKzKzPeQ6fPcjbpCgme7YCUZZ8AT2n9yZaFWOjNxGyRKps-YcBI2nhmQWzuV_UcmayxtehJ0ee3PyukKs8aJieuBwb9xFzZ5-ekSiDbghmA-wSvHDXoLFf1HDZXhH3XpxgBwKBgQDrANa5p1wmzNcW4Lvh8qkFhE9eGTbKugpxw94I6Qj2RQImupVBySSt1v_pi2771R66foBvspnzaEf505BNppYZ9jh3zLS3jjhztkkK76MOilho0cFHF0328s3AgNI8LFQDYpVp-_rCDb6NwPPLAhEewyecL690xvE_NbUMlTATRwKBgQDCnaZYzZ3053ODXMtwe2ouXQKRvHj4Dbf1kaJmvB_EpEAIYjMGIcFc54Mvj1EngmzVOcnzJCONHccCSQ-2mTvMG2op0qB2s1yrDpxPqyZnBYIlC3zvz-U0yNV1QrRe-DGWgtTCag3WqIf-6OYA9bAOEPDCTV3E8IEUWudS96VTTQKBgQDYbNlT-XHAuf2MsEPX_ubykbuWaZowcc2UoFIn2pXKWBt3F3bGMzx4bP0aVLNNciTuk_os5EssA-nlhpXrLXQnTL8MdZYpRe1vg30ZeUCt73MkdaiOlEPVHh-nHfyANkLZKz13cfyqIoZPflgHqkuiDRC5oqDv5xfeotOuVucDmQKBgH_9bUklrSGmRvIKwPyuaP52vSOWginmXzjRKvOGIleg6RRQs4tlbsVluHeQx7bZQQ4b578NYyK78FWfX1AG1OrbscHN8vUrSTN_viPGn6gXpxL0KDaX8okd7zdixwwxqYD0juxmLlaRSTGTAwUF0f-EkPDuNdisG-gkbbsBRJat",
+    }))
+    .unwrap()
+}
+
+fn test_issuer_context() -> IssuerContext {
+    IssuerContext::import_secret_key(&test_issuer_secret_keys()).unwrap()
+}
+
+fn issuer_context_with_identity(identity_keys: nostr::Keys) -> IssuerContext {
+    let mut secret_keys = test_issuer_secret_keys();
+    secret_keys.issuer_id_secret_key = identity_keys.secret_key().to_secret_hex();
+    IssuerContext::import_secret_key(&secret_keys).unwrap()
 }
 
 fn revocation_signed_by(
@@ -55,7 +70,10 @@ fn protocol_snapshots() {
         "trust_level": 7,
     });
     // Create issuer metadata before any holder interaction.
-    let issuer = issuer_context(&mut nostr_rng, &mut pbrsa_rng);
+    let issuer = test_issuer_context();
+    // Keep the Nostr RNG sequence aligned with the original generated-issuer
+    // snapshots while avoiding slow safe-prime RSA key generation.
+    let _discarded_identity_keys = nostr::Keys::generate_with_rng(&mut nostr_rng);
     let issuer_bundle = issuer
         .issuer_bundle_with_rng(
             vec![RevocationLocation {
@@ -100,7 +118,7 @@ fn protocol_snapshots() {
     insta::assert_json_snapshot!(request, @r###"
     {
       "version": 1,
-      "blinded_message": "U6Fqf0yjnOp7NLJOBU7L-QUA9hxedZ3IRiIJmpHmX4oaSF_h6804QMQWbaH5bgU1mRuCEdWMTEkQJBIFroEmEU2JJG67Bp5x6P0yqbe2Jk6yjH8uxPuFHd-mAQlvONFgAi1xdQt-8Lp4Df93_h0wFTnex2O-Nf0fU0QtRFR9UEmcAGpBFwSE1op3QI5Pri91EBKOkwyfxvD3cFn_XWvi0A1sZDYGwQIx-oJELH5nrDlcNEKoAwmoudsU8EJQu0kvNtlo57jF-xiJMwbeMpaRdBFtHPMrRrMoceHgHRtEu38pG7Scwv1GXjgvGEjkLaKpHJnKTK8S4vjYiweN3w1dCw"
+      "blinded_message": "lVObVKDwBk70A0XkJSeXNMLe6lRmF1wX6Im2RwN1xsAliAQ5t8b7BIvcl1YHml5fepA1tYrVWrgKvD8KcEMl63qFnzNqgAA8OiyLihlITB0nInmKlJuZDtiVECfHM9H6jlr-2_apoUp4W4YRrytP58rYLy-13B7OVAmJgdNmIKTPQTiObMhgiFj837vd5xRf8bfagBJRsvzqAv06sVaa1wB7_ZI4heUoa4EMkH6FUN80t1ZAv4yaASyK_LIJ_sfuNUfmGvYBrafkTG-5_9bkYCz6bYmte03kFZB0Y6owjr-PvQriPY5b2wS1aZCn850R3WNOHy98HJO_krUPoNw46A"
     }
     "###);
 
@@ -117,7 +135,7 @@ fn protocol_snapshots() {
         "schema": "fedi-trust-score-v1.0",
         "trust_level": 7
       },
-      "blind_signature": "PSe0AMcYr24uwDkYwcgTm6fKIj_PDtC_7Gou9gTChMrLOr0XVoLSDX37uxawrQ9ayqvZ0rAsAZCh47RLAhhJ0CqyXHoLRm-cpvUmxvfENT956U1SSYmN_t6OEWdYB3Md-cGlC5WB85mO3CfDbK9qe3AscTQtJ9vDO1ic0bjrM477zRIf5HxduydypBXDQZhZCA4ABsfmXgWJSAFZ-wiL_D71h9uIvl7tikyiL3-3SEGQfK9mNJRtuJ7Rxm5znRAwtBUAmNCiE0O5j5PEuiLThE3x29JT-Ph43_nTuXjlABk5FBFhayDK0fSNVh_p0cnAj1S1yTOwU-Qdrx_gQL44Pg"
+      "blind_signature": "O2YBb_kP0tCSPNbytQiKsNdfDQQ054RMnZcwmXxpSERC1lLZdsLPOY0V4N1kygVtIdy0cOrYPe22hM6x5kC3bPIEdDMLfHzuGuRSp-QfSY5rKHxpCPLvdAg31c4zVMF1V15sLjW0AfYebyg462LUqZXntt54TwsT_QTUOi9hgHT4N8tBuEbipAEhfQfF3MTOp024nwsvhoPKh6l4-iH7vWVgVNjh3y_bYPLbNKzXSHTJp5OjLMRkkb_qVGOl-zfohz9B7SaTPoSt4Xdwp5SnFY9jfqOlzYJ75v9mnshv4rjpwwlZgf6zH72itkCZzzjK34LpZD8eHAKocshAAccaMg"
     }
     "###);
 
@@ -138,7 +156,7 @@ fn protocol_snapshots() {
         "blind_msg": "8ec0627df98259165e8f4cc88f57757bad9579c129d729bbd3bef47b0321cbf9"
       },
       "proof": {
-        "signature": "GvDgrlvrK555RnO1m6S4pU0hJcvCks6E7f1UvdewLA0PGXlP4v6Jksbaamrp3PKTJP9sgTwsmLW4pnnqahf_EwVYsoauYZqVrYxXTTW1EtojUlQFSkoowSZ_s14NCC-3zohFGN-7qTn52KSECZzgLLpNjjvUbzNgQCGhGrSxFx0e7o_oB5dz-QU60DlCxvp64DmdHhycQUkfxTCKSGZ31aXTYZ0WroXkoG_yhgmxuEkPjcGldwjYrFAG-2HbtdLqJ-beLJuEVovkRCoJLJ-4XlthkTV3n7MLs6MiHqnA6NE6ZcU-UC2RUOMc4FkpDksrtaZCbarfDhDK5EHcJHu4cw"
+        "signature": "jn5ZZhl_okr9S8jtf19fo7Ili71DYPiK5XRFg3MhpXBMnzerv6QWpTFZ3EoL7pHRlqFfZnQUbBEk3xco2tQHDzrrAJyqGQnHw25wpxn4rAZ_mTEj74tnelcIIiBdFXV6j51TRXFp7wbDo4jUYcOdpQ6PSvu0PljgHKI-OmKZRgQW_UgDQNUlvDu6hAiAQUrXaoGAk8vwOuzjm1Jt3z_mlKdWoUuXIiqaEFOrU3qc-g3LGpMB7PuW4mhBsiN74ah76K7MP2gkYsdVN4LXw-V2N-IpM-xWtSYVrhC2rilOwtQkf1tNuaxiV_q-Di-6xApem4dDKNL4rIrVFJYF9CodCQ"
       }
     }
     "###);
@@ -160,7 +178,8 @@ fn protocol_snapshots() {
       }
     }
     "###);
-    let other_issuer = issuer_context(&mut nostr_rng, &mut pbrsa_rng);
+    let other_identity_keys = nostr::Keys::generate_with_rng(&mut nostr_rng);
+    let other_issuer = issuer_context_with_identity(other_identity_keys);
     let other_issuer_bundle = other_issuer
         .issuer_bundle_with_rng(vec![], &mut nostr_rng)
         .unwrap();
