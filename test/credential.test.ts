@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
-
+import type {
+  IssuanceResponse,
+  IssuerBundle,
+  PendingIssuanceResult,
+  SignedCredential,
+} from "../pkg/fedi_credential_sdk_wasm.js";
 import {
   IssuerContext,
   PbrsaPublicKey,
   PendingIssuance,
-} from "../pkg/fedi_credential_sdk_wasm.js";
-import type {
-  IssuerBundle,
-  IssuanceResponse,
-  PendingIssuanceResult,
-  SignedCredential,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 
 const otherIssuerId = "22".repeat(32);
@@ -27,9 +26,7 @@ const credentialInfo = {
 
 const blindMessage = "anonymous-holder-public-key";
 
-function createPendingIssuance(
-  issuer = IssuerContext.generate(),
-): {
+function createPendingIssuance(issuer = IssuerContext.generate()): {
   issuer: IssuerContext;
   issuerBundle: IssuerBundle;
   request: PendingIssuanceResult["request"];
@@ -88,9 +85,15 @@ describe("credential issuance protocol", () => {
 
   it("imports issuer secret keys and public keys from DER", () => {
     const issuer = IssuerContext.generate();
-    const issuerBundle = issuer.issuerBundle(revocationLocations) as IssuerBundle;
-    const importedIssuer = IssuerContext.importSecretKey(issuer.exportSecretKey());
-    const importedBundle = importedIssuer.issuerBundle(revocationLocations) as IssuerBundle;
+    const issuerBundle = issuer.issuerBundle(
+      revocationLocations,
+    ) as IssuerBundle;
+    const importedIssuer = IssuerContext.importSecretKey(
+      issuer.exportSecretKey(),
+    );
+    const importedBundle = importedIssuer.issuerBundle(
+      revocationLocations,
+    ) as IssuerBundle;
 
     expect(importedBundle.issuer.issuer_id_pubkey).toBe(
       issuerBundle.issuer.issuer_id_pubkey,
@@ -104,7 +107,9 @@ describe("credential issuance protocol", () => {
       credentialInfo,
       request,
     ) as IssuanceResponse;
-    expect(pending.finalize(importedBundle, response) as SignedCredential).toMatchObject({
+    expect(
+      pending.finalize(importedBundle, response) as SignedCredential,
+    ).toMatchObject({
       credential: {
         issuer_id_pubkey: issuerBundle.issuer.issuer_id_pubkey,
         info: credentialInfo,
@@ -147,7 +152,9 @@ describe("credential issuance protocol", () => {
     ).toThrow();
     expect(() =>
       pending.finalize(
-        IssuerContext.generate().issuerBundle(revocationLocations) as IssuerBundle,
+        IssuerContext.generate().issuerBundle(
+          revocationLocations,
+        ) as IssuerBundle,
         response,
       ),
     ).toThrow();

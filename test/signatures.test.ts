@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type {
-  SignedCredential,
   IssuanceRequest,
   IssuanceResponse,
   JsonValue,
   PendingIssuanceResult,
+  SignedCredential,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 
 describe("protocol types", () => {

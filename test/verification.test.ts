@@ -1,17 +1,16 @@
 import { describe, expect, it } from "vitest";
-
+import type {
+  IssuerBundle,
+  PendingIssuanceResult,
+  SignedCredential,
+  SignedRevocation,
+} from "../pkg/fedi_credential_sdk_wasm.js";
 import {
   IssuerContext,
   PendingIssuance,
   VerificationContext,
   verifyIssuerBundle,
   verifyRevocation,
-} from "../pkg/fedi_credential_sdk_wasm.js";
-import type {
-  SignedCredential,
-  IssuerBundle,
-  PendingIssuanceResult,
-  SignedRevocation,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 
 const revocationLocations = [
@@ -92,8 +91,7 @@ describe("revocation verification", () => {
         ...signedRevocation,
         revocation: {
           ...signedRevocation.revocation,
-          credential_digest:
-            "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+          credential_digest: "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
         },
       }),
     ).toThrow();
