@@ -38,8 +38,6 @@ The current high-level API is organized around runtime contexts:
 - `PendingIssuance`: create holder issuance requests and finalize issuer responses
 - `HolderContext`: generate/import/export holder identity keys
 - `VerificationContext`: trust issuer bundles, ingest revocations, and verify credentials
-- `verifyIssuerBundle()` and `verifyRevocation()` for standalone signed-object checks
-- `PbrsaPublicKey` for low-level issuance public key DER import/export
 
 ## Status
 

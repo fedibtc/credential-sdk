@@ -7,7 +7,6 @@ import type {
 } from "../pkg/fedi_credential_sdk_wasm.js";
 import {
   IssuerContext,
-  PbrsaPublicKey,
   PendingIssuance,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 
@@ -124,7 +123,6 @@ describe("credential issuance protocol", () => {
         issuance_secret_key: "AQID",
       }),
     ).toThrow();
-    expect(() => PbrsaPublicKey.fromDer(new Uint8Array([1, 2, 3]))).toThrow();
   });
 
   it("rejects finalization with mismatched issuer responses", () => {

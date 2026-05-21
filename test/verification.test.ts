@@ -9,8 +9,6 @@ import {
   IssuerContext,
   PendingIssuance,
   VerificationContext,
-  verifyIssuerBundle,
-  verifyRevocation,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 
 const revocationLocations = [
@@ -52,15 +50,17 @@ function credentialFixture(): {
 describe("issuer bundle verification", () => {
   it("accepts a signed issuer bundle", () => {
     const { issuerBundle } = credentialFixture();
+    const context = new VerificationContext();
 
-    expect(verifyIssuerBundle(issuerBundle)).toBe(true);
+    expect(context.addIssuerBundle(issuerBundle)).toBeUndefined();
   });
 
   it("rejects tampered issuer bundle metadata", () => {
     const { issuerBundle } = credentialFixture();
+    const context = new VerificationContext();
 
     expect(() =>
-      verifyIssuerBundle({
+      context.addIssuerBundle({
         ...issuerBundle,
         issuer: {
           ...issuerBundle.issuer,
@@ -78,16 +78,21 @@ describe("issuer bundle verification", () => {
 
 describe("revocation verification", () => {
   it("accepts a signed revocation", () => {
-    const { signedRevocation } = credentialFixture();
+    const { issuerBundle, signedRevocation } = credentialFixture();
+    const context = new VerificationContext();
 
-    expect(verifyRevocation(signedRevocation)).toBe(true);
+    context.addIssuerBundle(issuerBundle);
+    expect(context.addRevocation(signedRevocation)).toBeUndefined();
   });
 
   it("rejects tampered revocation data", () => {
-    const { signedRevocation } = credentialFixture();
+    const { issuerBundle, signedRevocation } = credentialFixture();
+    const context = new VerificationContext();
+
+    context.addIssuerBundle(issuerBundle);
 
     expect(() =>
-      verifyRevocation({
+      context.addRevocation({
         ...signedRevocation,
         revocation: {
           ...signedRevocation.revocation,
