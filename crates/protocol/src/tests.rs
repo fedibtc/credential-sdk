@@ -44,7 +44,7 @@ fn protocol_snapshots() {
       "version": 1,
       "issuer": {
         "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
-        "issuance_key": "MIGeMA0GCSqGSIb3DQEBAQUAA4GMADCBiAKBgHqlcEXhOsb7YTTOFty0DtofgEZMxIXHDGgfjef6dL7wNZ6EBqknxMfT3s40XP32uKbuen2AzFSOC_ml41YiiZSkMh-PLyrmo9LxtpCDh2SIzRDPFb9PiCMmC0uDtebIh6wffxYon4OGlQghC0cE_GavsswisZVlQoNM9OkfSTetAgMBAAE",
+        "issuance_key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwENRMLzlBb5UlNL78K0RbGaBbbMFEtZHadM8aZkhdXJWyrabmNk15IUrDlzLQMtgotrQkNf26r4obd6WE7hdipARWv9JWzV39fo1W43JL1oY1X0KEzVJ_UM71D0JJUgRKJBF4B474SOLwEmglkrZezrORX2VujCewjzbki6LriKCPWlk6ZT9vjw-AwvZMz97EQUroFb8egoD4zwqvU9XkM8udhHdfG6WNCCoLwZCp53No9ibrwxDUQ19isSx46cpgyYazAv6Uk8Up1DDp3KM3cPhyOxNSO7efYFol89EvFJOZKJtjUtseEFJBSo6cUMGq7qQDm1IbZw2i4wq7M8m8QIDAQAB",
         "revocation": [
           {
             "protocol": "nostr",
@@ -53,7 +53,7 @@ fn protocol_snapshots() {
         ]
       },
       "proof": {
-        "signature": "c4Rz47oxQemLLJwnZnbCyN7Oa_NtvhPLKviQ8SceCBU8bMYipn2jAynuNkKAK_0PSQWsvYGxOuthQtNUc42kaw"
+        "signature": "vSX3b6J8C3rS3xgELRTy5OMxvpP74wWDWoG0sQ7elheUc05dYUSt1NSiqfDtIuTQZCWW-QUfbXVQSlX-g-5JWQ"
       }
     }
     "###);
@@ -73,7 +73,7 @@ fn protocol_snapshots() {
     insta::assert_json_snapshot!(request, @r###"
     {
       "version": 1,
-      "blinded_message": "biva9Mtwux4vnhe3gfc6WBigwh57Rmq7DU01mIVSMeTrEnYDP6GxzqIVN1bS9Db0EksVvgQcHwvaFQ6eBSVj-EgGwQe6AOcOriJBFQTd5NO0YWfyz0tdTvcfDWdv4YhCXgWqYkN_2XhOdLoagg6UyStV1zRvre81W_JeJI1VCUg"
+      "blinded_message": "FF9cznmgAmjeElZCEJ6MgQAA8XYUhFd07blk40zI6Bos9WVFAd-aGyi1YsWXahLmEwqFXesVUO5d18h4gdqCNtZo0EyCHsuluE8h_ZSd5b4lFYPg-kKG1IrXqI9kgX3bQKUMHtaZW6hPiiRTFrZsU9iavtgfm1sq7eMHh4en54mMlCikr9nFes-aYZBNvX06dSMofH8i-1W95bW7F0YYdKhiR0uAZbUiz84D0CXc7rNi7F7Yv1hHnVbRVQi4uca8zLA6LllZ0STtQy-5VyZoD7imHNM38R7cjCR4UksRbyiu7kkhVJmZaiMBx0d09K6UcCtjQO6UjIdv7cpB9urCAg"
     }
     "###);
 
@@ -90,7 +90,7 @@ fn protocol_snapshots() {
         "schema": "fedi-trust-score-v1.0",
         "trust_level": 7
       },
-      "blind_signature": "S0RczqfNDsK_I1lRs7a_8wJJ-G09l9kqiAyNZePTEmh2ixu1mnPEs4zm696ehk8w30uBoCI-vxkAHNKzxbgMo3QpQ67pTc5-De_bT5slcYGCe4m-hVWQ_gq2T_ACQ5Eny_6QTpU3OWugChzM24RU2O3wxdzAGg7wLrr8CLJbKOI"
+      "blind_signature": "eQbtRHw1216fmcUD-oUDUPw78QzVIolAZpz-3LQGcVnD8EioIN-kYRWVWcg5dsiEpOOpHe2nrjcgrLYLdpmLxbpddXCL4mlEXB5RX-RM30S-kHlfQsOBsuDT-8bzOFBMUlL1nxQOpFhYWzYZqfVMxZBnQGHH2HACfQgKN5UZWo5MRniCgjMUfk3cL-RfGKG9tnWJ7j7vwtkvth91tlN0KSs85OPCR-r_-tjnUB-gbEb2PPOiIOQ_btBvDPt9CxeyJTcMjASAvhZcF4KEj_5zDV4hqusBs18XzTveeRTVTT-bv6BAS-X7sRl6WDXRh2a795yCOMRj9qiWBj2BC1lZRg"
     }
     "###);
 
@@ -109,10 +109,10 @@ fn protocol_snapshots() {
           "trust_level": 7
         },
         "blind_msg": "8ec0627df98259165e8f4cc88f57757bad9579c129d729bbd3bef47b0321cbf9",
-        "message_randomizer": "esz5fHBn-obcvSswhfHLrN8_HcpnUuIkmXlhsKIwgaM"
+        "message_randomizer": "wi6RVxdVBwxS29W5V2GJWvsdpLPh7CnXv6iRLcAIGH8"
       },
       "proof": {
-        "signature": "alZM3tiyvAaNAt58iydlsLycNF3W3kHF3LWd7w3T_mm74azyTnWZD_T1ITd3luXOYCjKlzeKHTOAoayzvXC_eTGPtERNk7Nex5QItVwGoIr2CQax_s-ptPm7xPZGgCWognN4IClzLvw2o2JeLQLFp01P773cavcJkz91W8aR-Mg"
+        "signature": "j82xd1fr8OqPPvGhfLozdAi1bU5_G6ct3H34yUXA-SFf_vSiekRlKBJnWS-RloslonlswIajZm6LWu2mjPDfndcWvBd3RIGW6U0u_5FP-MmTqEeieGEHdpGyKEMPrZyB0T1WrswIWPHMEExP5cYA71UTJcKy4aSCIfLtu4aBiNXyQza_CKkKA7Pkdr4OSetVjQEKw37pzTFf4eSA700nvi93SRp7UqZMg7V5rfcPGH7Lgeo9hQRbkvt_Y4SSbiJx4xvATK_LOeP59e1Qq2almvE99kg5xPHR00aRLb1uw8hhKyKEglDD8RuyBAVd9q_pGAIyktmctDigiBBcEUaGoA"
       }
     }
     "###);
@@ -126,11 +126,11 @@ fn protocol_snapshots() {
     {
       "version": 1,
       "revocation": {
-        "credential_digest": "YCzBI1n8Rz5MqWMPup7bP-K4MkmmSYrnNG8LMbcR_UE"
+        "credential_digest": "IAvaJQFvAs4j1xahtppMsLMS9qPIQbtOv3RRQmUrAY8"
       },
       "proof": {
         "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
-        "signature": "0OfCg_G3Y4GNvEwbqBTp_CG_bGzxENxGdRSV56KD9YoEYA367zvpBMs4Sl_CtUyYZAEvHGTRvSwjOIpUjlVHNw"
+        "signature": "onca0kZ9BihkLahwMaMuA03H77Brxfdt7VQJ1zZ98Jr6dwucETJDolXOdwA1DUiFfnrrzWfyeogy6O9o2lW1IA"
       }
     }
     "###);

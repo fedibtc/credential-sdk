@@ -12,7 +12,7 @@ use crate::{
     RevocationProof, SchnorrSignatureProof, SignedCredential, SignedRevocation,
 };
 
-pub const ISSUER_MODULUS_BITS: usize = 1024;
+pub const ISSUER_MODULUS_BITS: usize = 2048;
 
 /// Runtime issuer context containing issuer identity and PBRSA signing key.
 #[derive(Clone)]
