@@ -1,7 +1,7 @@
 {
   "name": "@fedibtc/credential-sdk",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "WebAssembly bindings for blind-rsa-signatures.",
   "license": "MIT",
   "type": "module",
