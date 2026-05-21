@@ -1,12 +1,11 @@
 use blind_rsa_signatures::{
     BlindMessage as PbrsaBlindMessage, BlindSignature as PbrsaBlindSignature,
-    MessageRandomizer as PbrsaMessageRandomizer, Signature as PbrsaSignature,
+    Signature as PbrsaSignature,
 };
 use nostr::secp256k1::{schnorr::Signature, Message};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use serde_with::{base64::Base64, base64::UrlSafe, formats::Unpadded, serde_as};
-use serde_with::{DeserializeAs, SerializeAs};
 use sha2::{digest::Output, Digest, Sha256};
 use std::str::FromStr;
 
@@ -21,26 +20,6 @@ use crate::{
 
 /// Unpadded URL-safe base64 encoding used for byte fields in JSON.
 type Base64UrlUnpadded = Base64<UrlSafe, Unpadded>;
-
-struct MessageRandomizerBase64UrlUnpadded;
-
-impl SerializeAs<PbrsaMessageRandomizer> for MessageRandomizerBase64UrlUnpadded {
-    fn serialize_as<S>(source: &PbrsaMessageRandomizer, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        Base64UrlUnpadded::serialize_as(&source.0, serializer)
-    }
-}
-
-impl<'de> DeserializeAs<'de, PbrsaMessageRandomizer> for MessageRandomizerBase64UrlUnpadded {
-    fn deserialize_as<D>(deserializer: D) -> Result<PbrsaMessageRandomizer, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Base64UrlUnpadded::deserialize_as(deserializer).map(PbrsaMessageRandomizer)
-    }
-}
 
 /// Protocol version marker used by the MVP credential format.
 ///
@@ -94,7 +73,7 @@ impl FromStr for IssuerId {
 
 /// JSON-friendly issuer secret export.
 #[serde_as]
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IssuerSecretKeys {
     pub issuer_id_secret_key: String,
     #[serde_as(as = "Base64UrlUnpadded")]
@@ -287,12 +266,6 @@ pub struct Credential {
     pub issuer_id_pubkey: IssuerId,
     pub info: Value,
     pub blind_msg: Value,
-    /// PBRSA message randomizer used when preparing the signed message.
-    ///
-    /// The randomized PBRSA suite requires this value to verify the finalized
-    /// signature. It serializes as unpadded URL-safe base64.
-    #[serde_as(as = "MessageRandomizerBase64UrlUnpadded")]
-    pub message_randomizer: PbrsaMessageRandomizer,
 }
 
 /// Issuance proof for a finalized credential payload.
@@ -337,7 +310,7 @@ pub struct IssuanceRequest {
 ///
 /// The response includes the issuer-selected `info` JSON and the blind signature.
 /// The holder combines this with their original unblinded `blind_msg` and
-/// message randomizer to assemble a final [`SignedCredential`].
+/// deterministic message preparation to assemble a final [`SignedCredential`].
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IssuanceResponse {
@@ -353,9 +326,7 @@ pub struct IssuanceResponse {
 
 #[cfg(test)]
 mod tests {
-    use blind_rsa_signatures::{
-        MessageRandomizer as PbrsaMessageRandomizer, Signature as PbrsaSignature,
-    };
+    use blind_rsa_signatures::Signature as PbrsaSignature;
     use serde_json::json;
     use sha2::Digest;
 
@@ -377,40 +348,11 @@ mod tests {
                     "holder": "alice",
                     "nonce": 7,
                 }),
-                message_randomizer: PbrsaMessageRandomizer([9u8; 32]),
             },
             proof: CredentialProof {
                 signature: PbrsaSignature(vec![1, 2, 3, 4]),
             },
         }
-    }
-
-    #[test]
-    fn credential_message_randomizer_serializes_as_unpadded_url_safe_base64() {
-        let credential = SignedCredential {
-            version: ProtocolV1,
-            credential: Credential {
-                issuer_id_pubkey: IssuerId(nostr::PublicKey::from_byte_array([1u8; 32])),
-                info: json!({ "kind": "test" }),
-                blind_msg: json!({ "holder": "alice" }),
-                message_randomizer: PbrsaMessageRandomizer([0xff; 32]),
-            },
-            proof: CredentialProof {
-                signature: PbrsaSignature(vec![1, 2, 3]),
-            },
-        };
-
-        let value = serde_json::to_value(&credential).unwrap();
-        assert_eq!(
-            value["credential"]["message_randomizer"],
-            json!("__________________________________________8")
-        );
-
-        let roundtrip: SignedCredential = serde_json::from_value(value).unwrap();
-        assert_eq!(
-            roundtrip.credential.message_randomizer,
-            credential.credential.message_randomizer
-        );
     }
 
     #[test]

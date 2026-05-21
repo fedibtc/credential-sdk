@@ -11,7 +11,7 @@ use crate::{
 #[derive(Clone, Default)]
 pub struct VerificationContext {
     issuers: BTreeMap<IssuerId, PbrsaPublicKey>,
-    revocations: BTreeSet<Revocation>,
+    revocations: BTreeSet<(IssuerId, Revocation)>,
 }
 
 impl VerificationContext {
@@ -42,7 +42,8 @@ impl VerificationContext {
             return Err(CredentialsError::UnknownIssuer);
         }
 
-        self.revocations.insert(revocation);
+        self.revocations
+            .insert((signed_revocation.proof.issuer_id_pubkey.clone(), revocation));
         Ok(())
     }
 
@@ -59,7 +60,10 @@ impl VerificationContext {
             credential_digest: credential.credential.digest()?,
         };
 
-        if self.revocations.contains(&revocation) {
+        if self
+            .revocations
+            .contains(&(credential.credential.issuer_id_pubkey.clone(), revocation))
+        {
             return Err(CredentialsError::CredentialRevoked);
         }
 
@@ -78,11 +82,6 @@ pub(crate) fn verify_credential_with_key(
     )?;
     let message = canonicalize_pbrsa_blind_msg(ProtocolV1, &credential.credential.blind_msg)?;
     let public_key = issuer_public_key.derive_public_key_for_metadata(&metadata)?;
-    public_key.verify(
-        &credential.proof.signature,
-        Some(credential.credential.message_randomizer),
-        &message,
-        Some(&metadata),
-    )?;
+    public_key.verify(&credential.proof.signature, None, &message, Some(&metadata))?;
     Ok(())
 }

@@ -115,18 +115,12 @@ impl PendingIssuance {
             &message,
             Some(&metadata),
         )?;
-        let message_randomizer = self
-            .blinding_result
-            .msg_randomizer
-            .ok_or(CredentialsError::MissingMessageRandomizer)?;
-
         let credential = SignedCredential {
             version: ProtocolV1,
             credential: Credential {
                 issuer_id_pubkey: self.issuer_id,
                 info: self.info,
                 blind_msg: self.blind_msg,
-                message_randomizer,
             },
             proof: CredentialProof { signature },
         };

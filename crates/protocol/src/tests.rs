@@ -1,7 +1,8 @@
 use serde_json::json;
 
 use crate::{
-    HolderContext, IssuerContext, PendingIssuance, RevocationLocation, VerificationContext,
+    HolderContext, IssuerContext, PendingIssuance, ProtocolV1, Revocation, RevocationLocation,
+    RevocationProof, SignedCredential, SignedRevocation, VerificationContext,
 };
 
 const TEST_RNG_SEED: u64 = 0x5eed_f00d_cafe_babe;
@@ -12,6 +13,32 @@ type PbrsaRng = blind_rsa_signatures::reexports::rand::rngs::StdRng;
 fn issuer_context(nostr_rng: &mut NostrRng, pbrsa_rng: &mut PbrsaRng) -> IssuerContext {
     let identity_keys = nostr::Keys::generate_with_rng(nostr_rng);
     IssuerContext::generate_with_rng(identity_keys, pbrsa_rng).unwrap()
+}
+
+fn revocation_signed_by(
+    issuer: &IssuerContext,
+    credential: &SignedCredential,
+    rng: &mut NostrRng,
+) -> SignedRevocation {
+    let secret_keys = issuer.export_secret_key().unwrap();
+    let identity_keys = nostr::Keys::parse(&secret_keys.issuer_id_secret_key).unwrap();
+    let revocation = Revocation {
+        credential_digest: credential.credential.digest().unwrap(),
+    };
+    let signature = identity_keys.sign_schnorr_with_ctx(
+        nostr::SECP256K1,
+        &nostr::secp256k1::Message::from_digest(revocation.digest().unwrap().into()),
+        rng,
+    );
+
+    SignedRevocation {
+        version: ProtocolV1,
+        revocation,
+        proof: RevocationProof {
+            issuer_id_pubkey: crate::IssuerId(identity_keys.public_key()),
+            signature,
+        },
+    }
 }
 
 #[test]
@@ -44,7 +71,7 @@ fn protocol_snapshots() {
       "version": 1,
       "issuer": {
         "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
-        "issuance_key": "MIGeMA0GCSqGSIb3DQEBAQUAA4GMADCBiAKBgHqlcEXhOsb7YTTOFty0DtofgEZMxIXHDGgfjef6dL7wNZ6EBqknxMfT3s40XP32uKbuen2AzFSOC_ml41YiiZSkMh-PLyrmo9LxtpCDh2SIzRDPFb9PiCMmC0uDtebIh6wffxYon4OGlQghC0cE_GavsswisZVlQoNM9OkfSTetAgMBAAE",
+        "issuance_key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwENRMLzlBb5UlNL78K0RbGaBbbMFEtZHadM8aZkhdXJWyrabmNk15IUrDlzLQMtgotrQkNf26r4obd6WE7hdipARWv9JWzV39fo1W43JL1oY1X0KEzVJ_UM71D0JJUgRKJBF4B474SOLwEmglkrZezrORX2VujCewjzbki6LriKCPWlk6ZT9vjw-AwvZMz97EQUroFb8egoD4zwqvU9XkM8udhHdfG6WNCCoLwZCp53No9ibrwxDUQ19isSx46cpgyYazAv6Uk8Up1DDp3KM3cPhyOxNSO7efYFol89EvFJOZKJtjUtseEFJBSo6cUMGq7qQDm1IbZw2i4wq7M8m8QIDAQAB",
         "revocation": [
           {
             "protocol": "nostr",
@@ -53,7 +80,7 @@ fn protocol_snapshots() {
         ]
       },
       "proof": {
-        "signature": "c4Rz47oxQemLLJwnZnbCyN7Oa_NtvhPLKviQ8SceCBU8bMYipn2jAynuNkKAK_0PSQWsvYGxOuthQtNUc42kaw"
+        "signature": "vSX3b6J8C3rS3xgELRTy5OMxvpP74wWDWoG0sQ7elheUc05dYUSt1NSiqfDtIuTQZCWW-QUfbXVQSlX-g-5JWQ"
       }
     }
     "###);
@@ -73,7 +100,7 @@ fn protocol_snapshots() {
     insta::assert_json_snapshot!(request, @r###"
     {
       "version": 1,
-      "blinded_message": "biva9Mtwux4vnhe3gfc6WBigwh57Rmq7DU01mIVSMeTrEnYDP6GxzqIVN1bS9Db0EksVvgQcHwvaFQ6eBSVj-EgGwQe6AOcOriJBFQTd5NO0YWfyz0tdTvcfDWdv4YhCXgWqYkN_2XhOdLoagg6UyStV1zRvre81W_JeJI1VCUg"
+      "blinded_message": "U6Fqf0yjnOp7NLJOBU7L-QUA9hxedZ3IRiIJmpHmX4oaSF_h6804QMQWbaH5bgU1mRuCEdWMTEkQJBIFroEmEU2JJG67Bp5x6P0yqbe2Jk6yjH8uxPuFHd-mAQlvONFgAi1xdQt-8Lp4Df93_h0wFTnex2O-Nf0fU0QtRFR9UEmcAGpBFwSE1op3QI5Pri91EBKOkwyfxvD3cFn_XWvi0A1sZDYGwQIx-oJELH5nrDlcNEKoAwmoudsU8EJQu0kvNtlo57jF-xiJMwbeMpaRdBFtHPMrRrMoceHgHRtEu38pG7Scwv1GXjgvGEjkLaKpHJnKTK8S4vjYiweN3w1dCw"
     }
     "###);
 
@@ -90,7 +117,7 @@ fn protocol_snapshots() {
         "schema": "fedi-trust-score-v1.0",
         "trust_level": 7
       },
-      "blind_signature": "S0RczqfNDsK_I1lRs7a_8wJJ-G09l9kqiAyNZePTEmh2ixu1mnPEs4zm696ehk8w30uBoCI-vxkAHNKzxbgMo3QpQ67pTc5-De_bT5slcYGCe4m-hVWQ_gq2T_ACQ5Eny_6QTpU3OWugChzM24RU2O3wxdzAGg7wLrr8CLJbKOI"
+      "blind_signature": "PSe0AMcYr24uwDkYwcgTm6fKIj_PDtC_7Gou9gTChMrLOr0XVoLSDX37uxawrQ9ayqvZ0rAsAZCh47RLAhhJ0CqyXHoLRm-cpvUmxvfENT956U1SSYmN_t6OEWdYB3Md-cGlC5WB85mO3CfDbK9qe3AscTQtJ9vDO1ic0bjrM477zRIf5HxduydypBXDQZhZCA4ABsfmXgWJSAFZ-wiL_D71h9uIvl7tikyiL3-3SEGQfK9mNJRtuJ7Rxm5znRAwtBUAmNCiE0O5j5PEuiLThE3x29JT-Ph43_nTuXjlABk5FBFhayDK0fSNVh_p0cnAj1S1yTOwU-Qdrx_gQL44Pg"
     }
     "###);
 
@@ -108,11 +135,10 @@ fn protocol_snapshots() {
           "schema": "fedi-trust-score-v1.0",
           "trust_level": 7
         },
-        "blind_msg": "8ec0627df98259165e8f4cc88f57757bad9579c129d729bbd3bef47b0321cbf9",
-        "message_randomizer": "esz5fHBn-obcvSswhfHLrN8_HcpnUuIkmXlhsKIwgaM"
+        "blind_msg": "8ec0627df98259165e8f4cc88f57757bad9579c129d729bbd3bef47b0321cbf9"
       },
       "proof": {
-        "signature": "alZM3tiyvAaNAt58iydlsLycNF3W3kHF3LWd7w3T_mm74azyTnWZD_T1ITd3luXOYCjKlzeKHTOAoayzvXC_eTGPtERNk7Nex5QItVwGoIr2CQax_s-ptPm7xPZGgCWognN4IClzLvw2o2JeLQLFp01P773cavcJkz91W8aR-Mg"
+        "signature": "GvDgrlvrK555RnO1m6S4pU0hJcvCks6E7f1UvdewLA0PGXlP4v6Jksbaamrp3PKTJP9sgTwsmLW4pnnqahf_EwVYsoauYZqVrYxXTTW1EtojUlQFSkoowSZ_s14NCC-3zohFGN-7qTn52KSECZzgLLpNjjvUbzNgQCGhGrSxFx0e7o_oB5dz-QU60DlCxvp64DmdHhycQUkfxTCKSGZ31aXTYZ0WroXkoG_yhgmxuEkPjcGldwjYrFAG-2HbtdLqJ-beLJuEVovkRCoJLJ-4XlthkTV3n7MLs6MiHqnA6NE6ZcU-UC2RUOMc4FkpDksrtaZCbarfDhDK5EHcJHu4cw"
       }
     }
     "###);
@@ -126,32 +152,41 @@ fn protocol_snapshots() {
     {
       "version": 1,
       "revocation": {
-        "credential_digest": "YCzBI1n8Rz5MqWMPup7bP-K4MkmmSYrnNG8LMbcR_UE"
+        "credential_digest": "tetb3pX05--31jb9ZO8yoU5Wn2xSXm9YdB3tG9fVxUA"
       },
       "proof": {
         "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
-        "signature": "0OfCg_G3Y4GNvEwbqBTp_CG_bGzxENxGdRSV56KD9YoEYA367zvpBMs4Sl_CtUyYZAEvHGTRvSwjOIpUjlVHNw"
+        "signature": "M7jsEWZOiuZFnAP8kpNQI6O5eLDSbPPDtS0P4eBKZyOLdvA6aLKFNE0IbY4_bTKtVxzdAwZpDRVAsMWLlBOn-g"
       }
     }
     "###);
     let other_issuer = issuer_context(&mut nostr_rng, &mut pbrsa_rng);
+    let other_issuer_bundle = other_issuer
+        .issuer_bundle_with_rng(vec![], &mut nostr_rng)
+        .unwrap();
+    let other_issuer_revocation = revocation_signed_by(&other_issuer, &credential, &mut nostr_rng);
 
     // Verify the same credential before and after trusting the issuer and revocation.
     let mut verifier = VerificationContext::new();
     let unknown_before_trust = verifier.verify_credential(&credential).unwrap_err();
     verifier.add_issuer_bundle(&issuer_bundle).unwrap();
+    verifier.add_issuer_bundle(&other_issuer_bundle).unwrap();
     let verified_before_revocation = verifier.verify_credential(&credential).is_ok();
+    verifier.add_revocation(&other_issuer_revocation).unwrap();
+    let verified_after_other_issuer_revocation = verifier.verify_credential(&credential).is_ok();
     verifier.add_revocation(&signed_revocation).unwrap();
     let revoked_after_revocation = verifier.verify_credential(&credential).unwrap_err();
 
     insta::assert_json_snapshot!(json!({
         "unknown_before_trust": unknown_before_trust.to_string(),
         "verified_before_revocation": verified_before_revocation,
+        "verified_after_other_issuer_revocation": verified_after_other_issuer_revocation,
         "revoked_after_revocation": revoked_after_revocation.to_string(),
     }), @r###"
     {
       "revoked_after_revocation": "credential has been revoked",
       "unknown_before_trust": "unknown issuer",
+      "verified_after_other_issuer_revocation": true,
       "verified_before_revocation": true
     }
     "###);

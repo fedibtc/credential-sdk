@@ -1,6 +1,6 @@
 //! Shared credential protocol error handling.
 
-pub use blind_rsa_signatures::pbrsa::PartiallyBlindPublicKeySha384PSSRandomized as PbrsaPublicKey;
+pub use blind_rsa_signatures::pbrsa::PartiallyBlindPublicKeySha384PSSDeterministic as PbrsaPublicKey;
 use thiserror::Error;
 
 /// Error returned by runtime credential protocol operations.
@@ -16,8 +16,6 @@ pub enum CredentialsError {
     IssuerIdMismatch,
     #[error("issuance response info does not match")]
     InfoMismatch,
-    #[error("randomized PBRSA suite did not return a message randomizer")]
-    MissingMessageRandomizer,
     #[error("unknown issuer")]
     UnknownIssuer,
     #[error("credential has been revoked")]
