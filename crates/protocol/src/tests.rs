@@ -1,7 +1,8 @@
 use serde_json::json;
 
 use crate::{
-    HolderContext, IssuerContext, PendingIssuance, RevocationLocation, VerificationContext,
+    HolderContext, IssuerContext, PendingIssuance, ProtocolV1, Revocation, RevocationLocation,
+    RevocationProof, SignedCredential, SignedRevocation, VerificationContext,
 };
 
 const TEST_RNG_SEED: u64 = 0x5eed_f00d_cafe_babe;
@@ -12,6 +13,32 @@ type PbrsaRng = blind_rsa_signatures::reexports::rand::rngs::StdRng;
 fn issuer_context(nostr_rng: &mut NostrRng, pbrsa_rng: &mut PbrsaRng) -> IssuerContext {
     let identity_keys = nostr::Keys::generate_with_rng(nostr_rng);
     IssuerContext::generate_with_rng(identity_keys, pbrsa_rng).unwrap()
+}
+
+fn revocation_signed_by(
+    issuer: &IssuerContext,
+    credential: &SignedCredential,
+    rng: &mut NostrRng,
+) -> SignedRevocation {
+    let secret_keys = issuer.export_secret_key().unwrap();
+    let identity_keys = nostr::Keys::parse(&secret_keys.issuer_id_secret_key).unwrap();
+    let revocation = Revocation {
+        credential_digest: credential.credential.digest().unwrap(),
+    };
+    let signature = identity_keys.sign_schnorr_with_ctx(
+        nostr::SECP256K1,
+        &nostr::secp256k1::Message::from_digest(revocation.digest().unwrap().into()),
+        rng,
+    );
+
+    SignedRevocation {
+        version: ProtocolV1,
+        revocation,
+        proof: RevocationProof {
+            issuer_id_pubkey: crate::IssuerId(identity_keys.public_key()),
+            signature,
+        },
+    }
 }
 
 #[test]
@@ -135,23 +162,32 @@ fn protocol_snapshots() {
     }
     "###);
     let other_issuer = issuer_context(&mut nostr_rng, &mut pbrsa_rng);
+    let other_issuer_bundle = other_issuer
+        .issuer_bundle_with_rng(vec![], &mut nostr_rng)
+        .unwrap();
+    let other_issuer_revocation = revocation_signed_by(&other_issuer, &credential, &mut nostr_rng);
 
     // Verify the same credential before and after trusting the issuer and revocation.
     let mut verifier = VerificationContext::new();
     let unknown_before_trust = verifier.verify_credential(&credential).unwrap_err();
     verifier.add_issuer_bundle(&issuer_bundle).unwrap();
+    verifier.add_issuer_bundle(&other_issuer_bundle).unwrap();
     let verified_before_revocation = verifier.verify_credential(&credential).is_ok();
+    verifier.add_revocation(&other_issuer_revocation).unwrap();
+    let verified_after_other_issuer_revocation = verifier.verify_credential(&credential).is_ok();
     verifier.add_revocation(&signed_revocation).unwrap();
     let revoked_after_revocation = verifier.verify_credential(&credential).unwrap_err();
 
     insta::assert_json_snapshot!(json!({
         "unknown_before_trust": unknown_before_trust.to_string(),
         "verified_before_revocation": verified_before_revocation,
+        "verified_after_other_issuer_revocation": verified_after_other_issuer_revocation,
         "revoked_after_revocation": revoked_after_revocation.to_string(),
     }), @r###"
     {
       "revoked_after_revocation": "credential has been revoked",
       "unknown_before_trust": "unknown issuer",
+      "verified_after_other_issuer_revocation": true,
       "verified_before_revocation": true
     }
     "###);

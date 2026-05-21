@@ -11,7 +11,7 @@ use crate::{
 #[derive(Clone, Default)]
 pub struct VerificationContext {
     issuers: BTreeMap<IssuerId, PbrsaPublicKey>,
-    revocations: BTreeSet<Revocation>,
+    revocations: BTreeSet<(IssuerId, Revocation)>,
 }
 
 impl VerificationContext {
@@ -42,7 +42,8 @@ impl VerificationContext {
             return Err(CredentialsError::UnknownIssuer);
         }
 
-        self.revocations.insert(revocation);
+        self.revocations
+            .insert((signed_revocation.proof.issuer_id_pubkey.clone(), revocation));
         Ok(())
     }
 
@@ -59,7 +60,10 @@ impl VerificationContext {
             credential_digest: credential.credential.digest()?,
         };
 
-        if self.revocations.contains(&revocation) {
+        if self
+            .revocations
+            .contains(&(credential.credential.issuer_id_pubkey.clone(), revocation))
+        {
             return Err(CredentialsError::CredentialRevoked);
         }
 
