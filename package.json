@@ -23,7 +23,7 @@
     "test:ts": "pnpm run typecheck && vitest run --testTimeout 30000",
     "test": "pnpm run build && pnpm run test:rust && pnpm run test:ts",
     "pack": "pnpm run build && wasm-pack pack --pkg-dir pkg",
-    "publish": "pnpm run build && wasm-pack publish ./pkg --access public",
+    "publish": "pnpm run build && npm publish ./pkg --access public",
     "publish:dry-run": "pnpm run build && npm publish ./pkg --access public --dry-run"
   },
   "devDependencies": {
