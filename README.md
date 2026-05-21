@@ -1,4 +1,4 @@
-# @fedibtc/blind-rsa-signatures-wasm
+# @fedibtc/credential-sdk
 
 WebAssembly bindings for a partially blind RSA verifiable credential protocol.
 
@@ -12,53 +12,52 @@ The current protocol shape separates issuer-visible data from holder-hidden data
 
 ```ts
 {
+  version: 1,
   credential: {
+    issuer_id_pubkey: "issuer-id-pubkey",
     info: {
       schema: "trust-score-v1",
-      issuer_id_pubkey: "issuer-id-pubkey",
       trust_level: 7,
     },
     blind_msg: "anonymous-holder-public-key",
+    message_randomizer: "base64url-message-randomizer",
   },
   proof: {
-    signature: "RSA-signature",
+    signature: "base64url-rsa-signature",
   },
 }
 ```
 
-During issuance, `credential.info` is public and `credential.blind_msg` is blinded. The issuer partially blind-signs both pieces together: `blind_msg` is the hidden payload, and `info` is the visible credential data. During finalization, the holder unblinds the signature and gets the final verifiable credential shape above.
+During issuance, `credential.info` is public and `credential.blind_msg` is blinded. The holder creates an `IssuanceRequest` plus local pending state, the issuer returns an `IssuanceResponse`, and the holder finalizes that response into the verifiable credential shape above. The issuer partially blind-signs both pieces together: `blind_msg` is the hidden payload, and `info` is the visible credential data.
 
 ## Public API
 
-The current high-level API is:
+The current high-level API is organized around runtime contexts:
 
-- `generateIssuerKeys()`
-- `createCredential(blindedData, visibleData)`
-- `blindSignCredential(blindedData, visibleData, issuerKeys)`
-- `finalizeCredential(blindSignedCredential, issuerPublicKey)`
+- `IssuerContext`: generate/import/export issuer keys, create signed issuer bundles, issue credentials, and create signed revocations
+- `PendingIssuance`: create holder issuance requests and finalize issuer responses
+- `HolderContext`: generate/import/export holder identity keys
+- `VerificationContext`: trust issuer bundles, ingest revocations, and verify credentials
+- `verifyIssuerBundle()` and `verifyRevocation()` for standalone signed-object checks
+- `PbrsaPublicKey` for low-level issuance public key DER import/export
 
 ## Status
 
-This checklist is intentionally shorter than [docs/library-todos.md](docs/library-todos.md). It tracks the major pieces needed before this can be treated as a complete reusable protocol library.
+This checklist is intentionally shorter than [docs/library-todos.md](docs/library-todos.md). It tracks coarse reusable-library readiness rather than every implementation detail.
 
-- [x] Rust/WASM build wired through `wasm-pack`
-- [x] pnpm, TypeScript, Vitest, and Rust test workflows
-- [x] Minimal public pbRSA key API for issuer key generation, blinding, partial blind signing, and verification
-- [x] Holder blinding flow with retained unblinding state
-- [x] Credential template construction in the protocol credential shape
-- [x] Partial blind signing over hidden `blind_msg` plus visible `credential.info`
+- [x] Rust/WASM build and TypeScript/Rust test workflows
+- [x] Runtime issuer, holder, and verifier contexts exposed through WASM/TypeScript
+- [x] Signed issuer bundle creation and verification
+- [x] Holder issuance request flow with retained pending unblinding state
+- [x] Issuer issuance response flow with partially blind signing over hidden `blind_msg` plus visible `credential.info`
 - [x] Holder finalization into a verifiable credential with an unblinded signature
-- [x] Tamper and mismatch tests for blind-signed credentials and finalization
-- [x] Initial canonical protocol structs for issuer bundles, credentials, and revocation objects
-- [ ] Implement issuer bundle creation and verification
-- [ ] Replace issuer issuance stubs with finalized request/response helpers
-- [ ] Implement full `verifyCredential`
-- [ ] Implement credential digesting and revocation creation/verification
-- [ ] Specify canonical JSON encoding formally rather than relying on the current internal canonicalizer
-- [ ] Add typed, machine-readable errors
-- [ ] Add deterministic fixtures and stable test vectors
-- [ ] Add encode/decode helpers for all protocol messages
-- [ ] Complete a security review of domain separation, randomness, key handling, replay risk, and malformed input behavior
+- [x] Credential verification against trusted issuer bundles
+- [x] Credential digesting plus signed revocation creation and verification
+- [x] Revocation-aware credential verification
+- [x] RFC 8785/JCS canonical JSON encoding with domain-separated credential, issuer bundle, and revocation digests/signatures
+- [x] Deterministic protocol snapshots for issuer bundles, issuance messages, credentials, revocations, and verifier outcomes
+- [ ] Expose machine-readable error or verification result codes across the WASM boundary
+- [ ] Complete a security review of the pbRSA suite, domain separation, randomness, key handling, replay risk, and malformed input behavior
 
 ## Development
 
