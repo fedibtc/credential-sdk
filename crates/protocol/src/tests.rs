@@ -1,6 +1,8 @@
 use serde_json::json;
 
-use crate::{IssuerContext, PendingIssuance, RevocationLocation, VerificationContext};
+use crate::{
+    HolderContext, IssuerContext, PendingIssuance, RevocationLocation, VerificationContext,
+};
 
 const TEST_RNG_SEED: u64 = 0x5eed_f00d_cafe_babe;
 
@@ -25,8 +27,6 @@ fn protocol_snapshots() {
         "schema": "fedi-trust-score-v1.0",
         "trust_level": 7,
     });
-    let blind_msg = json!("anonymous-holder-public-key");
-
     // Create issuer metadata before any holder interaction.
     let issuer = issuer_context(&mut nostr_rng, &mut pbrsa_rng);
     let issuer_bundle = issuer
@@ -59,6 +59,8 @@ fn protocol_snapshots() {
     "###);
 
     // Create the holder's blinded issuance request.
+    let holder = HolderContext::generate_with_rng(&mut nostr_rng);
+    let blind_msg = json!(holder.public_key());
     let (request, pending) = PendingIssuance::create_request_with_rng(
         &issuer_bundle.issuer.issuance_key,
         issuer_bundle.issuer.issuer_id_pubkey.clone(),
@@ -71,7 +73,7 @@ fn protocol_snapshots() {
     insta::assert_json_snapshot!(request, @r###"
     {
       "version": 1,
-      "blinded_message": "K587hG6bByh52YnF6KzRLtv7EUKDvgbnltzCjOBMwN6l2Y6oTtjUQT0MmXiRx3czB4ln5YgtkAg3iZUYAdii67BfVeHsTqxHrFG8q-y0njcspjHi9zXhuJHtdV8ZXkU-bBoPLU5L0wkN7BcI8IXPQEpCJzKBd2acOCvNkVi5bVQ"
+      "blinded_message": "biva9Mtwux4vnhe3gfc6WBigwh57Rmq7DU01mIVSMeTrEnYDP6GxzqIVN1bS9Db0EksVvgQcHwvaFQ6eBSVj-EgGwQe6AOcOriJBFQTd5NO0YWfyz0tdTvcfDWdv4YhCXgWqYkN_2XhOdLoagg6UyStV1zRvre81W_JeJI1VCUg"
     }
     "###);
 
@@ -88,7 +90,7 @@ fn protocol_snapshots() {
         "schema": "fedi-trust-score-v1.0",
         "trust_level": 7
       },
-      "blind_signature": "AiXt7EYA3K-S6SHdCJaFH4vL1bAZgzw5KkL8O4b7z36JSAr8fbxWr67Dsfo4i4JRTDPXhT8TT8KXlOY2BMynxsFyJY4NGd_4B9XWtQfaNcVxhWL6nIQshvevEfjVg0mLO9LuNA12W4c1gnOMTGbCZjJl6hHOMLx8CF4wBuCWdxg"
+      "blind_signature": "S0RczqfNDsK_I1lRs7a_8wJJ-G09l9kqiAyNZePTEmh2ixu1mnPEs4zm696ehk8w30uBoCI-vxkAHNKzxbgMo3QpQ67pTc5-De_bT5slcYGCe4m-hVWQ_gq2T_ACQ5Eny_6QTpU3OWugChzM24RU2O3wxdzAGg7wLrr8CLJbKOI"
     }
     "###);
 
@@ -106,11 +108,11 @@ fn protocol_snapshots() {
           "schema": "fedi-trust-score-v1.0",
           "trust_level": 7
         },
-        "blind_msg": "anonymous-holder-public-key",
+        "blind_msg": "8ec0627df98259165e8f4cc88f57757bad9579c129d729bbd3bef47b0321cbf9",
         "message_randomizer": "esz5fHBn-obcvSswhfHLrN8_HcpnUuIkmXlhsKIwgaM"
       },
       "proof": {
-        "signature": "R15KwA-9G3sBg9bypTyqB2QHPK1_qeTxrkMI4QfQ2XeBVnu41GQIxG_uctmqRpTVBSXQdDpTlK8RypKm8vzK1uZhxW6r-QC5GgOnhX3RPVFM_AZF_Q4o6HuOziNA4XmWmmU0sXUMSe-T2GAhT8KrX8sVIlCic4cmjtA0N9bBKjE"
+        "signature": "alZM3tiyvAaNAt58iydlsLycNF3W3kHF3LWd7w3T_mm74azyTnWZD_T1ITd3luXOYCjKlzeKHTOAoayzvXC_eTGPtERNk7Nex5QItVwGoIr2CQax_s-ptPm7xPZGgCWognN4IClzLvw2o2JeLQLFp01P773cavcJkz91W8aR-Mg"
       }
     }
     "###);
@@ -124,11 +126,11 @@ fn protocol_snapshots() {
     {
       "version": 1,
       "revocation": {
-        "credential_digest": "EpSmK8hE6Ovn6Iwn8XtKVmvs0xDGUnGwYB1lu1hT_pU"
+        "credential_digest": "YCzBI1n8Rz5MqWMPup7bP-K4MkmmSYrnNG8LMbcR_UE"
       },
       "proof": {
         "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
-        "signature": "NWjVPR0fs2r5z5BFgMdx_R18RFBIXnIfvL6sWk1N8z5pwhXS_9arex5e1uyfNkBCPVw6wTS13QGqlb_iqECiKw"
+        "signature": "0OfCg_G3Y4GNvEwbqBTp_CG_bGzxENxGdRSV56KD9YoEYA367zvpBMs4Sl_CtUyYZAEvHGTRvSwjOIpUjlVHNw"
       }
     }
     "###);

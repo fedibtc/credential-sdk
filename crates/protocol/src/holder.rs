@@ -20,8 +20,14 @@ pub struct HolderContext {
 
 impl HolderContext {
     pub fn generate() -> Self {
+        Self::generate_with_rng(&mut nostr::secp256k1::rand::rngs::OsRng)
+    }
+
+    pub(crate) fn generate_with_rng(
+        rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
+    ) -> Self {
         Self {
-            identity_keys: nostr::Keys::generate(),
+            identity_keys: nostr::Keys::generate_with_rng(rng),
         }
     }
 
