@@ -29,6 +29,23 @@ The current protocol shape separates issuer-visible data from holder-hidden data
 
 During issuance, `credential.info` is public and `credential.blind_msg` is blinded. The holder creates an `IssuanceRequest` plus local pending state, the issuer returns an `IssuanceResponse`, and the holder finalizes that response into the verifiable credential shape above. The issuer partially blind-signs both pieces together: `blind_msg` is the hidden payload, and `info` is the visible credential data.
 
+`PendingIssuance` can be exported as a versioned string and imported again after a browser reload:
+
+```ts
+const { request, pending } = PendingIssuance.createRequest(
+  issuerBundle,
+  info,
+  blindMsg,
+);
+const pendingState = pending.exportState();
+
+// Store request and pendingState in application storage while issuance is pending.
+const importedPending = PendingIssuance.importState(pendingState);
+const credential = importedPending.finalize(issuerBundle, response);
+```
+
+The exported pending issuance state is sensitive holder-side issuance material. It is not a long-term holder private key, but it is required to unblind and finalize the issuer response, so applications should avoid logging or sharing it.
+
 ## Public API
 
 The current high-level API is organized around runtime contexts:

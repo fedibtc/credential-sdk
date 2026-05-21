@@ -2,15 +2,25 @@
 
 use blind_rsa_signatures::{
     reexports::rand::{rand_core::UnwrapErr, rngs::SysRng},
-    BlindingResult,
+    BlindMessage, BlindingResult, MessageRandomizer, Secret,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use serde_with::{base64::Base64, base64::UrlSafe, formats::Unpadded, serde_as};
 
 use crate::{
     canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, verifier::verify_credential_with_key,
     Credential, CredentialProof, CredentialsError, IssuanceRequest, IssuanceResponse, IssuerId,
     PbrsaPublicKey, ProtocolV1, SignedCredential,
 };
+
+type Base64UrlUnpadded = Base64<UrlSafe, Unpadded>;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum PendingIssuanceStep {
+    WaitingForIssuerResponse,
+}
 
 /// Runtime holder context containing holder identity keys.
 #[derive(Clone)]
@@ -47,11 +57,21 @@ impl HolderContext {
 }
 
 /// Holder-side pending issuance state.
+#[serde_as]
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PendingIssuance {
+    pub version: ProtocolV1,
+    step: PendingIssuanceStep,
     pub issuer_id: IssuerId,
     pub info: Value,
     pub blind_msg: Value,
-    blinding_result: BlindingResult,
+    #[serde_as(as = "Base64UrlUnpadded")]
+    blind_message: Vec<u8>,
+    #[serde_as(as = "Base64UrlUnpadded")]
+    secret: Vec<u8>,
+    #[serde_as(as = "Option<Base64UrlUnpadded>")]
+    msg_randomizer: Option<Vec<u8>>,
 }
 
 impl PendingIssuance {
@@ -78,19 +98,39 @@ impl PendingIssuance {
         let message = canonicalize_pbrsa_blind_msg(ProtocolV1, &blind_msg)?;
         let public_key = issuer_public_key.derive_public_key_for_metadata(&metadata)?;
         let blinding_result = public_key.blind(rng, &message, Some(&metadata))?;
+        let blinded_message = blinding_result.blind_message.clone();
 
         let request = IssuanceRequest {
             version: ProtocolV1,
-            blinded_message: blinding_result.blind_message.clone(),
+            blinded_message,
         };
         let pending = Self {
+            version: ProtocolV1,
+            step: PendingIssuanceStep::WaitingForIssuerResponse,
             issuer_id,
             info,
             blind_msg,
-            blinding_result,
+            blind_message: blinding_result.blind_message.0,
+            secret: blinding_result.secret.0,
+            msg_randomizer: blinding_result
+                .msg_randomizer
+                .map(|msg_randomizer| msg_randomizer.0.to_vec()),
         };
 
         Ok((request, pending))
+    }
+
+    /// Export app-storable holder-side pending issuance state.
+    ///
+    /// The exported state is sensitive issuance material. It is needed to
+    /// finalize one issuer response after a process or browser reload.
+    pub fn export_state(&self) -> Result<String, CredentialsError> {
+        Ok(serde_json::to_string(self)?)
+    }
+
+    /// Import app-stored holder-side pending issuance state.
+    pub fn import_state(state: &str) -> Result<Self, CredentialsError> {
+        serde_json::from_str(state).map_err(invalid_pending_issuance_state)
     }
 
     /// Finalize an issuer response into a holder credential.
@@ -109,9 +149,10 @@ impl PendingIssuance {
         let metadata = canonicalize_pbrsa_info(ProtocolV1, &self.issuer_id, &self.info)?;
         let message = canonicalize_pbrsa_blind_msg(ProtocolV1, &self.blind_msg)?;
         let public_key = issuer_public_key.derive_public_key_for_metadata(&metadata)?;
+        let blinding_result = self.blinding_result()?;
         let signature = public_key.finalize(
             &response.blind_signature,
-            &self.blinding_result,
+            &blinding_result,
             &message,
             Some(&metadata),
         )?;
@@ -127,4 +168,31 @@ impl PendingIssuance {
         verify_credential_with_key(issuer_public_key, &credential)?;
         Ok(credential)
     }
+
+    fn blinding_result(&self) -> Result<BlindingResult, CredentialsError> {
+        let msg_randomizer = self
+            .msg_randomizer
+            .as_ref()
+            .map(|msg_randomizer| {
+                let msg_randomizer: [u8; 32] =
+                    msg_randomizer.as_slice().try_into().map_err(|_| {
+                        CredentialsError::InvalidPendingIssuanceState(format!(
+                            "message randomizer must be 32 bytes, got {}",
+                            msg_randomizer.len()
+                        ))
+                    })?;
+                Ok::<MessageRandomizer, CredentialsError>(MessageRandomizer(msg_randomizer))
+            })
+            .transpose()?;
+
+        Ok(BlindingResult {
+            blind_message: BlindMessage(self.blind_message.clone()),
+            secret: Secret(self.secret.clone()),
+            msg_randomizer,
+        })
+    }
+}
+
+fn invalid_pending_issuance_state(error: impl ToString) -> CredentialsError {
+    CredentialsError::InvalidPendingIssuanceState(error.to_string())
 }

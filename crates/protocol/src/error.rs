@@ -16,6 +16,8 @@ pub enum CredentialsError {
     IssuerIdMismatch,
     #[error("issuance response info does not match")]
     InfoMismatch,
+    #[error("invalid pending issuance state: {0}")]
+    InvalidPendingIssuanceState(String),
     #[error("unknown issuer")]
     UnknownIssuer,
     #[error("credential has been revoked")]
