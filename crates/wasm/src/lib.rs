@@ -234,6 +234,18 @@ impl PendingIssuance {
         Ok(result.into())
     }
 
+    #[wasm_bindgen(js_name = exportState)]
+    pub fn export_state(&self) -> Result<String, JsError> {
+        Ok(self.inner.export_state()?)
+    }
+
+    #[wasm_bindgen(js_name = importState)]
+    pub fn import_state(state: String) -> Result<PendingIssuance, JsError> {
+        Ok(Self {
+            inner: protocol::PendingIssuance::import_state(&state)?,
+        })
+    }
+
     #[wasm_bindgen(unchecked_return_type = "SignedCredential")]
     pub fn finalize(
         self,
@@ -242,6 +254,9 @@ impl PendingIssuance {
     ) -> Result<JsValue, JsError> {
         let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
         let response: protocol::IssuanceResponse = from_js(response)?;
+        if issuer_bundle.issuer.issuer_id_pubkey != response.issuer_id {
+            return Err(protocol::CredentialsError::IssuerIdMismatch.into());
+        }
         to_js(
             &self
                 .inner

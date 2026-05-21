@@ -5,21 +5,18 @@ use blind_rsa_signatures::{
 use nostr::secp256k1::{schnorr::Signature, Message};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
-use serde_with::{base64::Base64, base64::UrlSafe, formats::Unpadded, serde_as};
+use serde_with::serde_as;
 use sha2::{digest::Output, Digest, Sha256};
 use std::str::FromStr;
 
 use crate::serde::{
-    PbrsaPublicKeyBase64UrlUnpadded, SchnorrSignatureBase64UrlUnpadded,
+    Base64UrlUnpadded, PbrsaPublicKeyBase64UrlUnpadded, SchnorrSignatureBase64UrlUnpadded,
     Sha256DigestBase64UrlUnpadded,
 };
 use crate::{
     canonicalize_credential, canonicalize_issuer_bundle, canonicalize_revocation, CredentialsError,
     PbrsaPublicKey,
 };
-
-/// Unpadded URL-safe base64 encoding used for byte fields in JSON.
-type Base64UrlUnpadded = Base64<UrlSafe, Unpadded>;
 
 /// Protocol version marker used by the MVP credential format.
 ///

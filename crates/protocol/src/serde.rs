@@ -6,7 +6,7 @@ use sha2::{digest::Output, Sha256};
 use crate::PbrsaPublicKey;
 
 /// Unpadded URL-safe base64 encoding used for byte fields in JSON.
-type Base64UrlUnpadded = Base64<UrlSafe, Unpadded>;
+pub(crate) type Base64UrlUnpadded = Base64<UrlSafe, Unpadded>;
 
 pub(crate) struct PbrsaPublicKeyBase64UrlUnpadded;
 pub(crate) struct SchnorrSignatureBase64UrlUnpadded;
