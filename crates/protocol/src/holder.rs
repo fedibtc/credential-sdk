@@ -6,15 +6,14 @@ use blind_rsa_signatures::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde_with::{base64::Base64, base64::UrlSafe, formats::Unpadded, serde_as};
+use serde_with::serde_as;
 
+use crate::serde::Base64UrlUnpadded;
 use crate::{
     canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, verifier::verify_credential_with_key,
     Credential, CredentialProof, CredentialsError, IssuanceRequest, IssuanceResponse, IssuerId,
     PbrsaPublicKey, ProtocolV1, SignedCredential,
 };
-
-type Base64UrlUnpadded = Base64<UrlSafe, Unpadded>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
