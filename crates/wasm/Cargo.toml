@@ -1,17 +1,17 @@
 [package]
 name = "fedi-credential-sdk-wasm"
-version = "0.1.1"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 description = "WebAssembly bindings for the fedi credential protocol crate."
-license = "MIT"
-repository = "https://github.com/fedibtc/credential-sdk"
-readme = "../../README.md"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-fedi-credential-sdk-protocol = { path = "../protocol", version = "0.1.1" }
+fedi-credential-sdk-protocol.workspace = true
 getrandom = { version = "0.4.2", features = ["wasm_js"] }
 js-sys = "0.3"
 serde = { version = "1.0", features = ["derive"] }
