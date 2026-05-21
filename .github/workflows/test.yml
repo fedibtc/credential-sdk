@@ -19,6 +19,8 @@ jobs:
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.29.0/install
 
       - name: Use devenv binary cache
         uses: cachix/cachix-action@v16
