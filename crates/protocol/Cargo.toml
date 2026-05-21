@@ -5,7 +5,7 @@ edition.workspace = true
 description = "Rust-facing, stateless credential protocol API for issuing and verifying partially blinded credentials."
 license.workspace = true
 repository.workspace = true
-readme.workspace = true
+readme = "README.md"
 
 [dependencies]
 blind-rsa-signatures = "0.17.1"
