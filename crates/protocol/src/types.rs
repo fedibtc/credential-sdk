@@ -94,7 +94,7 @@ impl FromStr for IssuerId {
 
 /// JSON-friendly issuer secret export.
 #[serde_as]
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IssuerSecretKeys {
     pub issuer_id_secret_key: String,
     #[serde_as(as = "Base64UrlUnpadded")]
