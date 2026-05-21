@@ -126,33 +126,45 @@ impl IssuerContext {
     }
 
     #[wasm_bindgen(js_name = importSecretKey)]
-    pub fn import_secret_key(secret_key: JsValue) -> Result<IssuerContext, JsError> {
+    pub fn import_secret_key(
+        #[wasm_bindgen(unchecked_param_type = "IssuerSecretKeys")] secret_key: JsValue,
+    ) -> Result<IssuerContext, JsError> {
         let secret_key: protocol::IssuerSecretKeys = from_js(secret_key)?;
         Ok(Self {
             inner: protocol::IssuerContext::import_secret_key(&secret_key)?,
         })
     }
 
-    #[wasm_bindgen(js_name = exportSecretKey)]
+    #[wasm_bindgen(js_name = exportSecretKey, unchecked_return_type = "IssuerSecretKeys")]
     pub fn export_secret_key(&self) -> Result<JsValue, JsError> {
         to_js(&self.inner.export_secret_key()?)
     }
 
-    #[wasm_bindgen(js_name = issueCredential)]
-    pub fn issue_credential(&self, info: JsValue, request: JsValue) -> Result<JsValue, JsError> {
+    #[wasm_bindgen(js_name = issueCredential, unchecked_return_type = "IssuanceResponse")]
+    pub fn issue_credential(
+        &self,
+        #[wasm_bindgen(unchecked_param_type = "JsonValue")] info: JsValue,
+        #[wasm_bindgen(unchecked_param_type = "IssuanceRequest")] request: JsValue,
+    ) -> Result<JsValue, JsError> {
         let info: serde_json::Value = from_js(info)?;
         let request: protocol::IssuanceRequest = from_js(request)?;
         to_js(&self.inner.issue_credential(info, &request)?)
     }
 
-    #[wasm_bindgen(js_name = issuerBundle)]
-    pub fn issuer_bundle(&self, revocation: JsValue) -> Result<JsValue, JsError> {
+    #[wasm_bindgen(js_name = issuerBundle, unchecked_return_type = "IssuerBundle")]
+    pub fn issuer_bundle(
+        &self,
+        #[wasm_bindgen(unchecked_param_type = "readonly RevocationLocation[]")] revocation: JsValue,
+    ) -> Result<JsValue, JsError> {
         let revocation: Vec<protocol::RevocationLocation> = from_js(revocation)?;
         to_js(&self.inner.issuer_bundle(revocation)?)
     }
 
-    #[wasm_bindgen(js_name = revokeCredential)]
-    pub fn revoke_credential(&self, credential: JsValue) -> Result<JsValue, JsError> {
+    #[wasm_bindgen(js_name = revokeCredential, unchecked_return_type = "SignedRevocation")]
+    pub fn revoke_credential(
+        &self,
+        #[wasm_bindgen(unchecked_param_type = "SignedCredential")] credential: JsValue,
+    ) -> Result<JsValue, JsError> {
         let credential: protocol::SignedCredential = from_js(credential)?;
         to_js(&self.inner.revoke_credential(&credential)?)
     }
@@ -219,11 +231,11 @@ pub struct PendingIssuance {
 
 #[wasm_bindgen]
 impl PendingIssuance {
-    #[wasm_bindgen(js_name = createRequest)]
+    #[wasm_bindgen(js_name = createRequest, unchecked_return_type = "PendingIssuanceResult")]
     pub fn create_request(
-        issuer_bundle: JsValue,
-        info: JsValue,
-        blind_msg: JsValue,
+        #[wasm_bindgen(unchecked_param_type = "IssuerBundle")] issuer_bundle: JsValue,
+        #[wasm_bindgen(unchecked_param_type = "JsonValue")] info: JsValue,
+        #[wasm_bindgen(unchecked_param_type = "JsonValue")] blind_msg: JsValue,
     ) -> Result<JsValue, JsError> {
         let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
         let info: serde_json::Value = from_js(info)?;
@@ -247,7 +259,12 @@ impl PendingIssuance {
         Ok(result.into())
     }
 
-    pub fn finalize(self, issuer_bundle: JsValue, response: JsValue) -> Result<JsValue, JsError> {
+    #[wasm_bindgen(unchecked_return_type = "SignedCredential")]
+    pub fn finalize(
+        self,
+        #[wasm_bindgen(unchecked_param_type = "IssuerBundle")] issuer_bundle: JsValue,
+        #[wasm_bindgen(unchecked_param_type = "IssuanceResponse")] response: JsValue,
+    ) -> Result<JsValue, JsError> {
         let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
         let response: protocol::IssuanceResponse = from_js(response)?;
         to_js(
@@ -273,19 +290,28 @@ impl VerificationContext {
     }
 
     #[wasm_bindgen(js_name = addIssuerBundle)]
-    pub fn add_issuer_bundle(&mut self, issuer_bundle: JsValue) -> Result<(), JsError> {
+    pub fn add_issuer_bundle(
+        &mut self,
+        #[wasm_bindgen(unchecked_param_type = "IssuerBundle")] issuer_bundle: JsValue,
+    ) -> Result<(), JsError> {
         let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
         Ok(self.inner.add_issuer_bundle(&issuer_bundle)?)
     }
 
     #[wasm_bindgen(js_name = addRevocation)]
-    pub fn add_revocation(&mut self, revocation: JsValue) -> Result<(), JsError> {
+    pub fn add_revocation(
+        &mut self,
+        #[wasm_bindgen(unchecked_param_type = "SignedRevocation")] revocation: JsValue,
+    ) -> Result<(), JsError> {
         let revocation: protocol::SignedRevocation = from_js(revocation)?;
         Ok(self.inner.add_revocation(&revocation)?)
     }
 
     #[wasm_bindgen(js_name = verifyCredential)]
-    pub fn verify_credential(&self, credential: JsValue) -> Result<bool, JsError> {
+    pub fn verify_credential(
+        &self,
+        #[wasm_bindgen(unchecked_param_type = "SignedCredential")] credential: JsValue,
+    ) -> Result<bool, JsError> {
         let credential: protocol::SignedCredential = from_js(credential)?;
         self.inner.verify_credential(&credential)?;
         Ok(true)
@@ -293,14 +319,18 @@ impl VerificationContext {
 }
 
 #[wasm_bindgen(js_name = verifyIssuerBundle)]
-pub fn verify_issuer_bundle(issuer_bundle: JsValue) -> Result<bool, JsError> {
+pub fn verify_issuer_bundle(
+    #[wasm_bindgen(unchecked_param_type = "IssuerBundle")] issuer_bundle: JsValue,
+) -> Result<bool, JsError> {
     let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
     issuer_bundle.verify()?;
     Ok(true)
 }
 
 #[wasm_bindgen(js_name = verifyRevocation)]
-pub fn verify_revocation(revocation: JsValue) -> Result<bool, JsError> {
+pub fn verify_revocation(
+    #[wasm_bindgen(unchecked_param_type = "SignedRevocation")] revocation: JsValue,
+) -> Result<bool, JsError> {
     let revocation: protocol::SignedRevocation = from_js(revocation)?;
     revocation.verify()?;
     Ok(true)
