@@ -1,56 +1,92 @@
 //! Issuer-side PBRSA issuance operations.
 
-use blind_rsa_signatures::{pbrsa::PartiallyBlindKeyPairSha384PSSRandomized, DefaultRng};
+use blind_rsa_signatures::{
+    pbrsa::PartiallyBlindKeyPairSha384PSSRandomized,
+    reexports::rand::{rand_core::UnwrapErr, rngs::SysRng},
+};
 use serde_json::Value;
 
 use crate::{
-    canonicalize_pbrsa_info, pbrsa::check_version, IssuanceRequest, IssuanceResponse, IssuerId,
-    PbrsaError, PbrsaPublicKey, PROTOCOL_VERSION_V1,
+    canonicalize_pbrsa_info, CredentialsError, IssuanceRequest, IssuanceResponse, Issuer,
+    IssuerBundle, IssuerId, IssuerSecretKeys, ProtocolV1, Revocation, RevocationLocation,
+    RevocationProof, SchnorrSignatureProof, SignedCredential, SignedRevocation,
 };
+
+pub const ISSUER_MODULUS_BITS: usize = 1024;
 
 /// Runtime issuer context containing issuer identity and PBRSA signing key.
 #[derive(Clone)]
 pub struct IssuerContext {
-    pub issuer_id: IssuerId,
+    identity_keys: nostr::Keys,
     key_pair: PartiallyBlindKeyPairSha384PSSRandomized,
 }
 
 impl IssuerContext {
-    /// Generate an issuer context with a fresh PBRSA key pair.
-    pub fn generate(issuer_id: IssuerId, modulus_bits: usize) -> Result<Self, PbrsaError> {
+    /// Generate an issuer context with fresh Nostr identity and PBRSA key pairs.
+    pub fn generate() -> Result<Self, CredentialsError> {
+        Self::generate_with_rng(nostr::Keys::generate(), &mut UnwrapErr(SysRng))
+    }
+
+    pub(crate) fn generate_with_rng(
+        identity_keys: nostr::Keys,
+        rng: &mut (impl blind_rsa_signatures::reexports::rsa::rand_core::CryptoRng + ?Sized),
+    ) -> Result<Self, CredentialsError> {
         Ok(Self {
-            issuer_id,
-            key_pair: PartiallyBlindKeyPairSha384PSSRandomized::generate(
-                &mut DefaultRng,
-                modulus_bits,
-            )?,
+            identity_keys,
+            key_pair: PartiallyBlindKeyPairSha384PSSRandomized::generate(rng, ISSUER_MODULUS_BITS)?,
         })
     }
 
-    pub fn from_key_pair(
-        issuer_id: IssuerId,
-        key_pair: PartiallyBlindKeyPairSha384PSSRandomized,
-    ) -> Self {
-        Self {
-            issuer_id,
-            key_pair,
-        }
+    /// Build and sign this issuer's public metadata.
+    ///
+    /// The returned bundle binds the issuer's derived Nostr identity key to the
+    /// current PBRSA issuance public key and the supplied revocation locations.
+    pub fn issuer_bundle(
+        &self,
+        revocation: Vec<RevocationLocation>,
+    ) -> Result<IssuerBundle, CredentialsError> {
+        self.issuer_bundle_with_rng(revocation, &mut nostr::secp256k1::rand::rngs::OsRng)
     }
 
-    pub fn public_key(&self) -> PbrsaPublicKey {
-        self.key_pair.pk.clone()
+    pub(crate) fn issuer_bundle_with_rng(
+        &self,
+        revocation: Vec<RevocationLocation>,
+        rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
+    ) -> Result<IssuerBundle, CredentialsError> {
+        let issuer = Issuer {
+            issuer_id_pubkey: self.issuer_id(),
+            issuance_key: self.key_pair.pk.clone(),
+            revocation,
+        };
+        let signature = self.sign_identity_digest_with_rng(issuer.digest()?, rng);
+
+        Ok(IssuerBundle {
+            version: ProtocolV1,
+            issuer,
+            proof: SchnorrSignatureProof { signature },
+        })
     }
 
-    pub fn secret_key_der(&self) -> Result<Vec<u8>, PbrsaError> {
-        Ok(self.key_pair.sk.to_der()?)
+    fn issuer_id(&self) -> IssuerId {
+        IssuerId(self.identity_keys.public_key())
     }
 
-    pub fn from_secret_key_der(issuer_id: IssuerId, der: &[u8]) -> Result<Self, PbrsaError> {
+    pub fn export_secret_key(&self) -> Result<IssuerSecretKeys, CredentialsError> {
+        Ok(IssuerSecretKeys {
+            issuer_id_secret_key: self.identity_keys.secret_key().to_secret_hex(),
+            issuance_secret_key: self.key_pair.sk.to_der()?,
+        })
+    }
+
+    pub fn import_secret_key(secret_key: &IssuerSecretKeys) -> Result<Self, CredentialsError> {
+        let identity_keys = nostr::Keys::parse(&secret_key.issuer_id_secret_key)?;
         let secret_key =
-            blind_rsa_signatures::pbrsa::PartiallyBlindSecretKeySha384PSSRandomized::from_der(der)?;
+            blind_rsa_signatures::pbrsa::PartiallyBlindSecretKeySha384PSSRandomized::from_der(
+                &secret_key.issuance_secret_key,
+            )?;
         let public_key = secret_key.public_key()?;
         Ok(Self {
-            issuer_id,
+            identity_keys,
             key_pair: PartiallyBlindKeyPairSha384PSSRandomized {
                 pk: public_key,
                 sk: secret_key,
@@ -63,99 +99,74 @@ impl IssuerContext {
         &self,
         info: Value,
         request: &IssuanceRequest,
-    ) -> Result<IssuanceResponse, PbrsaError> {
-        check_version(request.version)?;
-        let metadata = canonicalize_pbrsa_info(PROTOCOL_VERSION_V1, &self.issuer_id, &info)?;
+    ) -> Result<IssuanceResponse, CredentialsError> {
+        self.issue_credential_with_rng(info, request, &mut UnwrapErr(SysRng))
+    }
+
+    pub(crate) fn issue_credential_with_rng(
+        &self,
+        info: Value,
+        request: &IssuanceRequest,
+        rng: &mut (impl blind_rsa_signatures::reexports::rsa::rand_core::TryCryptoRng + ?Sized),
+    ) -> Result<IssuanceResponse, CredentialsError> {
+        let issuer_id = self.issuer_id();
+        let metadata = canonicalize_pbrsa_info(ProtocolV1, &issuer_id, &info)?;
         let secret_key = self.key_pair.derive_secret_key_for_metadata(&metadata)?;
         Ok(IssuanceResponse {
-            version: PROTOCOL_VERSION_V1,
-            issuer_id: self.issuer_id.clone(),
+            version: ProtocolV1,
+            issuer_id,
             info,
-            blind_signature: secret_key.blind_sign(&request.blinded_message)?,
+            blind_signature: secret_key.blind_sign_with_rng(rng, &request.blinded_message)?,
         })
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use serde_json::json;
-
-    use super::*;
-    use crate::{verify_credential, Credential, PendingIssuance};
-
-    fn issuer_id(byte: u8) -> IssuerId {
-        IssuerId(nostr::PublicKey::from_byte_array([byte; 32]))
+    /// Build and sign the revocation for a finalized credential issued by this issuer.
+    ///
+    /// This computes the finalized credential digest and binds it to this issuer
+    /// identity. It does not publish or transport the revocation; those concerns
+    /// live outside the core protocol.
+    pub fn revoke_credential(
+        &self,
+        credential: &SignedCredential,
+    ) -> Result<SignedRevocation, CredentialsError> {
+        self.revoke_credential_with_rng(credential, &mut nostr::secp256k1::rand::rngs::OsRng)
     }
 
-    #[test]
-    fn pbrsa_roundtrip_and_secret_der_import_export() {
-        let issuer_id = issuer_id(1);
-        let issuer = IssuerContext::generate(issuer_id.clone(), 1024).unwrap();
-        let public_key = issuer.public_key();
-        let issuer = IssuerContext::from_secret_key_der(
-            issuer_id.clone(),
-            &issuer.secret_key_der().unwrap(),
-        )
-        .unwrap();
-        let info = json!({ "credential": "test", "tier": 1 });
-        let blind_msg = json!({ "holder": "alice", "nonce": 7 });
+    pub(crate) fn revoke_credential_with_rng(
+        &self,
+        credential: &SignedCredential,
+        rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
+    ) -> Result<SignedRevocation, CredentialsError> {
+        let issuer_id = self.issuer_id();
+        if credential.credential.issuer_id_pubkey != issuer_id {
+            return Err(CredentialsError::IssuerIdMismatch);
+        }
 
-        let (request, pending) = PendingIssuance::create_request(
-            &public_key,
-            issuer_id.clone(),
-            info.clone(),
-            blind_msg.clone(),
-        )
-        .unwrap();
-        let master_key_response = IssuanceResponse {
-            version: PROTOCOL_VERSION_V1,
-            issuer_id: issuer_id.clone(),
-            info: info.clone(),
-            blind_signature: issuer
-                .key_pair
-                .sk
-                .blind_sign(&request.blinded_message)
-                .unwrap(),
+        let revocation = Revocation {
+            credential_digest: credential.credential.digest()?,
         };
-        assert!(matches!(
-            pending.clone().finalize(&public_key, &master_key_response),
-            Err(PbrsaError::BlindRsa(
-                blind_rsa_signatures::Error::VerificationFailed
-            ))
-        ));
 
-        let response = issuer.issue_credential(info.clone(), &request).unwrap();
-        let credential = pending.finalize(&public_key, &response).unwrap();
+        let signature = self.sign_identity_digest_with_rng(revocation.digest()?, rng);
 
-        assert_eq!(credential.issuer_id, issuer_id);
-        assert_eq!(credential.info, info);
-        assert_eq!(credential.blind_msg, blind_msg);
-        verify_credential(&public_key, &credential).unwrap();
+        Ok(SignedRevocation {
+            version: ProtocolV1,
+            revocation,
+            proof: RevocationProof {
+                issuer_id_pubkey: issuer_id,
+                signature,
+            },
+        })
     }
 
-    #[test]
-    fn pbrsa_detects_tampering() {
-        let issuer = IssuerContext::generate(issuer_id(2), 1024).unwrap();
-        let public_key = issuer.public_key();
-        let issuer_id = issuer.issuer_id.clone();
-        let info = json!({ "credential": "test" });
-
-        let (request, pending) = PendingIssuance::create_request(
-            &public_key,
-            issuer_id,
-            info.clone(),
-            json!({ "holder": "alice" }),
+    fn sign_identity_digest_with_rng(
+        &self,
+        digest: sha2::digest::Output<sha2::Sha256>,
+        rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
+    ) -> nostr::secp256k1::schnorr::Signature {
+        self.identity_keys.sign_schnorr_with_ctx(
+            nostr::SECP256K1,
+            &nostr::secp256k1::Message::from_digest(digest.into()),
+            rng,
         )
-        .unwrap();
-        let response = issuer.issue_credential(info, &request).unwrap();
-        let mut credential: Credential = pending.finalize(&public_key, &response).unwrap();
-
-        credential.blind_msg = json!({ "holder": "mallory" });
-        assert!(matches!(
-            verify_credential(&public_key, &credential),
-            Err(PbrsaError::BlindRsa(
-                blind_rsa_signatures::Error::VerificationFailed
-            ))
-        ));
     }
 }

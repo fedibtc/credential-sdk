@@ -7,7 +7,7 @@
 
 use serde_json::{json, Value};
 
-use crate::{Credential, Issuer, IssuerId, ProtocolVersion, RevocationEntry};
+use crate::{Credential, Issuer, IssuerId, ProtocolV1, Revocation};
 
 /// Canonicalize a JSON value using RFC 8785 / JCS and return UTF-8 bytes.
 ///
@@ -23,30 +23,30 @@ fn canonicalize_json_value(value: &Value) -> serde_json::Result<Vec<u8>> {
 }
 
 /// Canonicalized payload type string for issuer-visible public credential information.
-pub const PBRSA_PUBLIC_INFO_CANONICAL_TYPE: &str = "fedibtc.pbrsa.public-info";
+pub const PBRSA_PUBLIC_INFO_CANONICAL_TYPE: &str = "fedibtc.credentials.public-info";
 
 /// Canonicalized payload type string for holder-hidden blind-message information.
-pub const PBRSA_BLIND_MSG_CANONICAL_TYPE: &str = "fedibtc.pbrsa.blind-msg";
+pub const PBRSA_BLIND_MSG_CANONICAL_TYPE: &str = "fedibtc.credentials.blind-msg";
 
 /// Canonicalized payload type string for issuer bundle signatures.
-pub const ISSUER_BUNDLE_CANONICAL_TYPE: &str = "fedibtc.issuer-bundle";
+pub const ISSUER_BUNDLE_CANONICAL_TYPE: &str = "fedibtc.credentials.issuer-bundle";
 
 /// Canonicalized payload type string for signed revocations.
-pub const REVOCATION_CANONICAL_TYPE: &str = "fedibtc.revocation";
+pub const REVOCATION_CANONICAL_TYPE: &str = "fedibtc.credentials.revocation";
 
 /// Build JCS canonical bytes for the PBRSA public credential info.
 ///
 /// The canonicalized value includes a type string, protocol version, issuer
 /// identifier, and issuer-visible credential `info` JSON.
 pub fn canonicalize_pbrsa_info(
-    version: ProtocolVersion,
+    version: ProtocolV1,
     issuer_id: &IssuerId,
     info: &Value,
 ) -> serde_json::Result<Vec<u8>> {
     let payload = json!({
         "type": PBRSA_PUBLIC_INFO_CANONICAL_TYPE,
         "version": version,
-        "issuer_id": issuer_id,
+        "issuer_id_pubkey": issuer_id,
         "info": info,
     });
 
@@ -58,7 +58,7 @@ pub fn canonicalize_pbrsa_info(
 /// The canonicalized value includes a type string, protocol version, and
 /// holder-hidden credential `blind_msg` JSON.
 pub fn canonicalize_pbrsa_blind_msg(
-    version: ProtocolVersion,
+    version: ProtocolV1,
     blind_msg: &Value,
 ) -> serde_json::Result<Vec<u8>> {
     let payload = json!({
@@ -81,7 +81,7 @@ pub fn canonicalize_issuer_bundle(issuer: &Issuer) -> serde_json::Result<Vec<u8>
 }
 
 /// Build JCS canonical bytes for a signed revocation payload.
-pub fn canonicalize_revocation(revocation: &RevocationEntry) -> serde_json::Result<Vec<u8>> {
+pub fn canonicalize_revocation(revocation: &Revocation) -> serde_json::Result<Vec<u8>> {
     let payload = json!({
         "type": REVOCATION_CANONICAL_TYPE,
         "revocation": revocation,
@@ -90,17 +90,18 @@ pub fn canonicalize_revocation(revocation: &RevocationEntry) -> serde_json::Resu
     canonicalize_json_value(&payload)
 }
 
-/// Build JCS canonical bytes for a finalized credential.
+/// Build JCS canonical bytes for a credential payload.
 pub fn canonicalize_credential(credential: &Credential) -> serde_json::Result<Vec<u8>> {
     let value = serde_json::to_value(credential)?;
     canonicalize_json_value(&value)
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
 
-    use crate::{IssuerId, PROTOCOL_VERSION_V1};
+    use crate::{IssuerId, ProtocolV1};
 
     #[test]
     fn canonicalizes_object_keys_recursively() {
@@ -141,10 +142,9 @@ mod tests {
             },
         });
 
-        let canonicalized =
-            canonicalize_pbrsa_info(PROTOCOL_VERSION_V1, &issuer_id, &info).unwrap();
+        let canonicalized = canonicalize_pbrsa_info(ProtocolV1, &issuer_id, &info).unwrap();
         let expected = format!(
-            r#"{{"info":{{"a":{{"a":false,"b":true}},"z":1}},"issuer_id":"{}","type":"{}","version":1}}"#,
+            r#"{{"info":{{"a":{{"a":false,"b":true}},"z":1}},"issuer_id_pubkey":"{}","type":"{}","version":1}}"#,
             issuer_id.0, PBRSA_PUBLIC_INFO_CANONICAL_TYPE,
         );
 
@@ -159,7 +159,7 @@ mod tests {
         });
 
         assert_eq!(
-            canonicalize_pbrsa_blind_msg(PROTOCOL_VERSION_V1, &blind_msg).unwrap(),
+            canonicalize_pbrsa_blind_msg(ProtocolV1, &blind_msg).unwrap(),
             format!(
                 r#"{{"blind_msg":{{"holder":"alice","nonce":7}},"type":"{}","version":1}}"#,
                 PBRSA_BLIND_MSG_CANONICAL_TYPE,

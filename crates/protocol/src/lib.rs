@@ -5,17 +5,19 @@
 //! callers decide what schema, holder identifiers, and claims mean.
 
 pub mod canonical;
+pub mod error;
 pub mod holder;
 pub mod issuer;
-pub mod nostr;
-pub mod pbrsa;
+mod serde;
 pub mod types;
 pub mod verifier;
 
 pub use canonical::*;
+pub use error::*;
 pub use holder::*;
 pub use issuer::*;
-pub use nostr::*;
-pub use pbrsa::*;
 pub use types::*;
 pub use verifier::*;
+
+#[cfg(test)]
+mod tests;

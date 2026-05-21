@@ -86,8 +86,8 @@ Here is this “triangle of trust” showed in the form of a diagram:
   			// Issuer root id key (e.g. npub)
   		  "issuer_id_pubkey": "issuer-id-pubkey",
   		  // "What is the issuer claiming about the holder?"
-  		  // score as decided by issuer
-  	    "score": 7,
+  		  // trust level as decided by issuer
+	    "trust_level": 7,
   	  },
   	  // hidden from issuer during signing
   	  "blind_msg": "anonymous-holder-public-key",
@@ -106,7 +106,7 @@ Here is this “triangle of trust” showed in the form of a diagram:
   - Credential includes schema digest and the public committed data.
   - Optionally publish Schema Definition as a separate Nostr note
   ```jsx
-  // ex. Schema Definition for a generic trust score
+  // ex. Schema Definition for a generic trust level
   {
     "schema": {
       "id": "fedi-trust-score",
@@ -118,7 +118,7 @@ Here is this “triangle of trust” showed in the form of a diagram:
         "info" : {
           "schema": "string",
           "issuer_id_pubkey": "string",
-          "score": "number"
+          "trust_level": "number"
         }
         "blind_msg": "string"
       }
@@ -146,8 +146,8 @@ Here is this “triangle of trust” showed in the form of a diagram:
 
 How is this built? Not a new mobile app. Preferably not a standalone web app. But rather a mini-app. And we need 3 functionalities:
 
-- Issuer can generate keypair, import secret key. Issuer can scan QR codes of holders (holders’ blinded public keys). Issuer can then attach a score (some arbitrary metadata) and sign together over the holder’s blinded public key + visible score. Issuer can then expose the signature as a QR code itself that the holder can then scan. **Note that issuer will first need to present their own pubkey to holder so holder can use issuer’s pubkey to blind their own pubkey.**
-- Holder can generate keypair, import secret key, export public or secret key. Holder can present QR code which represents their blinded public key. Holder can scan QR code representing the signature from the issuer. Holder saves this credential (comprised of unblinded signature, holder’s public key, score) as well as issuer’s public key. And holder should also be able to export this credential + issuer’s public key.
+- Issuer can generate keypair, import secret key. Issuer can scan QR codes of holders (holders’ blinded public keys). Issuer can then attach a trust level (some arbitrary metadata) and sign together over the holder’s blinded public key + visible trust level. Issuer can then expose the signature as a QR code itself that the holder can then scan. **Note that issuer will first need to present their own pubkey to holder so holder can use issuer’s pubkey to blind their own pubkey.**
+- Holder can generate keypair, import secret key, export public or secret key. Holder can present QR code which represents their blinded public key. Holder can scan QR code representing the signature from the issuer. Holder saves this credential (comprised of unblinded signature, holder’s public key, trust level) as well as issuer’s public key. And holder should also be able to export this credential + issuer’s public key.
 - Verifier should be able to scan holder’s credential, and affirm that the credential is valid according to the Fedi public key that it was signed by, and that the public key is part of Fedi’s trusted keys. (For future, verifier should also be able to add other public keys for verifying holders’ credentials).
 
 We looked at BBS+ and partially blinded schemes, and decided to go with the latter, and in particular that partially blinded RSA signatures ([RFC 9474](https://datatracker.ietf.org/doc/rfc9474/) + [draft-irtf-cfrg-partially-blind-rsa-02](https://www.ietf.org/archive/id/draft-irtf-cfrg-partially-blind-rsa-02.html)). Build it in preferred language with preferred library (rust equivalent crate is `blind-rsa-signatures` and the `pbrsa` module within it).
@@ -172,7 +172,7 @@ We looked at BBS+ and partially blinded schemes, and decided to go with the latt
     - load previously-published schema definition
   - credential issuance
     - Select credential schema ^^
-    - Manually fill-in unblinded fields (score, autofill issuer pubkey)
+    - Manually fill-in unblinded fields (trust level, autofill issuer pubkey)
     - Share pbRSA public key to holder via QR code
       - (holder blinds their own pubkey using the shared pbRSA pubkey)
     - scan a QR code from holder containing BLINDED data

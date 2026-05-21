@@ -1,52 +1,64 @@
 import { describe, expect, it } from "vitest";
-
+import type {
+  IssuerBundle,
+  PendingIssuanceResult,
+  SignedCredential,
+  SignedRevocation,
+} from "../pkg/fedi_credential_sdk_wasm.js";
 import {
+  IssuerContext,
+  PendingIssuance,
+  VerificationContext,
   verifyIssuerBundle,
   verifyRevocation,
 } from "../pkg/fedi_credential_sdk_wasm.js";
-import type {
-  IssuerBundle,
-  SignedRevocation,
-} from "../pkg/fedi_credential_sdk_wasm.js";
 
-const issuerBundle = {
-  issuer: {
-    issuance_key:
-      "MIGeMA0GCSqGSIb3DQEBAQUAA4GMADCBiAKBgG4kMHJsker93DRQ4R8vFndLqYCWHD_QSt351YYFjYnin8oFvNjV4hNLlibXrJiCg1Dl4dnVOCaQV7hjjp9QxsYQI9k5wHXJI44xSn9BHzWs5Cep3jEN0rzqPr72aKfyu9fnjVFM3evuALIZDWuqtC-H5D3qCGxr-amJHx1XFGWVAgMBAAE",
-    issuer_id_pubkey:
-      "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
-    revocation: [
-      {
-        location: "wss://relay.example.com",
-        protocol: "nostr",
-      },
-    ],
+const revocationLocations = [
+  {
+    location: "wss://relay.example.com",
+    protocol: "nostr",
   },
-  proof: {
-    signature:
-      "96f800fa5e8dd9198b1ce92a46b0ddb2c5b2245949e1198a2147bd1714ecccc490203d71a33ec75f38274129c9ffee3ed7c66ec92933f6fd3a3c18e009ca4c88",
-  },
-} satisfies IssuerBundle;
+];
 
-const signedRevocation = {
-  proof: {
-    issuer_id_pubkey:
-      "1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f",
-    signature:
-      "ee9d501b2ebb13671649fcfead294b19f7abd3885b516f119297c645caaabcdc9e0ffadaf015db7d9baede461a81adacaab4cf873cc84a676c04a41054a11f45",
-  },
-  revocation: {
-    credential_digest:
-      "0707070707070707070707070707070707070707070707070707070707070707",
-  },
-} satisfies SignedRevocation;
+function credentialFixture(): {
+  issuer: IssuerContext;
+  issuerBundle: IssuerBundle;
+  signedRevocation: SignedRevocation;
+  credential: SignedCredential;
+} {
+  const issuer = IssuerContext.generate();
+  const issuerBundle = issuer.issuerBundle(revocationLocations) as IssuerBundle;
+  const info = { schema: "fedi-trust-score-v1.0", trust_level: 7 };
+  const blindMsg = "anonymous-holder-public-key";
+  const result = PendingIssuance.createRequest(
+    issuerBundle,
+    info,
+    blindMsg,
+  ) as PendingIssuanceResult;
+  const response = issuer.issueCredential(info, result.request);
+  const credential = result.pending.finalize(
+    issuerBundle,
+    response,
+  ) as SignedCredential;
+
+  return {
+    issuer,
+    issuerBundle,
+    signedRevocation: issuer.revokeCredential(credential) as SignedRevocation,
+    credential,
+  };
+}
 
 describe("issuer bundle verification", () => {
   it("accepts a signed issuer bundle", () => {
+    const { issuerBundle } = credentialFixture();
+
     expect(verifyIssuerBundle(issuerBundle)).toBe(true);
   });
 
   it("rejects tampered issuer bundle metadata", () => {
+    const { issuerBundle } = credentialFixture();
+
     expect(() =>
       verifyIssuerBundle({
         ...issuerBundle,
@@ -66,18 +78,39 @@ describe("issuer bundle verification", () => {
 
 describe("revocation verification", () => {
   it("accepts a signed revocation", () => {
+    const { signedRevocation } = credentialFixture();
+
     expect(verifyRevocation(signedRevocation)).toBe(true);
   });
 
   it("rejects tampered revocation data", () => {
+    const { signedRevocation } = credentialFixture();
+
     expect(() =>
       verifyRevocation({
         ...signedRevocation,
         revocation: {
-          credential_digest:
-            "0808080808080808080808080808080808080808080808080808080808080808",
+          ...signedRevocation.revocation,
+          credential_digest: "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
         },
       }),
     ).toThrow();
+  });
+});
+
+describe("verification context", () => {
+  it("accepts trusted issuer bundles and their revocations", () => {
+    const { issuerBundle, signedRevocation } = credentialFixture();
+    const context = new VerificationContext();
+
+    expect(context.addIssuerBundle(issuerBundle)).toBeUndefined();
+    expect(context.addRevocation(signedRevocation)).toBeUndefined();
+  });
+
+  it("rejects revocations from unknown issuers", () => {
+    const { signedRevocation } = credentialFixture();
+    const context = new VerificationContext();
+
+    expect(() => context.addRevocation(signedRevocation)).toThrow();
   });
 });

@@ -17,3 +17,6 @@ serde_json_canonicalizer = "0.3.2"
 serde_with = { version = "3", features = ["base64"] }
 sha2 = "0.10"
 thiserror = "2"
+
+[dev-dependencies]
+insta = { version = "1", features = ["json"] }
