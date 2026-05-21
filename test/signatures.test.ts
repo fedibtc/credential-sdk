@@ -34,7 +34,6 @@ describe("protocol types", () => {
           "1111111111111111111111111111111111111111111111111111111111111111",
         info,
         blind_msg: "anonymous-holder-public-key",
-        message_randomizer: "base64url-message-randomizer",
       },
       proof: {
         signature: "base64url-signature",

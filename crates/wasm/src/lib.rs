@@ -39,7 +39,6 @@ export interface Credential {
   readonly issuer_id_pubkey: string;
   readonly info: JsonValue;
   readonly blind_msg: JsonValue;
-  readonly message_randomizer: string;
 }
 
 export interface CredentialProof {

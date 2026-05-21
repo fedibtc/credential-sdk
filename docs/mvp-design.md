@@ -97,7 +97,7 @@ Here is this “triangle of trust” showed in the form of a diagram:
       // signature is over whole "credential" object
       // THIS is the final version stored by the holder, so yes this signature
       // is UNblinded
-      "signature": "RSA-signature", // RSAPBSSA-SHA384-PSS-Randomized?
+      "signature": "RSA-signature", // RSAPBSSA-SHA384-PSS-Deterministic?
     }
   }
   ```
@@ -136,7 +136,7 @@ Here is this “triangle of trust” showed in the form of a diagram:
     },
     "proof": {
       "issuer_id_pubkey": "id-public-key",
-      // RSAPBSSA-SHA384-PSS-Randomized?
+      // RSAPBSSA-SHA384-PSS-Deterministic?
       "signature": "partially-blinded-signature"
     }
   }

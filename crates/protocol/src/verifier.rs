@@ -82,11 +82,6 @@ pub(crate) fn verify_credential_with_key(
     )?;
     let message = canonicalize_pbrsa_blind_msg(ProtocolV1, &credential.credential.blind_msg)?;
     let public_key = issuer_public_key.derive_public_key_for_metadata(&metadata)?;
-    public_key.verify(
-        &credential.proof.signature,
-        Some(credential.credential.message_randomizer),
-        &message,
-        Some(&metadata),
-    )?;
+    public_key.verify(&credential.proof.signature, None, &message, Some(&metadata))?;
     Ok(())
 }

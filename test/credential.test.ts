@@ -79,7 +79,6 @@ describe("credential issuance protocol", () => {
         blind_msg: blindMessage,
       },
     });
-    expect(credential.credential.message_randomizer.length).toBeGreaterThan(0);
     expect(credential.proof.signature.length).toBeGreaterThan(0);
   });
 

@@ -100,7 +100,7 @@ fn protocol_snapshots() {
     insta::assert_json_snapshot!(request, @r###"
     {
       "version": 1,
-      "blinded_message": "FF9cznmgAmjeElZCEJ6MgQAA8XYUhFd07blk40zI6Bos9WVFAd-aGyi1YsWXahLmEwqFXesVUO5d18h4gdqCNtZo0EyCHsuluE8h_ZSd5b4lFYPg-kKG1IrXqI9kgX3bQKUMHtaZW6hPiiRTFrZsU9iavtgfm1sq7eMHh4en54mMlCikr9nFes-aYZBNvX06dSMofH8i-1W95bW7F0YYdKhiR0uAZbUiz84D0CXc7rNi7F7Yv1hHnVbRVQi4uca8zLA6LllZ0STtQy-5VyZoD7imHNM38R7cjCR4UksRbyiu7kkhVJmZaiMBx0d09K6UcCtjQO6UjIdv7cpB9urCAg"
+      "blinded_message": "U6Fqf0yjnOp7NLJOBU7L-QUA9hxedZ3IRiIJmpHmX4oaSF_h6804QMQWbaH5bgU1mRuCEdWMTEkQJBIFroEmEU2JJG67Bp5x6P0yqbe2Jk6yjH8uxPuFHd-mAQlvONFgAi1xdQt-8Lp4Df93_h0wFTnex2O-Nf0fU0QtRFR9UEmcAGpBFwSE1op3QI5Pri91EBKOkwyfxvD3cFn_XWvi0A1sZDYGwQIx-oJELH5nrDlcNEKoAwmoudsU8EJQu0kvNtlo57jF-xiJMwbeMpaRdBFtHPMrRrMoceHgHRtEu38pG7Scwv1GXjgvGEjkLaKpHJnKTK8S4vjYiweN3w1dCw"
     }
     "###);
 
@@ -117,7 +117,7 @@ fn protocol_snapshots() {
         "schema": "fedi-trust-score-v1.0",
         "trust_level": 7
       },
-      "blind_signature": "eQbtRHw1216fmcUD-oUDUPw78QzVIolAZpz-3LQGcVnD8EioIN-kYRWVWcg5dsiEpOOpHe2nrjcgrLYLdpmLxbpddXCL4mlEXB5RX-RM30S-kHlfQsOBsuDT-8bzOFBMUlL1nxQOpFhYWzYZqfVMxZBnQGHH2HACfQgKN5UZWo5MRniCgjMUfk3cL-RfGKG9tnWJ7j7vwtkvth91tlN0KSs85OPCR-r_-tjnUB-gbEb2PPOiIOQ_btBvDPt9CxeyJTcMjASAvhZcF4KEj_5zDV4hqusBs18XzTveeRTVTT-bv6BAS-X7sRl6WDXRh2a795yCOMRj9qiWBj2BC1lZRg"
+      "blind_signature": "PSe0AMcYr24uwDkYwcgTm6fKIj_PDtC_7Gou9gTChMrLOr0XVoLSDX37uxawrQ9ayqvZ0rAsAZCh47RLAhhJ0CqyXHoLRm-cpvUmxvfENT956U1SSYmN_t6OEWdYB3Md-cGlC5WB85mO3CfDbK9qe3AscTQtJ9vDO1ic0bjrM477zRIf5HxduydypBXDQZhZCA4ABsfmXgWJSAFZ-wiL_D71h9uIvl7tikyiL3-3SEGQfK9mNJRtuJ7Rxm5znRAwtBUAmNCiE0O5j5PEuiLThE3x29JT-Ph43_nTuXjlABk5FBFhayDK0fSNVh_p0cnAj1S1yTOwU-Qdrx_gQL44Pg"
     }
     "###);
 
@@ -135,11 +135,10 @@ fn protocol_snapshots() {
           "schema": "fedi-trust-score-v1.0",
           "trust_level": 7
         },
-        "blind_msg": "8ec0627df98259165e8f4cc88f57757bad9579c129d729bbd3bef47b0321cbf9",
-        "message_randomizer": "wi6RVxdVBwxS29W5V2GJWvsdpLPh7CnXv6iRLcAIGH8"
+        "blind_msg": "8ec0627df98259165e8f4cc88f57757bad9579c129d729bbd3bef47b0321cbf9"
       },
       "proof": {
-        "signature": "j82xd1fr8OqPPvGhfLozdAi1bU5_G6ct3H34yUXA-SFf_vSiekRlKBJnWS-RloslonlswIajZm6LWu2mjPDfndcWvBd3RIGW6U0u_5FP-MmTqEeieGEHdpGyKEMPrZyB0T1WrswIWPHMEExP5cYA71UTJcKy4aSCIfLtu4aBiNXyQza_CKkKA7Pkdr4OSetVjQEKw37pzTFf4eSA700nvi93SRp7UqZMg7V5rfcPGH7Lgeo9hQRbkvt_Y4SSbiJx4xvATK_LOeP59e1Qq2almvE99kg5xPHR00aRLb1uw8hhKyKEglDD8RuyBAVd9q_pGAIyktmctDigiBBcEUaGoA"
+        "signature": "GvDgrlvrK555RnO1m6S4pU0hJcvCks6E7f1UvdewLA0PGXlP4v6Jksbaamrp3PKTJP9sgTwsmLW4pnnqahf_EwVYsoauYZqVrYxXTTW1EtojUlQFSkoowSZ_s14NCC-3zohFGN-7qTn52KSECZzgLLpNjjvUbzNgQCGhGrSxFx0e7o_oB5dz-QU60DlCxvp64DmdHhycQUkfxTCKSGZ31aXTYZ0WroXkoG_yhgmxuEkPjcGldwjYrFAG-2HbtdLqJ-beLJuEVovkRCoJLJ-4XlthkTV3n7MLs6MiHqnA6NE6ZcU-UC2RUOMc4FkpDksrtaZCbarfDhDK5EHcJHu4cw"
       }
     }
     "###);
@@ -153,11 +152,11 @@ fn protocol_snapshots() {
     {
       "version": 1,
       "revocation": {
-        "credential_digest": "IAvaJQFvAs4j1xahtppMsLMS9qPIQbtOv3RRQmUrAY8"
+        "credential_digest": "tetb3pX05--31jb9ZO8yoU5Wn2xSXm9YdB3tG9fVxUA"
       },
       "proof": {
         "issuer_id_pubkey": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
-        "signature": "onca0kZ9BihkLahwMaMuA03H77Brxfdt7VQJ1zZ98Jr6dwucETJDolXOdwA1DUiFfnrrzWfyeogy6O9o2lW1IA"
+        "signature": "M7jsEWZOiuZFnAP8kpNQI6O5eLDSbPPDtS0P4eBKZyOLdvA6aLKFNE0IbY4_bTKtVxzdAwZpDRVAsMWLlBOn-g"
       }
     }
     "###);

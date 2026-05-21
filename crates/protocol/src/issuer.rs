@@ -1,7 +1,7 @@
 //! Issuer-side PBRSA issuance operations.
 
 use blind_rsa_signatures::{
-    pbrsa::PartiallyBlindKeyPairSha384PSSRandomized,
+    pbrsa::PartiallyBlindKeyPairSha384PSSDeterministic,
     reexports::rand::{rand_core::UnwrapErr, rngs::SysRng},
 };
 use serde_json::Value;
@@ -18,7 +18,7 @@ pub const ISSUER_MODULUS_BITS: usize = 2048;
 #[derive(Clone)]
 pub struct IssuerContext {
     identity_keys: nostr::Keys,
-    key_pair: PartiallyBlindKeyPairSha384PSSRandomized,
+    key_pair: PartiallyBlindKeyPairSha384PSSDeterministic,
 }
 
 impl IssuerContext {
@@ -33,7 +33,10 @@ impl IssuerContext {
     ) -> Result<Self, CredentialsError> {
         Ok(Self {
             identity_keys,
-            key_pair: PartiallyBlindKeyPairSha384PSSRandomized::generate(rng, ISSUER_MODULUS_BITS)?,
+            key_pair: PartiallyBlindKeyPairSha384PSSDeterministic::generate(
+                rng,
+                ISSUER_MODULUS_BITS,
+            )?,
         })
     }
 
@@ -81,13 +84,13 @@ impl IssuerContext {
     pub fn import_secret_key(secret_key: &IssuerSecretKeys) -> Result<Self, CredentialsError> {
         let identity_keys = nostr::Keys::parse(&secret_key.issuer_id_secret_key)?;
         let secret_key =
-            blind_rsa_signatures::pbrsa::PartiallyBlindSecretKeySha384PSSRandomized::from_der(
+            blind_rsa_signatures::pbrsa::PartiallyBlindSecretKeySha384PSSDeterministic::from_der(
                 &secret_key.issuance_secret_key,
             )?;
         let public_key = secret_key.public_key()?;
         Ok(Self {
             identity_keys,
-            key_pair: PartiallyBlindKeyPairSha384PSSRandomized {
+            key_pair: PartiallyBlindKeyPairSha384PSSDeterministic {
                 pk: public_key,
                 sk: secret_key,
             },
