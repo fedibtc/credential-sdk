@@ -1,13 +1,18 @@
 //! Issuer-side PBRSA issuance operations.
 
-use blind_rsa_signatures::{pbrsa::PartiallyBlindKeyPairSha384PSSRandomized, DefaultRng};
+use blind_rsa_signatures::{
+    pbrsa::PartiallyBlindKeyPairSha384PSSRandomized,
+    reexports::rand::{rand_core::UnwrapErr, rngs::SysRng},
+};
 use serde_json::Value;
 
 use crate::{
     canonicalize_pbrsa_info, CredentialsError, IssuanceRequest, IssuanceResponse, Issuer,
-    IssuerBundle, IssuerId, PbrsaPublicKey, ProtocolV1, Revocation, RevocationLocation,
+    IssuerBundle, IssuerId, IssuerSecretKeys, ProtocolV1, Revocation, RevocationLocation,
     RevocationProof, SchnorrSignatureProof, SignedCredential, SignedRevocation,
 };
+
+pub const ISSUER_MODULUS_BITS: usize = 1024;
 
 /// Runtime issuer context containing issuer identity and PBRSA signing key.
 #[derive(Clone)]
@@ -18,41 +23,18 @@ pub struct IssuerContext {
 
 impl IssuerContext {
     /// Generate an issuer context with fresh Nostr identity and PBRSA key pairs.
-    pub fn generate(modulus_bits: usize) -> Result<Self, CredentialsError> {
-        Self::generate_with_rng(nostr::Keys::generate(), modulus_bits, &mut DefaultRng)
+    pub fn generate() -> Result<Self, CredentialsError> {
+        Self::generate_with_rng(nostr::Keys::generate(), &mut UnwrapErr(SysRng))
     }
 
     pub(crate) fn generate_with_rng(
         identity_keys: nostr::Keys,
-        modulus_bits: usize,
         rng: &mut (impl blind_rsa_signatures::reexports::rsa::rand_core::CryptoRng + ?Sized),
     ) -> Result<Self, CredentialsError> {
         Ok(Self {
             identity_keys,
-            key_pair: PartiallyBlindKeyPairSha384PSSRandomized::generate(rng, modulus_bits)?,
+            key_pair: PartiallyBlindKeyPairSha384PSSRandomized::generate(rng, ISSUER_MODULUS_BITS)?,
         })
-    }
-
-    pub fn from_key_pair(
-        identity_keys: nostr::Keys,
-        key_pair: PartiallyBlindKeyPairSha384PSSRandomized,
-    ) -> Self {
-        Self {
-            identity_keys,
-            key_pair,
-        }
-    }
-
-    pub fn issuer_id(&self) -> IssuerId {
-        IssuerId(self.identity_keys.public_key())
-    }
-
-    pub fn nostr_secret_key(&self) -> String {
-        self.identity_keys.secret_key().to_secret_hex()
-    }
-
-    pub fn public_key(&self) -> PbrsaPublicKey {
-        self.key_pair.pk.clone()
     }
 
     /// Build and sign this issuer's public metadata.
@@ -73,7 +55,7 @@ impl IssuerContext {
     ) -> Result<IssuerBundle, CredentialsError> {
         let issuer = Issuer {
             issuer_id_pubkey: self.issuer_id(),
-            issuance_key: self.public_key(),
+            issuance_key: self.key_pair.pk.clone(),
             revocation,
         };
         let signature = self.sign_identity_digest_with_rng(issuer.digest()?, rng);
@@ -85,17 +67,23 @@ impl IssuerContext {
         })
     }
 
-    pub fn secret_key_der(&self) -> Result<Vec<u8>, CredentialsError> {
-        Ok(self.key_pair.sk.to_der()?)
+    fn issuer_id(&self) -> IssuerId {
+        IssuerId(self.identity_keys.public_key())
     }
 
-    pub fn from_secret_key_der(
-        identity_secret_key: &str,
-        der: &[u8],
-    ) -> Result<Self, CredentialsError> {
-        let identity_keys = nostr::Keys::parse(identity_secret_key)?;
+    pub fn export_secret_key(&self) -> Result<IssuerSecretKeys, CredentialsError> {
+        Ok(IssuerSecretKeys {
+            issuer_id_secret_key: self.identity_keys.secret_key().to_secret_hex(),
+            issuance_secret_key: self.key_pair.sk.to_der()?,
+        })
+    }
+
+    pub fn import_secret_key(secret_key: &IssuerSecretKeys) -> Result<Self, CredentialsError> {
+        let identity_keys = nostr::Keys::parse(&secret_key.issuer_id_secret_key)?;
         let secret_key =
-            blind_rsa_signatures::pbrsa::PartiallyBlindSecretKeySha384PSSRandomized::from_der(der)?;
+            blind_rsa_signatures::pbrsa::PartiallyBlindSecretKeySha384PSSRandomized::from_der(
+                &secret_key.issuance_secret_key,
+            )?;
         let public_key = secret_key.public_key()?;
         Ok(Self {
             identity_keys,
@@ -112,7 +100,7 @@ impl IssuerContext {
         info: Value,
         request: &IssuanceRequest,
     ) -> Result<IssuanceResponse, CredentialsError> {
-        self.issue_credential_with_rng(info, request, &mut DefaultRng)
+        self.issue_credential_with_rng(info, request, &mut UnwrapErr(SysRng))
     }
 
     pub(crate) fn issue_credential_with_rng(

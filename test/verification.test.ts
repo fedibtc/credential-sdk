@@ -27,24 +27,24 @@ function credentialFixture(): {
   signedRevocation: SignedRevocation;
   credential: SignedCredential;
 } {
-  const issuer = IssuerContext.generate(1024);
+  const issuer = IssuerContext.generate();
+  const issuerBundle = issuer.issuerBundle(revocationLocations) as IssuerBundle;
   const info = { schema: "fedi-trust-score-v1.0", trust_level: 7 };
   const blindMsg = "anonymous-holder-public-key";
   const result = PendingIssuance.createRequest(
-    issuer.publicKey,
-    issuer.issuerId,
+    issuerBundle,
     info,
     blindMsg,
   ) as PendingIssuanceResult;
   const response = issuer.issueCredential(info, result.request);
   const credential = result.pending.finalize(
-    issuer.publicKey,
+    issuerBundle,
     response,
   ) as SignedCredential;
 
   return {
     issuer,
-    issuerBundle: issuer.issuerBundle(revocationLocations) as IssuerBundle,
+    issuerBundle,
     signedRevocation: issuer.revokeCredential(credential) as SignedRevocation,
     credential,
   };

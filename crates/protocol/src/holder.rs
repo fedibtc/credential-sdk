@@ -1,6 +1,9 @@
 //! Holder-side PBRSA issuance operations.
 
-use blind_rsa_signatures::BlindingResult;
+use blind_rsa_signatures::{
+    reexports::rand::{rand_core::UnwrapErr, rngs::SysRng},
+    BlindingResult,
+};
 use serde_json::Value;
 
 use crate::{
@@ -8,6 +11,34 @@ use crate::{
     Credential, CredentialProof, CredentialsError, IssuanceRequest, IssuanceResponse, IssuerId,
     PbrsaPublicKey, ProtocolV1, SignedCredential,
 };
+
+/// Runtime holder context containing holder identity keys.
+#[derive(Clone)]
+pub struct HolderContext {
+    identity_keys: nostr::Keys,
+}
+
+impl HolderContext {
+    pub fn generate() -> Self {
+        Self {
+            identity_keys: nostr::Keys::generate(),
+        }
+    }
+
+    pub fn import_secret_key(secret_key: &str) -> Result<Self, CredentialsError> {
+        Ok(Self {
+            identity_keys: nostr::Keys::parse(secret_key)?,
+        })
+    }
+
+    pub fn export_secret_key(&self) -> String {
+        self.identity_keys.secret_key().to_secret_hex()
+    }
+
+    pub fn public_key(&self) -> nostr::PublicKey {
+        self.identity_keys.public_key()
+    }
+}
 
 /// Holder-side pending issuance state.
 pub struct PendingIssuance {
@@ -25,7 +56,7 @@ impl PendingIssuance {
         info: Value,
         blind_msg: Value,
     ) -> Result<(IssuanceRequest, Self), CredentialsError> {
-        let mut rng = blind_rsa_signatures::DefaultRng;
+        let mut rng = UnwrapErr(SysRng);
 
         Self::create_request_with_rng(issuer_public_key, issuer_id, info, blind_msg, &mut rng)
     }

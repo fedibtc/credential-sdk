@@ -6,13 +6,19 @@ import {
   PendingIssuance,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 import type {
-  SignedCredential,
+  IssuerBundle,
   IssuanceResponse,
   PendingIssuanceResult,
+  SignedCredential,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 
-const issuerId = "11".repeat(32);
 const otherIssuerId = "22".repeat(32);
+const revocationLocations = [
+  {
+    location: "wss://relay.example.com",
+    protocol: "nostr",
+  },
+];
 
 const credentialInfo = {
   schema: "fedi-trust-score-v1.0",
@@ -22,21 +28,23 @@ const credentialInfo = {
 const blindMessage = "anonymous-holder-public-key";
 
 function createPendingIssuance(
-  issuer = IssuerContext.generate(1024),
+  issuer = IssuerContext.generate(),
 ): {
   issuer: IssuerContext;
+  issuerBundle: IssuerBundle;
   request: PendingIssuanceResult["request"];
   pending: PendingIssuanceResult["pending"];
 } {
+  const issuerBundle = issuer.issuerBundle(revocationLocations) as IssuerBundle;
   const result = PendingIssuance.createRequest(
-    issuer.publicKey,
-    issuer.issuerId,
+    issuerBundle,
     credentialInfo,
     blindMessage,
   ) as PendingIssuanceResult;
 
   return {
     issuer,
+    issuerBundle,
     request: result.request,
     pending: result.pending,
   };
@@ -44,10 +52,9 @@ function createPendingIssuance(
 
 describe("credential issuance protocol", () => {
   it("round trips holder request, issuer response, holder finalization, and verification", () => {
-    const { issuer, request, pending } = createPendingIssuance();
-    const issuerId = issuer.issuerId;
+    const { issuer, issuerBundle, request, pending } = createPendingIssuance();
+    const issuerId = issuerBundle.issuer.issuer_id_pubkey;
 
-    expect(issuer.issuerId).toBe(issuerId);
     expect(request.version).toBe(1);
     expect(request.blinded_message.length).toBeGreaterThan(0);
     expect(request.blinded_message).not.toContain(blindMessage);
@@ -64,7 +71,7 @@ describe("credential issuance protocol", () => {
     expect(response.blind_signature.length).toBeGreaterThan(0);
 
     const credential = pending.finalize(
-      issuer.publicKey,
+      issuerBundle,
       response,
     ) as SignedCredential;
     expect(credential).toMatchObject({
@@ -80,19 +87,16 @@ describe("credential issuance protocol", () => {
   });
 
   it("imports issuer secret keys and public keys from DER", () => {
-    const issuer = IssuerContext.generate(1024);
-    const importedIssuer = IssuerContext.fromSecretKeyDer(
-      issuer.nostrSecretKey(),
-      issuer.secretKeyDer(),
-    );
-    const importedPublicKey = PbrsaPublicKey.fromDer(issuer.publicKey.toDer());
+    const issuer = IssuerContext.generate();
+    const issuerBundle = issuer.issuerBundle(revocationLocations) as IssuerBundle;
+    const importedIssuer = IssuerContext.importSecretKey(issuer.exportSecretKey());
+    const importedBundle = importedIssuer.issuerBundle(revocationLocations) as IssuerBundle;
 
-    expect(importedIssuer.issuerId).toBe(issuer.issuerId);
-    expect(Array.from(importedIssuer.publicKey.toDer())).toEqual(
-      Array.from(issuer.publicKey.toDer()),
+    expect(importedBundle.issuer.issuer_id_pubkey).toBe(
+      issuerBundle.issuer.issuer_id_pubkey,
     );
-    expect(Array.from(importedPublicKey.toDer())).toEqual(
-      Array.from(issuer.publicKey.toDer()),
+    expect(importedBundle.issuer.issuance_key).toBe(
+      issuerBundle.issuer.issuance_key,
     );
 
     const { request, pending } = createPendingIssuance(importedIssuer);
@@ -100,9 +104,9 @@ describe("credential issuance protocol", () => {
       credentialInfo,
       request,
     ) as IssuanceResponse;
-    expect(pending.finalize(importedPublicKey, response) as SignedCredential).toMatchObject({
+    expect(pending.finalize(importedBundle, response) as SignedCredential).toMatchObject({
       credential: {
-        issuer_id_pubkey: issuer.issuerId,
+        issuer_id_pubkey: issuerBundle.issuer.issuer_id_pubkey,
         info: credentialInfo,
         blind_msg: blindMessage,
       },
@@ -111,26 +115,29 @@ describe("credential issuance protocol", () => {
 
   it("rejects malformed issuer and public key inputs", () => {
     expect(() =>
-      IssuerContext.fromSecretKeyDer("not-a-hex-key", new Uint8Array([1, 2, 3])),
+      IssuerContext.importSecretKey({
+        issuer_id_secret_key: "not-a-hex-key",
+        issuance_secret_key: "AQID",
+      }),
     ).toThrow();
     expect(() => PbrsaPublicKey.fromDer(new Uint8Array([1, 2, 3]))).toThrow();
   });
 
   it("rejects finalization with mismatched issuer responses", () => {
-    const { issuer, request, pending } = createPendingIssuance();
+    const { issuer, issuerBundle, request, pending } = createPendingIssuance();
     const response = issuer.issueCredential(
       credentialInfo,
       request,
     ) as IssuanceResponse;
 
     expect(() =>
-      pending.finalize(issuer.publicKey, {
+      pending.finalize(issuerBundle, {
         ...response,
         issuer_id: otherIssuerId,
       }),
     ).toThrow();
     expect(() =>
-      pending.finalize(issuer.publicKey, {
+      pending.finalize(issuerBundle, {
         ...response,
         info: {
           ...credentialInfo,
@@ -140,20 +147,20 @@ describe("credential issuance protocol", () => {
     ).toThrow();
     expect(() =>
       pending.finalize(
-        IssuerContext.generate(1024).publicKey,
+        IssuerContext.generate().issuerBundle(revocationLocations) as IssuerBundle,
         response,
       ),
     ).toThrow();
   });
 
   it("rejects tampered finalized credentials during finalization checks", () => {
-    const { issuer, request, pending } = createPendingIssuance();
+    const { issuer, issuerBundle, request, pending } = createPendingIssuance();
     const response = issuer.issueCredential(
       credentialInfo,
       request,
     ) as IssuanceResponse;
     expect(() =>
-      pending.finalize(issuer.publicKey, {
+      pending.finalize(issuerBundle, {
         ...response,
         blind_signature: response.blind_signature.slice(1),
       }),

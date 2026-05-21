@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use fedi_credential_sdk_protocol as protocol;
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
@@ -24,6 +22,11 @@ export interface IssuanceResponse {
   readonly issuer_id: string;
   readonly info: JsonValue;
   readonly blind_signature: string;
+}
+
+export interface IssuerSecretKeys {
+  readonly issuer_id_secret_key: string;
+  readonly issuance_secret_key: string;
 }
 
 export interface SignedCredential {
@@ -100,10 +103,6 @@ fn to_js<T: Serialize>(value: &T) -> Result<JsValue, JsError> {
         .map_err(|error| JsError::new(&error.to_string()))
 }
 
-fn parse_issuer_id(issuer_id: &str) -> Result<protocol::IssuerId, JsError> {
-    protocol::IssuerId::from_str(issuer_id).map_err(|error| JsError::new(&error.to_string()))
-}
-
 fn reflect_error(error: JsValue) -> JsError {
     JsError::new(
         &error
@@ -121,42 +120,23 @@ pub struct IssuerContext {
 #[wasm_bindgen]
 impl IssuerContext {
     #[wasm_bindgen(js_name = generate)]
-    pub fn generate(modulus_bits: usize) -> Result<IssuerContext, JsError> {
+    pub fn generate() -> Result<IssuerContext, JsError> {
         Ok(Self {
-            inner: protocol::IssuerContext::generate(modulus_bits)?,
+            inner: protocol::IssuerContext::generate()?,
         })
     }
 
-    #[wasm_bindgen(js_name = fromSecretKeyDer)]
-    pub fn from_secret_key_der(
-        nostr_secret_key: String,
-        der: Vec<u8>,
-    ) -> Result<IssuerContext, JsError> {
+    #[wasm_bindgen(js_name = importSecretKey)]
+    pub fn import_secret_key(secret_key: JsValue) -> Result<IssuerContext, JsError> {
+        let secret_key: protocol::IssuerSecretKeys = from_js(secret_key)?;
         Ok(Self {
-            inner: protocol::IssuerContext::from_secret_key_der(&nostr_secret_key, &der)?,
+            inner: protocol::IssuerContext::import_secret_key(&secret_key)?,
         })
     }
 
-    #[wasm_bindgen(getter, js_name = issuerId)]
-    pub fn issuer_id(&self) -> String {
-        self.inner.issuer_id().0.to_string()
-    }
-
-    #[wasm_bindgen(getter, js_name = publicKey)]
-    pub fn public_key(&self) -> PbrsaPublicKey {
-        PbrsaPublicKey {
-            inner: self.inner.public_key(),
-        }
-    }
-
-    #[wasm_bindgen(js_name = secretKeyDer)]
-    pub fn secret_key_der(&self) -> Result<Vec<u8>, JsError> {
-        Ok(self.inner.secret_key_der()?)
-    }
-
-    #[wasm_bindgen(js_name = nostrSecretKey)]
-    pub fn nostr_secret_key(&self) -> String {
-        self.inner.nostr_secret_key()
+    #[wasm_bindgen(js_name = exportSecretKey)]
+    pub fn export_secret_key(&self) -> Result<JsValue, JsError> {
+        to_js(&self.inner.export_secret_key()?)
     }
 
     #[wasm_bindgen(js_name = issueCredential)]
@@ -176,6 +156,39 @@ impl IssuerContext {
     pub fn revoke_credential(&self, credential: JsValue) -> Result<JsValue, JsError> {
         let credential: protocol::SignedCredential = from_js(credential)?;
         to_js(&self.inner.revoke_credential(&credential)?)
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Clone)]
+pub struct HolderContext {
+    inner: protocol::HolderContext,
+}
+
+#[wasm_bindgen]
+impl HolderContext {
+    #[wasm_bindgen(js_name = generate)]
+    pub fn generate() -> HolderContext {
+        Self {
+            inner: protocol::HolderContext::generate(),
+        }
+    }
+
+    #[wasm_bindgen(js_name = importSecretKey)]
+    pub fn import_secret_key(secret_key: String) -> Result<HolderContext, JsError> {
+        Ok(Self {
+            inner: protocol::HolderContext::import_secret_key(&secret_key)?,
+        })
+    }
+
+    #[wasm_bindgen(js_name = exportSecretKey)]
+    pub fn export_secret_key(&self) -> String {
+        self.inner.export_secret_key()
+    }
+
+    #[wasm_bindgen(getter, js_name = publicKey)]
+    pub fn public_key(&self) -> String {
+        self.inner.public_key().to_string()
     }
 }
 
@@ -209,16 +222,16 @@ pub struct PendingIssuance {
 impl PendingIssuance {
     #[wasm_bindgen(js_name = createRequest)]
     pub fn create_request(
-        issuer_public_key: &PbrsaPublicKey,
-        issuer_id: String,
+        issuer_bundle: JsValue,
         info: JsValue,
         blind_msg: JsValue,
     ) -> Result<JsValue, JsError> {
+        let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
         let info: serde_json::Value = from_js(info)?;
         let blind_msg: serde_json::Value = from_js(blind_msg)?;
         let (request, pending) = protocol::PendingIssuance::create_request(
-            &issuer_public_key.inner,
-            parse_issuer_id(&issuer_id)?,
+            &issuer_bundle.issuer.issuance_key,
+            issuer_bundle.issuer.issuer_id_pubkey,
             info,
             blind_msg,
         )?;
@@ -235,13 +248,14 @@ impl PendingIssuance {
         Ok(result.into())
     }
 
-    pub fn finalize(
-        self,
-        issuer_public_key: &PbrsaPublicKey,
-        response: JsValue,
-    ) -> Result<JsValue, JsError> {
+    pub fn finalize(self, issuer_bundle: JsValue, response: JsValue) -> Result<JsValue, JsError> {
+        let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
         let response: protocol::IssuanceResponse = from_js(response)?;
-        to_js(&self.inner.finalize(&issuer_public_key.inner, &response)?)
+        to_js(
+            &self
+                .inner
+                .finalize(&issuer_bundle.issuer.issuance_key, &response)?,
+        )
     }
 }
 

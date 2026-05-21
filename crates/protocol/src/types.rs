@@ -92,8 +92,14 @@ impl FromStr for IssuerId {
     }
 }
 
-// Revocation transport, issuer-bundle publication, and trust-list policy can
-// change without breaking the core credential protocol.
+/// JSON-friendly issuer secret export.
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IssuerSecretKeys {
+    pub issuer_id_secret_key: String,
+    #[serde_as(as = "Base64UrlUnpadded")]
+    pub issuance_secret_key: Vec<u8>,
+}
 
 /// Signed issuer metadata used by verifiers before accepting credentials.
 #[serde_as]

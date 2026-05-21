@@ -9,7 +9,7 @@ type PbrsaRng = blind_rsa_signatures::reexports::rand::rngs::StdRng;
 
 fn issuer_context(nostr_rng: &mut NostrRng, pbrsa_rng: &mut PbrsaRng) -> IssuerContext {
     let identity_keys = nostr::Keys::generate_with_rng(nostr_rng);
-    IssuerContext::generate_with_rng(identity_keys, 1024, pbrsa_rng).unwrap()
+    IssuerContext::generate_with_rng(identity_keys, pbrsa_rng).unwrap()
 }
 
 #[test]
@@ -29,7 +29,6 @@ fn protocol_snapshots() {
 
     // Create issuer metadata before any holder interaction.
     let issuer = issuer_context(&mut nostr_rng, &mut pbrsa_rng);
-    let public_key = issuer.public_key();
     let issuer_bundle = issuer
         .issuer_bundle_with_rng(
             vec![RevocationLocation {
@@ -61,8 +60,8 @@ fn protocol_snapshots() {
 
     // Create the holder's blinded issuance request.
     let (request, pending) = PendingIssuance::create_request_with_rng(
-        &public_key,
-        issuer.issuer_id(),
+        &issuer_bundle.issuer.issuance_key,
+        issuer_bundle.issuer.issuer_id_pubkey.clone(),
         credential_info.clone(),
         blind_msg,
         &mut pbrsa_rng,
@@ -94,7 +93,9 @@ fn protocol_snapshots() {
     "###);
 
     // Finalize the blinded response into the holder's credential.
-    let mut credential = pending.finalize(&public_key, &response).unwrap();
+    let mut credential = pending
+        .finalize(&issuer_bundle.issuer.issuance_key, &response)
+        .unwrap();
 
     insta::assert_json_snapshot!(credential, @r###"
     {
@@ -154,16 +155,13 @@ fn protocol_snapshots() {
     "###);
 
     // Importing persisted issuer secrets must preserve both identity and issuance keys.
-    let imported = IssuerContext::from_secret_key_der(
-        &issuer.nostr_secret_key(),
-        &issuer.secret_key_der().unwrap(),
-    )
-    .unwrap();
+    let imported = IssuerContext::import_secret_key(&issuer.export_secret_key().unwrap()).unwrap();
+    let imported_bundle = imported.issuer_bundle(vec![]).unwrap();
 
     insta::assert_json_snapshot!(json!({
-        "original_issuer_id": issuer.issuer_id(),
-        "imported_issuer_id": imported.issuer_id(),
-        "same_issuance_public_key": issuer.public_key() == imported.public_key(),
+        "original_issuer_id": issuer_bundle.issuer.issuer_id_pubkey,
+        "imported_issuer_id": imported_bundle.issuer.issuer_id_pubkey,
+        "same_issuance_public_key": issuer_bundle.issuer.issuance_key == imported_bundle.issuer.issuance_key,
     }), @r###"
     {
       "imported_issuer_id": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
