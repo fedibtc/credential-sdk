@@ -86,10 +86,6 @@ export interface PendingIssuanceResult {
   readonly request: IssuanceRequest;
   readonly pending: PendingIssuance;
 }
-
-export function verifyIssuerBundle(issuerBundle: IssuerBundle): boolean;
-
-export function verifyRevocation(revocation: SignedRevocation): boolean;
 "#;
 
 fn from_js<T: DeserializeOwned>(value: JsValue) -> Result<T, JsError> {
@@ -204,27 +200,6 @@ impl HolderContext {
 }
 
 #[wasm_bindgen]
-#[derive(Clone)]
-pub struct PbrsaPublicKey {
-    inner: protocol::PbrsaPublicKey,
-}
-
-#[wasm_bindgen]
-impl PbrsaPublicKey {
-    #[wasm_bindgen(js_name = fromDer)]
-    pub fn from_der(der: Vec<u8>) -> Result<PbrsaPublicKey, JsError> {
-        Ok(Self {
-            inner: protocol::PbrsaPublicKey::from_der(&der)?,
-        })
-    }
-
-    #[wasm_bindgen(js_name = toDer)]
-    pub fn to_der(&self) -> Result<Vec<u8>, JsError> {
-        Ok(self.inner.to_der()?)
-    }
-}
-
-#[wasm_bindgen]
 pub struct PendingIssuance {
     inner: protocol::PendingIssuance,
 }
@@ -316,22 +291,4 @@ impl VerificationContext {
         self.inner.verify_credential(&credential)?;
         Ok(true)
     }
-}
-
-#[wasm_bindgen(js_name = verifyIssuerBundle)]
-pub fn verify_issuer_bundle(
-    #[wasm_bindgen(unchecked_param_type = "IssuerBundle")] issuer_bundle: JsValue,
-) -> Result<bool, JsError> {
-    let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
-    issuer_bundle.verify()?;
-    Ok(true)
-}
-
-#[wasm_bindgen(js_name = verifyRevocation)]
-pub fn verify_revocation(
-    #[wasm_bindgen(unchecked_param_type = "SignedRevocation")] revocation: JsValue,
-) -> Result<bool, JsError> {
-    let revocation: protocol::SignedRevocation = from_js(revocation)?;
-    revocation.verify()?;
-    Ok(true)
 }

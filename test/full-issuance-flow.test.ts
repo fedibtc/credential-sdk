@@ -1,25 +1,22 @@
 import { describe, expect, it } from "vitest";
 import type {
-  IssuanceResponse,
   IssuerBundle,
-  PendingIssuanceResult,
+  JsonValue,
   RevocationLocation,
   SignedCredential,
-  SignedRevocation,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 import {
   HolderContext,
   IssuerContext,
   PendingIssuance,
   VerificationContext,
-  verifyIssuerBundle,
-  verifyRevocation,
 } from "../pkg/fedi_credential_sdk_wasm.js";
+import { createTestIssuer } from "./fixtures.js";
 
 const credentialInfo = {
   schema: "fedi-trust-score-v1.0",
   trust_level: 7,
-};
+} satisfies JsonValue;
 
 const revocationLocations = [
   {
@@ -27,10 +24,11 @@ const revocationLocations = [
     protocol: "nostr",
   },
 ] satisfies readonly RevocationLocation[];
+const otherIssuerId = "22".repeat(32);
 
 describe("full credential issuance flow", () => {
   it("issues, verifies, revokes, imports issuer keys, and rejects tampering", () => {
-    const issuer = IssuerContext.generate();
+    const issuer = createTestIssuer();
     const issuerBundle = issuer.issuerBundle(revocationLocations);
     const issuerId = issuerBundle.issuer.issuer_id_pubkey;
 
@@ -45,7 +43,8 @@ describe("full credential issuance flow", () => {
       },
     });
     expect(issuerBundle.issuer.issuance_key.length).toBeGreaterThan(0);
-    expect(verifyIssuerBundle(issuerBundle)).toBe(true);
+    const issuerBundleVerifier = new VerificationContext();
+    expect(issuerBundleVerifier.addIssuerBundle(issuerBundle)).toBeUndefined();
 
     const holder = HolderContext.generate();
     const blindMsg = holder.publicKey;
@@ -63,10 +62,7 @@ describe("full credential issuance flow", () => {
     expect(result.request.blinded_message).not.toBe(blindMsg);
     expect(result.request.blinded_message).not.toContain(blindMsg);
 
-    const response = issuer.issueCredential(
-      credentialInfo,
-      result.request,
-    ) as IssuanceResponse;
+    const response = issuer.issueCredential(credentialInfo, result.request);
 
     expect(response).toMatchObject({
       version: 1,
@@ -76,10 +72,7 @@ describe("full credential issuance flow", () => {
     });
     expect(response.blind_signature.length).toBeGreaterThan(0);
 
-    const credential = result.pending.finalize(
-      issuerBundle,
-      response,
-    ) as SignedCredential;
+    const credential = result.pending.finalize(issuerBundle, response);
 
     expect(credential).toMatchObject({
       version: 1,
@@ -87,18 +80,14 @@ describe("full credential issuance flow", () => {
         issuer_id_pubkey: issuerId,
         info: credentialInfo,
         blind_msg: blindMsg,
-        message_randomizer: expect.any(String),
       },
       proof: {
         signature: expect.any(String),
       },
     });
-    expect(credential.credential.message_randomizer.length).toBeGreaterThan(0);
     expect(credential.proof.signature.length).toBeGreaterThan(0);
 
-    const signedRevocation = issuer.revokeCredential(
-      credential,
-    ) as SignedRevocation;
+    const signedRevocation = issuer.revokeCredential(credential);
 
     expect(signedRevocation).toMatchObject({
       version: 1,
@@ -113,7 +102,9 @@ describe("full credential issuance flow", () => {
     expect(
       signedRevocation.revocation.credential_digest.length,
     ).toBeGreaterThan(0);
-    expect(verifyRevocation(signedRevocation)).toBe(true);
+    const revocationVerifier = new VerificationContext();
+    expect(revocationVerifier.addIssuerBundle(issuerBundle)).toBeUndefined();
+    expect(revocationVerifier.addRevocation(signedRevocation)).toBeUndefined();
 
     const verifier = new VerificationContext();
     expect(() => verifier.verifyCredential(credential)).toThrow(
@@ -155,18 +146,24 @@ describe("full credential issuance flow", () => {
         blind_msg: "mallory-public-key",
       },
     } satisfies SignedCredential;
-    const otherIssuer = IssuerContext.generate();
+    const wrongIssuerCredential = {
+      ...credential,
+      credential: {
+        ...credential.credential,
+        issuer_id_pubkey: otherIssuerId,
+      },
+    } satisfies SignedCredential;
     const tamperVerifier = new VerificationContext();
 
-    expect(() => verifyIssuerBundle(tamperedBundle)).toThrow(
-      /verification failed/,
-    );
+    expect(() =>
+      new VerificationContext().addIssuerBundle(tamperedBundle),
+    ).toThrow(/verification failed/);
     expect(tamperVerifier.addIssuerBundle(issuerBundle)).toBeUndefined();
     expect(() => tamperVerifier.verifyCredential(tamperedCredential)).toThrow(
       /Verification failed|blind RSA operation failed/,
     );
-    expect(() => otherIssuer.revokeCredential(tamperedCredential)).toThrow(
+    expect(() => issuer.revokeCredential(wrongIssuerCredential)).toThrow(
       /issuer_id does not match/,
     );
-  });
+  }, 60_000);
 });

@@ -20,7 +20,6 @@ The current protocol shape separates issuer-visible data from holder-hidden data
       trust_level: 7,
     },
     blind_msg: "anonymous-holder-public-key",
-    message_randomizer: "base64url-message-randomizer",
   },
   proof: {
     signature: "base64url-rsa-signature",
@@ -38,8 +37,6 @@ The current high-level API is organized around runtime contexts:
 - `PendingIssuance`: create holder issuance requests and finalize issuer responses
 - `HolderContext`: generate/import/export holder identity keys
 - `VerificationContext`: trust issuer bundles, ingest revocations, and verify credentials
-- `verifyIssuerBundle()` and `verifyRevocation()` for standalone signed-object checks
-- `PbrsaPublicKey` for low-level issuance public key DER import/export
 
 ## Status
 

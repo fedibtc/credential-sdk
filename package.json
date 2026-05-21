@@ -18,10 +18,10 @@
     "format:check": "biome format vitest.config.ts test",
     "format:pkg": "biome format --write --vcs-enabled=false pkg",
     "lint": "biome lint vitest.config.ts test",
-    "typecheck": "pnpm run build && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json",
     "test:rust": "cargo test --workspace",
     "test:ts": "pnpm run typecheck && vitest run --testTimeout 30000",
-    "test": "pnpm run test:rust && pnpm run test:ts",
+    "test": "pnpm run build && pnpm run test:rust && pnpm run test:ts",
     "pack": "pnpm run build && wasm-pack pack --pkg-dir pkg",
     "publish": "pnpm run build && wasm-pack publish --pkg-dir pkg --access public",
     "publish:dry-run": "pnpm run build && npm publish ./pkg --dry-run --access public"
