@@ -5,5 +5,15 @@ members = [
 ]
 resolver = "2"
 
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/fedibtc/credential-sdk"
+readme = "README.md"
+
+[workspace.dependencies]
+fedi-credential-sdk-protocol = { path = "crates/protocol", version = "0.0.0" }
+
 [profile.release]
 opt-level = "s"

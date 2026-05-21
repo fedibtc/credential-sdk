@@ -522,7 +522,7 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 
 [[package]]
 name = "fedi-credential-sdk-protocol"
-version = "0.1.1"
+version = "0.0.0"
 dependencies = [
  "blind-rsa-signatures",
  "hex",
@@ -538,7 +538,7 @@ dependencies = [
 
 [[package]]
 name = "fedi-credential-sdk-wasm"
-version = "0.1.1"
+version = "0.0.0"
 dependencies = [
  "fedi-credential-sdk-protocol",
  "getrandom 0.4.2",
