@@ -119,7 +119,9 @@ if (!pendingState) {
 }
 
 const importedPending = PendingIssuance.importState(pendingState);
-const response = issuer.issueCredential(credentialInfo, request);
+
+// Receive the issuer's response through your application transport.
+const response = await receiveIssuanceResponse();
 const credential = importedPending.finalize(issuerBundle, response);
 localStorage.removeItem("pending-issuance");
 ```

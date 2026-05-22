@@ -15,6 +15,7 @@ const DOCUMENT_PAGES = {
   "import-and-export-holder-keys": "Import_And_Export_Holder_Keys.html",
   "handle-thrown-javascript-errors": "Handle_Thrown_JavaScript_Errors.html",
   "choose-info-vs-blind-msg": "Choose_Info_Vs_Blind_Msg.html",
+  "integrate-transport-outside-sdk": "Integrate_Transport_Outside_The_SDK.html",
   "integrate-transport-outside-the-sdk":
     "Integrate_Transport_Outside_The_SDK.html",
   architecture: "Architecture.html",
@@ -28,6 +29,7 @@ const CORE_DOCUMENTS = [
   ["Architecture", "Architecture.html"],
   ["Protocol Flow", "Protocol_Flow.html"],
   ["Verification And Revocation", "Verification_And_Revocation.html"],
+  ["Rust API", "Rust_API.html"],
 ];
 
 const GUIDES = [
@@ -49,7 +51,6 @@ const PROJECT_DISPLAY_NAME = "Fedi Credential SDK";
 const NPM_MODULE_PAGE = "modules/pkg_fedi_credential_sdk_wasm.html";
 const NPM_MODULE_REFLECTION_NAME = "pkg/fedi_credential_sdk_wasm";
 const NPM_MODULE_DISPLAY_NAME = "Fedi Credential SDK (npm)";
-const RUST_API_PAGE = "documents/Rust_API.html";
 const RUST_PROTOCOL_PAGE = "rust/fedi_credential_sdk_protocol/index.html";
 const RUST_WASM_PAGE = "rust/fedi_credential_sdk_wasm/index.html";
 
@@ -356,7 +357,7 @@ export function load(app) {
             JSX.createElement(
               "a",
               { href: "https://github.com/fedibtc/credential-sdk" },
-              "fedibtc/credential-sdk",
+              "GitHub repo",
             ),
           ),
           JSX.createElement(
@@ -369,19 +370,6 @@ export function load(app) {
               },
               "npm package",
             ),
-          ),
-        ),
-      ),
-      JSX.createElement(
-        "section",
-        null,
-        JSX.createElement(
-          "h3",
-          null,
-          JSX.createElement(
-            "a",
-            { href: context.relativeURL(RUST_API_PAGE) },
-            "Rust API",
           ),
         ),
       ),
