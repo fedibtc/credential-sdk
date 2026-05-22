@@ -55,18 +55,19 @@ Target a Diataxis-style split:
 ### 1. Documentation Audit
 
 - [x] Review `README.md` for current accuracy.
-- [x] Review `docs/mvp-design.md` and separate current protocol facts from
+- [x] Review `docs/internal/mvp-design.md` and separate current protocol facts from
       historical product notes.
-- [x] Review `docs/library-todos.md` and decide whether it remains an internal
-      implementation tracker or becomes part of public docs.
+- [x] Review `docs/internal/library-todos.md` and decide whether it remains an
+      internal implementation tracker or becomes part of public docs.
 - [x] Review tests for canonical examples, especially `full-issuance-flow`.
 - [x] Mark stale statements, undecided protocol questions, and product-specific
       assumptions.
 - [x] Create an archive or notes section for historical material that should not
       be presented as current usage guidance.
 
-Audit notes are recorded in `docs/docs-audit.md`. Historical and internal docs
-remain in the repository, but they are excluded from TypeDoc `projectDocuments`.
+Audit notes are recorded in `docs/internal/docs-audit.md`. Historical and
+internal docs remain in the repository, but they are excluded from TypeDoc
+`projectDocuments`.
 
 ### 2. Information Architecture and Navigation
 
@@ -87,31 +88,31 @@ Filename decision: do not number public docs filenames. The explicit TypeDoc
 
 ### 3. Quickstart First
 
-- [ ] Convert the full issuance flow test into a concise copy-paste TypeScript
+- [x] Convert the full issuance flow test into a concise copy-paste TypeScript
       quickstart.
-- [ ] Show the minimum import block.
-- [ ] Show the issuer bundle creation step.
-- [ ] Show holder request creation and pending state retention.
-- [ ] Show issuer response creation.
-- [ ] Show holder finalization.
-- [ ] Show verifier trust setup and verification.
-- [ ] Show revocation ingestion and revoked-credential failure.
-- [ ] Add a short "what this example intentionally omits" section for storage,
+- [x] Show the minimum import block.
+- [x] Show the issuer bundle creation step.
+- [x] Show holder request creation and pending state retention.
+- [x] Show issuer response creation.
+- [x] Show holder finalization.
+- [x] Show verifier trust setup and verification.
+- [x] Show revocation ingestion and revoked-credential failure.
+- [x] Add a short "what this example intentionally omits" section for storage,
       QR codes, relay I/O, HTTP fetching, UI, and verifier policy.
 - [ ] Keep the quickstart runnable by turning it into a tested example or by
       extracting it from an existing Vitest test.
 
 ### 4. Guides
 
-- [ ] Write "Issue a credential".
-- [ ] Write "Persist pending issuance across reloads".
-- [ ] Write "Verify a credential".
-- [ ] Write "Revoke a credential".
-- [ ] Write "Import and export issuer keys".
-- [ ] Write "Import and export holder keys".
-- [ ] Write "Handle thrown JavaScript errors".
-- [ ] Write "Choose what belongs in `info` vs `blind_msg`".
-- [ ] Write "Integrate transport outside the SDK" with examples for QR, relay,
+- [x] Write "Issue a credential".
+- [x] Write "Persist pending issuance across reloads".
+- [x] Write "Verify a credential".
+- [x] Write "Revoke a credential".
+- [x] Write "Import and export issuer keys".
+- [x] Write "Import and export holder keys".
+- [x] Write "Handle thrown JavaScript errors".
+- [x] Write "Choose what belongs in `info` vs `blind_msg`".
+- [x] Write "Integrate transport outside the SDK" with examples for QR, relay,
       HTTP, and app storage as out-of-scope responsibilities.
 
 ### 5. Concepts and Architecture

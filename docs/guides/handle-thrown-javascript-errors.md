@@ -1,0 +1,63 @@
+---
+title: Handle Thrown JavaScript Errors
+---
+
+# Handle Thrown JavaScript Errors
+
+The WASM API currently reports validation and verification failures by throwing
+JavaScript errors. Methods that parse, verify, finalize, or import protocol
+objects can throw.
+
+```ts
+try {
+  verifier.verifyCredential(credential);
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(message);
+}
+```
+
+## Common Failure Points
+
+`addIssuerBundle()` can throw when an issuer bundle is malformed or its proof
+does not verify.
+
+`PendingIssuance.importState()` can throw when exported state is malformed or
+uses an unsupported version.
+
+`PendingIssuance.finalize()` can throw when the issuer bundle, response, pending
+state, or visible `info` do not match.
+
+`VerificationContext.verifyCredential()` can throw when the issuer is unknown,
+the credential proof fails, or the credential has been revoked.
+
+`IssuerContext.importSecretKey()` and `HolderContext.importSecretKey()` can
+throw when stored secret material is malformed.
+
+## Recommended Pattern
+
+Keep protocol failures separate from application transport failures:
+
+```ts
+async function verifyPresentedCredential() {
+  const verifier = new VerificationContext();
+  verifier.addIssuerBundle(issuerBundle);
+
+  for (const revocation of revocations) {
+    verifier.addRevocation(revocation);
+  }
+
+  return verifier.verifyCredential(credential);
+}
+
+try {
+  await verifyPresentedCredential();
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  // Show a generic rejection to users. Log detailed messages only where safe.
+  console.warn("credential rejected", message);
+}
+```
+
+Machine-readable error codes or result objects are a planned API improvement.
+For now, avoid depending on exact error message strings for product logic.

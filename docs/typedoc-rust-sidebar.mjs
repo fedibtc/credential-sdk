@@ -7,16 +7,52 @@ const require = createRequire(import.meta.url);
 
 const DOCUMENT_PAGES = {
   quickstart: "Quickstart.html",
+  "issue-a-credential": "Issue_A_Credential.html",
+  "persist-pending-issuance": "Persist_Pending_Issuance.html",
+  "verify-a-credential": "Verify_A_Credential.html",
+  "revoke-a-credential": "Revoke_A_Credential.html",
+  "import-and-export-issuer-keys": "Import_And_Export_Issuer_Keys.html",
+  "import-and-export-holder-keys": "Import_And_Export_Holder_Keys.html",
+  "handle-thrown-javascript-errors": "Handle_Thrown_JavaScript_Errors.html",
+  "choose-info-vs-blind-msg": "Choose_Info_Vs_Blind_Msg.html",
+  "integrate-transport-outside-sdk": "Integrate_Transport_Outside_The_SDK.html",
+  "integrate-transport-outside-the-sdk":
+    "Integrate_Transport_Outside_The_SDK.html",
   architecture: "Architecture.html",
   "protocol-flow": "Protocol_Flow.html",
   "verification-and-revocation": "Verification_And_Revocation.html",
   "rust-api": "Rust_API.html",
 };
 
+const CORE_DOCUMENTS = [
+  ["Quick Start", "Quickstart.html"],
+  ["Architecture", "Architecture.html"],
+  ["Protocol Flow", "Protocol_Flow.html"],
+  ["Verification And Revocation", "Verification_And_Revocation.html"],
+  ["Rust API", "Rust_API.html"],
+];
+
+const GUIDES = [
+  ["Issue A Credential", "Issue_A_Credential.html"],
+  ["Persist Pending Issuance", "Persist_Pending_Issuance.html"],
+  ["Verify A Credential", "Verify_A_Credential.html"],
+  ["Revoke A Credential", "Revoke_A_Credential.html"],
+  ["Import And Export Issuer Keys", "Import_And_Export_Issuer_Keys.html"],
+  ["Import And Export Holder Keys", "Import_And_Export_Holder_Keys.html"],
+  ["Handle Thrown JavaScript Errors", "Handle_Thrown_JavaScript_Errors.html"],
+  ["Choose Info Vs Blind Msg", "Choose_Info_Vs_Blind_Msg.html"],
+  [
+    "Integrate Transport Outside The SDK",
+    "Integrate_Transport_Outside_The_SDK.html",
+  ],
+];
+
 const PROJECT_DISPLAY_NAME = "Fedi Credential SDK";
 const NPM_MODULE_PAGE = "modules/pkg_fedi_credential_sdk_wasm.html";
 const NPM_MODULE_REFLECTION_NAME = "pkg/fedi_credential_sdk_wasm";
 const NPM_MODULE_DISPLAY_NAME = "Fedi Credential SDK (npm)";
+const RUST_PROTOCOL_PAGE = "rust/fedi_credential_sdk_protocol/index.html";
+const RUST_WASM_PAGE = "rust/fedi_credential_sdk_wasm/index.html";
 
 const PROJECT_OVERVIEW = `
 <div class="docblock fedi-project-overview">
@@ -60,6 +96,60 @@ function regexEscape(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function relativeRoot(pageUrl) {
+  return pageUrl.includes("/") ? "../" : "";
+}
+
+function sectionHeader(id, text) {
+  return `<h2 id="${id}" class="section-header">${text}<a href="#${id}" class="anchor">\u00a7</a></h2>`;
+}
+
+function definitionList(items) {
+  return `<dl class="item-table">${items
+    .map(
+      ({ className, href, title, text }) =>
+        `<dt><a class="${className}" href="${href}" title="${title}">${text}</a></dt><dd></dd>`,
+    )
+    .join("")}</dl>`;
+}
+
+function sidebarBlock({ title, href, items }) {
+  return `<h3><a href="${href}">${title}</a></h3><ul class="block">${items
+    .map(
+      ({ href: itemHref, text }) =>
+        `<li class=""><a href="${itemHref}">${text}</a></li>`,
+    )
+    .join("")}</ul>`;
+}
+
+function sidebarDocumentItems(root) {
+  return CORE_DOCUMENTS.map(([text, page]) => ({
+    href: `${root}documents/${page}`,
+    text,
+  }));
+}
+
+function sidebarGuideItems(root) {
+  return GUIDES.map(([text, page]) => ({
+    href: `${root}documents/${page}`,
+    text,
+  }));
+}
+
+function sidebarModuleItems(root) {
+  return [
+    { href: `${root}${NPM_MODULE_PAGE}`, text: NPM_MODULE_DISPLAY_NAME },
+    {
+      href: `${root}${RUST_PROTOCOL_PAGE}`,
+      text: "fedi-credential-sdk-protocol (Rust)",
+    },
+    {
+      href: `${root}${RUST_WASM_PAGE}`,
+      text: "fedi-credential-sdk-wasm (Rust)",
+    },
+  ];
+}
+
 function addProjectOverview(html) {
   if (html.includes("fedi-project-overview")) {
     return html;
@@ -72,7 +162,7 @@ function addProjectOverview(html) {
 }
 
 function relativeNpmModulePage(pageUrl) {
-  return pageUrl.includes("/") ? `../${NPM_MODULE_PAGE}` : NPM_MODULE_PAGE;
+  return `${relativeRoot(pageUrl)}${NPM_MODULE_PAGE}`;
 }
 
 function linkProjectTitleToNpmModule(html, pageUrl) {
@@ -132,6 +222,82 @@ function hideNpmModuleDetails(html) {
     );
 }
 
+function organizeMainSidebar(html, pageUrl) {
+  const root = relativeRoot(pageUrl);
+  const sidebarContent = [
+    sidebarBlock({
+      title: "Documents",
+      href: `${root}modules.html#section.documents`,
+      items: sidebarDocumentItems(root),
+    }),
+    sidebarBlock({
+      title: "Modules",
+      href: `${root}modules.html#section.modules`,
+      items: sidebarModuleItems(root),
+    }),
+    sidebarBlock({
+      title: "Guides",
+      href: `${root}modules.html#section.guides`,
+      items: sidebarGuideItems(root),
+    }),
+  ].join("");
+
+  return html.replace(
+    /(<nav class="sidebar"><div class="sidebar-crate">[\s\S]*?<\/div>)<div class="sidebar-elems">[\s\S]*?<\/div>/,
+    `$1<div class="sidebar-elems">${sidebarContent}</div>`,
+  );
+}
+
+function organizeProjectIndexSections(html) {
+  const root = "";
+  const documents = CORE_DOCUMENTS.map(([text, page]) => ({
+    className: "foreigntype",
+    href: `documents/${page}`,
+    title: text,
+    text,
+  }));
+  const modules = [
+    {
+      className: "mod",
+      href: NPM_MODULE_PAGE,
+      title: NPM_MODULE_DISPLAY_NAME,
+      text: NPM_MODULE_DISPLAY_NAME,
+    },
+    {
+      className: "mod",
+      href: RUST_PROTOCOL_PAGE,
+      title: "fedi-credential-sdk-protocol (Rust)",
+      text: "fedi-credential-sdk-protocol (Rust)",
+    },
+    {
+      className: "mod",
+      href: RUST_WASM_PAGE,
+      title: "fedi-credential-sdk-wasm (Rust)",
+      text: "fedi-credential-sdk-wasm (Rust)",
+    },
+  ];
+  const guides = GUIDES.map(([text, page]) => ({
+    className: "foreigntype",
+    href: `${root}documents/${page}`,
+    title: text,
+    text,
+  }));
+
+  const organizedSections = [
+    sectionHeader("section.documents", "Documents"),
+    definitionList(documents),
+    sectionHeader("section.modules", "Modules"),
+    definitionList(modules),
+    sectionHeader("section.guides", "Guides"),
+    definitionList(guides),
+  ].join("");
+
+  return html.replace(
+    /<h2 id="section\.modules" class="section-header">Modules<a href="#section\.modules" class="anchor">§<\/a><\/h2><dl class="item-table">[\s\S]*?<\/dl><h2 id="section\.documents" class="section-header">Documents<a href="#section\.documents" class="anchor">§<\/a><\/h2><dl class="item-table">[\s\S]*?<\/dl>/,
+    organizedSections,
+  );
+}
+
 export function load(app) {
   app.renderer.on("beginRender", (event) => {
     const assetsDir = join(event.outputDirectory, "assets");
@@ -147,9 +313,14 @@ export function load(app) {
       page.contents = fixDocumentSidebarLinks(page.contents);
       page.contents = linkProjectTitleToNpmModule(page.contents, page.url);
       page.contents = formatNpmModuleName(page.contents);
+      page.contents = organizeMainSidebar(page.contents, page.url);
 
       if (page.url === "modules.html") {
         page.contents = addProjectOverview(page.contents);
+      }
+
+      if (page.url === "index.html" || page.url === "modules.html") {
+        page.contents = organizeProjectIndexSections(page.contents);
       }
 
       if (page.url === NPM_MODULE_PAGE) {
@@ -170,10 +341,6 @@ export function load(app) {
   });
 
   app.renderer.hooks.on("sidebar.end", (context) => {
-    if (!context.model.isProject()) {
-      return JSX.createElement(JSX.Fragment, null);
-    }
-
     return JSX.createElement(
       "div",
       { class: "sidebar-elems" },
@@ -190,7 +357,7 @@ export function load(app) {
             JSX.createElement(
               "a",
               { href: "https://github.com/fedibtc/credential-sdk" },
-              "fedibtc/credential-sdk",
+              "GitHub repo",
             ),
           ),
           JSX.createElement(
@@ -202,41 +369,6 @@ export function load(app) {
                 href: "https://www.npmjs.com/package/@fedibtc/fedi-credential-sdk-wasm",
               },
               "npm package",
-            ),
-          ),
-        ),
-      ),
-      JSX.createElement(
-        "section",
-        null,
-        JSX.createElement("h3", null, "Rust API"),
-        JSX.createElement(
-          "ul",
-          { class: "block" },
-          JSX.createElement(
-            "li",
-            null,
-            JSX.createElement(
-              "a",
-              {
-                href: context.relativeURL(
-                  "rust/fedi_credential_sdk_protocol/index.html",
-                ),
-              },
-              "Protocol crate",
-            ),
-          ),
-          JSX.createElement(
-            "li",
-            null,
-            JSX.createElement(
-              "a",
-              {
-                href: context.relativeURL(
-                  "rust/fedi_credential_sdk_wasm/index.html",
-                ),
-              },
-              "WASM crate",
             ),
           ),
         ),

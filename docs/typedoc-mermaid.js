@@ -101,7 +101,9 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", renderMermaid, { once: true });
+    document.addEventListener("DOMContentLoaded", renderMermaid, {
+      once: true,
+    });
   } else {
     renderMermaid();
   }

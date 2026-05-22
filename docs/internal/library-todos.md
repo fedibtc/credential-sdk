@@ -3,7 +3,10 @@
 This is an internal implementation tracker. It is not included in the generated
 TypeDoc site and should not be treated as public integration documentation.
 
-This document tracks the TODOs for the reusable verifiable credential protocol library. The library should own protocol correctness, cryptographic operations, validation, canonicalization, serialization, and machine-readable verification results.
+This document tracks the TODOs for the reusable verifiable credential protocol
+library. The library should own protocol correctness, cryptographic operations,
+validation, canonicalization, serialization, and machine-readable verification
+results.
 
 The library should not own browser storage, QR code generation/scanning, camera access, UI state, Nostr relay I/O, HTTP fetching, file downloads, or verifier trust-list policy.
 
