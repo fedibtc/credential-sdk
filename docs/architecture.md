@@ -7,6 +7,8 @@ title: Architecture
 The SDK exposes a small runtime API around three verifiable credential roles:
 issuer, holder, and verifier.
 
+![Issuer, holder, and verifier credential architecture](https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/VC_triangle_of_Trust.svg/1280px-VC_triangle_of_Trust.svg.png)
+
 ## Roles
 
 - **Issuer**: creates signed issuer metadata, signs holder issuance requests, and

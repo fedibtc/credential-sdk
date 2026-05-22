@@ -12,15 +12,17 @@
     "docs/rust-api.md"
   ],
   "basePath": ".",
-  "name": "@fedibtc/fedi-credential-sdk-wasm",
+  "name": "Fedi Credential SDK",
   "includeVersion": true,
   "out": "dist/docs/api",
+  "customCss": "docs/typedoc-custom.css",
+  "customJs": "docs/typedoc-mermaid.js",
   "navigationLinks": {
-    "GitHub": "https://github.com/fedibtc/credential-sdk",
+    "fedibtc/credential-sdk": "https://github.com/fedibtc/credential-sdk",
     "npm": "https://www.npmjs.com/package/@fedibtc/fedi-credential-sdk-wasm"
   },
   "sidebarLinks": {
-    "GitHub": "https://github.com/fedibtc/credential-sdk",
+    "fedibtc/credential-sdk": "https://github.com/fedibtc/credential-sdk",
     "npm": "https://www.npmjs.com/package/@fedibtc/fedi-credential-sdk-wasm"
   },
   "highlightLanguages": ["bash", "json", "jsx", "mermaid", "rust", "sh", "toml", "ts"],

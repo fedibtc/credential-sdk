@@ -1,4 +1,4 @@
-# @fedibtc/fedi-credential-sdk-wasm
+# Fedi Credential SDK
 
 WebAssembly bindings for a partially blind RSA verifiable credential protocol.
 
