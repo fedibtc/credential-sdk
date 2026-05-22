@@ -7,6 +7,16 @@ const require = createRequire(import.meta.url);
 
 const DOCUMENT_PAGES = {
   quickstart: "Quickstart.html",
+  "issue-a-credential": "Issue_A_Credential.html",
+  "persist-pending-issuance": "Persist_Pending_Issuance.html",
+  "verify-a-credential": "Verify_A_Credential.html",
+  "revoke-a-credential": "Revoke_A_Credential.html",
+  "import-and-export-issuer-keys": "Import_And_Export_Issuer_Keys.html",
+  "import-and-export-holder-keys": "Import_And_Export_Holder_Keys.html",
+  "handle-thrown-javascript-errors": "Handle_Thrown_JavaScript_Errors.html",
+  "choose-info-vs-blind-msg": "Choose_Info_Vs_Blind_Msg.html",
+  "integrate-transport-outside-the-sdk":
+    "Integrate_Transport_Outside_The_SDK.html",
   architecture: "Architecture.html",
   "protocol-flow": "Protocol_Flow.html",
   "verification-and-revocation": "Verification_And_Revocation.html",

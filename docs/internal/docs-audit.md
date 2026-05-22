@@ -18,7 +18,7 @@ Findings:
   gradually take over quickstart, architecture, protocol flow, and
   verification/revocation detail.
 
-## docs/mvp-design.md
+## docs/internal/mvp-design.md
 
 Status: historical product and protocol design notes.
 
@@ -44,7 +44,7 @@ Historical or stale material:
 Decision: keep this file in the repository as historical notes, but do not
 include it in TypeDoc project documents.
 
-## docs/library-todos.md
+## docs/internal/library-todos.md
 
 Status: internal implementation tracker.
 

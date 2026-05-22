@@ -6,7 +6,7 @@ title: Historical MVP Design Notes
 
 This document is historical product and protocol planning context. It is not
 included in the generated TypeDoc site and should not be treated as current SDK
-usage guidance. Current integration docs live in the README and the top-level
+usage guidance. Current integration docs live in the README and the public
 TypeDoc project documents.
 
 ## Scope

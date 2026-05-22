@@ -6,6 +6,15 @@
   "readme": "README.md",
   "projectDocuments": [
     "docs/quickstart.md",
+    "docs/guides/issue-a-credential.md",
+    "docs/guides/persist-pending-issuance.md",
+    "docs/guides/verify-a-credential.md",
+    "docs/guides/revoke-a-credential.md",
+    "docs/guides/import-and-export-issuer-keys.md",
+    "docs/guides/import-and-export-holder-keys.md",
+    "docs/guides/handle-thrown-javascript-errors.md",
+    "docs/guides/choose-info-vs-blind-msg.md",
+    "docs/guides/integrate-transport-outside-sdk.md",
     "docs/architecture.md",
     "docs/protocol-flow.md",
     "docs/verification-and-revocation.md",
@@ -25,7 +34,16 @@
     "fedibtc/credential-sdk": "https://github.com/fedibtc/credential-sdk",
     "npm": "https://www.npmjs.com/package/@fedibtc/fedi-credential-sdk-wasm"
   },
-  "highlightLanguages": ["bash", "json", "jsx", "mermaid", "rust", "sh", "toml", "ts"],
+  "highlightLanguages": [
+    "bash",
+    "json",
+    "jsx",
+    "mermaid",
+    "rust",
+    "sh",
+    "toml",
+    "ts"
+  ],
   "searchInComments": true,
   "searchInDocuments": true,
   "validation": {
