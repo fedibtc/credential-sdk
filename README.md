@@ -1,4 +1,4 @@
-# @fedibtc/fedi-credential-sdk-wasm
+# Fedi Credential SDK
 
 WebAssembly bindings for a partially blind RSA verifiable credential protocol.
 
@@ -154,7 +154,7 @@ class VerificationContext {
 
 ## Status
 
-This checklist is intentionally shorter than [docs/library-todos.md](docs/library-todos.md). It tracks coarse reusable-library readiness rather than every implementation detail.
+This checklist tracks coarse reusable-library readiness rather than every internal implementation detail.
 
 - [x] Rust/WASM build and TypeScript/Rust test workflows
 - [x] Runtime issuer, holder, and verifier contexts exposed through WASM/TypeScript
@@ -183,8 +183,8 @@ pnpm test
 
 Useful scripts:
 
-- `pnpm run docs` rebuilds the WASM package and generates the TypeDoc API reference in `dist/docs/api`; run it inside `devenv shell`.
-- `pnpm run docs:serve` rebuilds the API reference and serves it locally with Vite; run it inside `devenv shell`.
+- `pnpm run docs` rebuilds the WASM package, generates the TypeDoc API reference, generates rustdoc, and copies both into `dist/docs/api`; run it inside `devenv shell`.
+- `pnpm run docs:serve` rebuilds the full docs site and serves it locally with Vite; run it inside `devenv shell`.
 - `pnpm run test:rust` runs Rust unit tests for the full workspace.
 - `pnpm run test:ts` rebuilds the WASM package, typechecks TypeScript, and runs Vitest.
 - `pnpm run check` runs typecheck and the full test suite.

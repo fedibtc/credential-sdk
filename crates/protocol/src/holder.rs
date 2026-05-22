@@ -28,6 +28,7 @@ pub struct HolderContext {
 }
 
 impl HolderContext {
+    /// Generate a holder context with fresh Nostr identity keys.
     pub fn generate() -> Self {
         Self::generate_with_rng(&mut nostr::secp256k1::rand::rngs::OsRng)
     }
@@ -40,16 +41,19 @@ impl HolderContext {
         }
     }
 
+    /// Import a holder context from a Nostr secret key string.
     pub fn import_secret_key(secret_key: &str) -> Result<Self, CredentialsError> {
         Ok(Self {
             identity_keys: nostr::Keys::parse(secret_key)?,
         })
     }
 
+    /// Export this holder's Nostr secret key as a hex string.
     pub fn export_secret_key(&self) -> String {
         self.identity_keys.secret_key().to_secret_hex()
     }
 
+    /// Return this holder's Nostr public key.
     pub fn public_key(&self) -> nostr::PublicKey {
         self.identity_keys.public_key()
     }

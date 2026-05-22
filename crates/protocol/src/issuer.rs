@@ -74,6 +74,7 @@ impl IssuerContext {
         IssuerId(self.identity_keys.public_key())
     }
 
+    /// Export this issuer's identity and issuance secret keys.
     pub fn export_secret_key(&self) -> Result<IssuerSecretKeys, CredentialsError> {
         Ok(IssuerSecretKeys {
             issuer_id_secret_key: self.identity_keys.secret_key().to_secret_hex(),
@@ -81,6 +82,7 @@ impl IssuerContext {
         })
     }
 
+    /// Import an issuer context from previously exported secret keys.
     pub fn import_secret_key(secret_key: &IssuerSecretKeys) -> Result<Self, CredentialsError> {
         let identity_keys = nostr::Keys::parse(&secret_key.issuer_id_secret_key)?;
         let secret_key =
