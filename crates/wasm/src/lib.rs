@@ -4,6 +4,7 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(typescript_custom_section)]
 const TYPESCRIPT_SURFACE: &'static str = r#"
+/** Any JSON value accepted by credential info and blind-message fields. */
 export type JsonValue =
   | null
   | boolean
@@ -12,78 +13,111 @@ export type JsonValue =
   | JsonValue[]
   | { readonly [key: string]: JsonValue };
 
+/** Holder-created request sent to an issuer during credential issuance. */
 export interface IssuanceRequest {
   readonly version: 1;
+  /** Unpadded URL-safe base64 encoded PBRSA blinded message. */
   readonly blinded_message: string;
 }
 
+/** Issuer-created response containing the blind signature for an issuance request. */
 export interface IssuanceResponse {
   readonly version: 1;
+  /** Nostr public key identifying the issuer that signed the response. */
   readonly issuer_id: string;
+  /** Issuer-visible credential information bound into the blind signature. */
   readonly info: JsonValue;
+  /** Unpadded URL-safe base64 encoded PBRSA blind signature. */
   readonly blind_signature: string;
 }
 
+/** Exported issuer secret material for application-managed backup or restore. */
 export interface IssuerSecretKeys {
+  /** Nostr issuer identity secret key encoded as hex. */
   readonly issuer_id_secret_key: string;
+  /** Unpadded URL-safe base64 encoded PBRSA issuance secret key. */
   readonly issuance_secret_key: string;
 }
 
+/** Final credential presented by a holder to a verifier. */
 export interface SignedCredential {
   readonly version: 1;
   readonly credential: Credential;
   readonly proof: CredentialProof;
 }
 
+/** Credential payload signed by the issuer's issuance key. */
 export interface Credential {
+  /** Nostr public key identifying the issuer. */
   readonly issuer_id_pubkey: string;
+  /** Credential information that was visible to the issuer during issuance. */
   readonly info: JsonValue;
+  /** Holder-controlled value hidden during issuance and disclosed in the final credential. */
   readonly blind_msg: JsonValue;
 }
 
+/** Proof over a finalized credential payload. */
 export interface CredentialProof {
+  /** Unpadded URL-safe base64 encoded PBRSA credential signature. */
   readonly signature: string;
 }
 
+/** Signed issuer metadata that verifiers trust before accepting credentials. */
 export interface IssuerBundle {
   readonly version: 1;
   readonly issuer: Issuer;
   readonly proof: SchnorrSignatureProof;
 }
 
+/** Schnorr signature proof encoded for JSON transport. */
 export interface SchnorrSignatureProof {
   readonly signature: string;
 }
 
+/** Public issuer metadata bound into an issuer bundle. */
 export interface Issuer {
+  /** Nostr public key identifying the issuer. */
   readonly issuer_id_pubkey: string;
+  /** Unpadded URL-safe base64 encoded PBRSA issuance public key. */
   readonly issuance_key: string;
+  /** Locations where applications may fetch this issuer's revocations. */
   readonly revocation: readonly RevocationLocation[];
 }
 
+/** Issuer-signed credential revocation object. */
 export interface SignedRevocation {
   readonly version: 1;
   readonly revocation: Revocation;
   readonly proof: RevocationProof;
 }
 
+/** Issuer identity proof for a signed revocation. */
 export interface RevocationProof {
+  /** Nostr public key identifying the issuer that signed the revocation. */
   readonly issuer_id_pubkey: string;
+  /** Schnorr signature over the revocation payload. */
   readonly signature: string;
 }
 
+/** Revocation payload signed by an issuer identity key. */
 export interface Revocation {
   /** Unpadded URL-safe base64 encoded SHA-256 digest. */
   readonly credential_digest: string;
 }
 
+/** Application-owned location where issuer revocations may be published. */
 export interface RevocationLocation {
+  /** Transport or publication protocol name, such as "nostr". */
   readonly protocol: string;
+  /** Protocol-specific location, such as a relay URL. */
   readonly location: string;
 }
 
+/** Result of creating a holder issuance request. */
 export interface PendingIssuanceResult {
+  /** Request to send to the issuer. */
   readonly request: IssuanceRequest;
+  /** Local holder state required to finalize the issuer response. */
   readonly pending: PendingIssuance;
 }
 "#;
@@ -108,12 +142,14 @@ fn reflect_error(error: JsValue) -> JsError {
 
 #[wasm_bindgen]
 #[derive(Clone)]
+/// Issuer-side context for creating issuer bundles, issuing credentials, and revoking credentials.
 pub struct IssuerContext {
     inner: protocol::IssuerContext,
 }
 
 #[wasm_bindgen]
 impl IssuerContext {
+    /// Generate a new issuer context with fresh issuer identity and issuance keys.
     #[wasm_bindgen(js_name = generate)]
     pub fn generate() -> Result<IssuerContext, JsError> {
         Ok(Self {
@@ -121,6 +157,7 @@ impl IssuerContext {
         })
     }
 
+    /// Import an issuer context from previously exported issuer secret keys.
     #[wasm_bindgen(js_name = importSecretKey)]
     pub fn import_secret_key(
         #[wasm_bindgen(unchecked_param_type = "IssuerSecretKeys")] secret_key: JsValue,
@@ -131,11 +168,13 @@ impl IssuerContext {
         })
     }
 
+    /// Export this issuer's secret keys for application-managed backup or restore.
     #[wasm_bindgen(js_name = exportSecretKey, unchecked_return_type = "IssuerSecretKeys")]
     pub fn export_secret_key(&self) -> Result<JsValue, JsError> {
         to_js(&self.inner.export_secret_key()?)
     }
 
+    /// Issue a blind signature response for a holder issuance request.
     #[wasm_bindgen(js_name = issueCredential, unchecked_return_type = "IssuanceResponse")]
     pub fn issue_credential(
         &self,
@@ -147,6 +186,7 @@ impl IssuerContext {
         to_js(&self.inner.issue_credential(info, &request)?)
     }
 
+    /// Build and sign this issuer's public bundle with its revocation locations.
     #[wasm_bindgen(js_name = issuerBundle, unchecked_return_type = "IssuerBundle")]
     pub fn issuer_bundle(
         &self,
@@ -156,6 +196,7 @@ impl IssuerContext {
         to_js(&self.inner.issuer_bundle(revocation)?)
     }
 
+    /// Sign a revocation for a finalized credential issued by this issuer.
     #[wasm_bindgen(js_name = revokeCredential, unchecked_return_type = "SignedRevocation")]
     pub fn revoke_credential(
         &self,
@@ -168,12 +209,14 @@ impl IssuerContext {
 
 #[wasm_bindgen]
 #[derive(Clone)]
+/// Holder-side context for generating holder identity keys.
 pub struct HolderContext {
     inner: protocol::HolderContext,
 }
 
 #[wasm_bindgen]
 impl HolderContext {
+    /// Generate a new holder context with fresh holder identity keys.
     #[wasm_bindgen(js_name = generate)]
     pub fn generate() -> HolderContext {
         Self {
@@ -181,6 +224,7 @@ impl HolderContext {
         }
     }
 
+    /// Import a holder context from a previously exported holder secret key.
     #[wasm_bindgen(js_name = importSecretKey)]
     pub fn import_secret_key(secret_key: String) -> Result<HolderContext, JsError> {
         Ok(Self {
@@ -188,11 +232,13 @@ impl HolderContext {
         })
     }
 
+    /// Export this holder's secret key for application-managed backup or restore.
     #[wasm_bindgen(js_name = exportSecretKey)]
     pub fn export_secret_key(&self) -> String {
         self.inner.export_secret_key()
     }
 
+    /// Return the holder's Nostr public key.
     #[wasm_bindgen(getter, js_name = publicKey)]
     pub fn public_key(&self) -> String {
         self.inner.public_key().to_string()
@@ -200,12 +246,14 @@ impl HolderContext {
 }
 
 #[wasm_bindgen]
+/// Holder-side pending issuance state required to finalize one issuer response.
 pub struct PendingIssuance {
     inner: protocol::PendingIssuance,
 }
 
 #[wasm_bindgen]
 impl PendingIssuance {
+    /// Create a blinded holder issuance request and local pending issuance state.
     #[wasm_bindgen(js_name = createRequest, unchecked_return_type = "PendingIssuanceResult")]
     pub fn create_request(
         #[wasm_bindgen(unchecked_param_type = "IssuerBundle")] issuer_bundle: JsValue,
@@ -234,11 +282,13 @@ impl PendingIssuance {
         Ok(result.into())
     }
 
+    /// Export this pending issuance state as a JSON string for application storage.
     #[wasm_bindgen(js_name = exportState)]
     pub fn export_state(&self) -> Result<String, JsError> {
         Ok(self.inner.export_state()?)
     }
 
+    /// Import pending issuance state previously returned by `exportState`.
     #[wasm_bindgen(js_name = importState)]
     pub fn import_state(state: String) -> Result<PendingIssuance, JsError> {
         Ok(Self {
@@ -246,7 +296,8 @@ impl PendingIssuance {
         })
     }
 
-    #[wasm_bindgen(unchecked_return_type = "SignedCredential")]
+    /// Finalize an issuer response into a signed credential.
+    #[wasm_bindgen(js_name = finalize, unchecked_return_type = "SignedCredential")]
     pub fn finalize(
         self,
         #[wasm_bindgen(unchecked_param_type = "IssuerBundle")] issuer_bundle: JsValue,
@@ -266,12 +317,14 @@ impl PendingIssuance {
 }
 
 #[wasm_bindgen]
+/// Verifier-side context containing trusted issuers and ingested revocations.
 pub struct VerificationContext {
     inner: protocol::VerificationContext,
 }
 
 #[wasm_bindgen]
 impl VerificationContext {
+    /// Create an empty verification context.
     #[wasm_bindgen(constructor)]
     pub fn new() -> VerificationContext {
         Self {
@@ -279,6 +332,7 @@ impl VerificationContext {
         }
     }
 
+    /// Verify and trust an issuer bundle for future credential checks.
     #[wasm_bindgen(js_name = addIssuerBundle)]
     pub fn add_issuer_bundle(
         &mut self,
@@ -288,6 +342,7 @@ impl VerificationContext {
         Ok(self.inner.add_issuer_bundle(&issuer_bundle)?)
     }
 
+    /// Verify and store a signed revocation from a trusted issuer.
     #[wasm_bindgen(js_name = addRevocation)]
     pub fn add_revocation(
         &mut self,
@@ -297,6 +352,7 @@ impl VerificationContext {
         Ok(self.inner.add_revocation(&revocation)?)
     }
 
+    /// Verify a finalized credential against trusted issuers and ingested revocations.
     #[wasm_bindgen(js_name = verifyCredential)]
     pub fn verify_credential(
         &self,

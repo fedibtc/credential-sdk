@@ -1,12 +1,33 @@
 {
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": ["pkg/fedi_credential_sdk_wasm.d.ts"],
+  "plugin": ["typedoc-theme-oxide", "./docs/typedoc-rust-sidebar.mjs"],
+  "theme": "oxide",
   "readme": "README.md",
-  "projectDocuments": ["docs/*.md"],
+  "projectDocuments": [
+    "docs/quickstart.md",
+    "docs/architecture.md",
+    "docs/protocol-flow.md",
+    "docs/verification-and-revocation.md",
+    "docs/rust-api.md"
+  ],
   "basePath": ".",
   "name": "@fedibtc/fedi-credential-sdk-wasm",
   "includeVersion": true,
   "out": "dist/docs/api",
-  "highlightLanguages": ["json", "jsx", "sh", "ts"],
+  "navigationLinks": {
+    "GitHub": "https://github.com/fedibtc/credential-sdk",
+    "npm": "https://www.npmjs.com/package/@fedibtc/fedi-credential-sdk-wasm"
+  },
+  "sidebarLinks": {
+    "GitHub": "https://github.com/fedibtc/credential-sdk",
+    "npm": "https://www.npmjs.com/package/@fedibtc/fedi-credential-sdk-wasm"
+  },
+  "highlightLanguages": ["bash", "json", "jsx", "mermaid", "rust", "sh", "toml", "ts"],
+  "searchInComments": true,
+  "searchInDocuments": true,
+  "validation": {
+    "invalidPath": false
+  },
   "suppressCommentWarningsInDeclarationFiles": true
 }
