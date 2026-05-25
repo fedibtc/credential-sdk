@@ -246,3 +246,44 @@ fn protocol_snapshots() {
     }
     "###);
 }
+
+#[test]
+#[ignore = "slow RSA safe-prime key generation; run with --ignored --nocapture to print timing"]
+fn issuer_context_generate_reports_rsa_keygen_timing() {
+    let started = std::time::Instant::now();
+    let issuer = IssuerContext::generate().unwrap();
+    let keygen_elapsed = started.elapsed();
+    eprintln!(
+        "IssuerContext::generate() RSA keygen completed in {:.3}s",
+        keygen_elapsed.as_secs_f64()
+    );
+
+    let exported = issuer.export_secret_key().unwrap();
+    assert!(!exported.issuer_id_secret_key.is_empty());
+    assert!(!exported.issuance_secret_key.is_empty());
+
+    let issuer_bundle = issuer.issuer_bundle(vec![]).unwrap();
+    issuer_bundle.verify().unwrap();
+
+    let credential_info = json!({
+        "schema": "rsa-keygen-smoke-v1",
+        "trust_level": 1,
+    });
+    let holder = HolderContext::generate();
+    let blind_msg = json!(holder.public_key());
+    let (request, pending) = PendingIssuance::create_request(
+        &issuer_bundle.issuer.issuance_key,
+        issuer_bundle.issuer.issuer_id_pubkey.clone(),
+        credential_info.clone(),
+        blind_msg,
+    )
+    .unwrap();
+    let response = issuer.issue_credential(credential_info, &request).unwrap();
+    let credential = pending
+        .finalize(&issuer_bundle.issuer.issuance_key, &response)
+        .unwrap();
+
+    let mut verifier = VerificationContext::new();
+    verifier.add_issuer_bundle(&issuer_bundle).unwrap();
+    verifier.verify_credential(&credential).unwrap();
+}
