@@ -1,4 +1,5 @@
 use serde_json::json;
+use std::time::{Duration, Instant};
 
 use crate::{
     HolderContext, IssuerContext, IssuerSecretKeys, PendingIssuance, ProtocolV1, Revocation,
@@ -53,6 +54,123 @@ fn revocation_signed_by(
             issuer_id_pubkey: crate::IssuerId(identity_keys.public_key()),
             signature,
         },
+    }
+}
+
+#[derive(Clone, Debug)]
+struct KeygenTiming {
+    run: usize,
+    elapsed: Duration,
+}
+
+fn env_usize(name: &str, default: usize) -> usize {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(default)
+}
+
+fn env_bool(name: &str) -> bool {
+    std::env::var(name)
+        .map(|value| {
+            matches!(
+                value.as_str(),
+                "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"
+            )
+        })
+        .unwrap_or(false)
+}
+
+fn smoke_test_generated_issuer(issuer: &IssuerContext) {
+    let exported = issuer.export_secret_key().unwrap();
+    assert!(!exported.issuer_id_secret_key.is_empty());
+    assert!(!exported.issuance_secret_key.is_empty());
+
+    let issuer_bundle = issuer.issuer_bundle(vec![]).unwrap();
+    issuer_bundle.verify().unwrap();
+
+    let credential_info = json!({
+        "schema": "rsa-keygen-smoke-v1",
+        "trust_level": 1,
+    });
+    let holder = HolderContext::generate();
+    let blind_msg = json!(holder.public_key());
+    let (request, pending) = PendingIssuance::create_request(
+        &issuer_bundle.issuer.issuance_key,
+        issuer_bundle.issuer.issuer_id_pubkey.clone(),
+        credential_info.clone(),
+        blind_msg,
+    )
+    .unwrap();
+    let response = issuer.issue_credential(credential_info, &request).unwrap();
+    let credential = pending
+        .finalize(&issuer_bundle.issuer.issuance_key, &response)
+        .unwrap();
+
+    let mut verifier = VerificationContext::new();
+    verifier.add_issuer_bundle(&issuer_bundle).unwrap();
+    verifier.verify_credential(&credential).unwrap();
+}
+
+fn generate_issuer_for_timing(run: usize, run_count: usize) -> KeygenTiming {
+    let started = Instant::now();
+    let issuer = IssuerContext::generate().unwrap();
+    let elapsed = started.elapsed();
+
+    eprintln!(
+        "IssuerContext::generate() RSA keygen run {run}/{run_count} completed in {:.3}s",
+        elapsed.as_secs_f64()
+    );
+
+    smoke_test_generated_issuer(&issuer);
+
+    KeygenTiming { run, elapsed }
+}
+
+fn median_seconds(sorted_seconds: &[f64]) -> f64 {
+    let mid = sorted_seconds.len() / 2;
+    if sorted_seconds.len() % 2 == 0 {
+        (sorted_seconds[mid - 1] + sorted_seconds[mid]) / 2.0
+    } else {
+        sorted_seconds[mid]
+    }
+}
+
+fn report_keygen_stats(timings: &[KeygenTiming], wall_elapsed: Duration, concurrent: bool) {
+    let mut sorted_by_elapsed = timings.to_vec();
+    sorted_by_elapsed.sort_by(|a, b| a.elapsed.as_secs_f64().total_cmp(&b.elapsed.as_secs_f64()));
+    let sorted_seconds = sorted_by_elapsed
+        .iter()
+        .map(|timing| timing.elapsed.as_secs_f64())
+        .collect::<Vec<_>>();
+
+    let average = sorted_seconds.iter().sum::<f64>() / sorted_seconds.len() as f64;
+    let median = median_seconds(&sorted_seconds);
+    let fastest = &sorted_by_elapsed[0];
+    let slowest = &sorted_by_elapsed[sorted_by_elapsed.len() - 1];
+
+    eprintln!(
+        "IssuerContext::generate() RSA keygen summary: runs={}, concurrent={}, wall={:.3}s, fastest={:.3}s (run {}), slowest={:.3}s (run {}), average={:.3}s, median={:.3}s",
+        timings.len(),
+        concurrent,
+        wall_elapsed.as_secs_f64(),
+        fastest.elapsed.as_secs_f64(),
+        fastest.run,
+        slowest.elapsed.as_secs_f64(),
+        slowest.run,
+        average,
+        median
+    );
+
+    let mut by_run = timings.to_vec();
+    by_run.sort_by_key(|timing| timing.run);
+    for timing in by_run {
+        eprintln!(
+            "IssuerContext::generate() RSA keygen sample {}: {:.3}s",
+            timing.run,
+            timing.elapsed.as_secs_f64()
+        );
     }
 }
 
@@ -245,4 +363,27 @@ fn protocol_snapshots() {
       "wrong_issuer_revoke": "issuer_id does not match"
     }
     "###);
+}
+
+#[test]
+#[ignore = "slow RSA safe-prime key generation; run with --ignored --nocapture to print timing"]
+fn issuer_context_generate_reports_rsa_keygen_timing() {
+    let run_count = env_usize("RSA_KEYGEN_RUNS", 1);
+    let concurrent = env_bool("RSA_KEYGEN_CONCURRENT") && run_count > 1;
+    let wall_started = Instant::now();
+
+    let timings = if concurrent {
+        (1..=run_count)
+            .map(|run| std::thread::spawn(move || generate_issuer_for_timing(run, run_count)))
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<Vec<_>>()
+    } else {
+        (1..=run_count)
+            .map(|run| generate_issuer_for_timing(run, run_count))
+            .collect::<Vec<_>>()
+    };
+
+    report_keygen_stats(&timings, wall_started.elapsed(), concurrent);
 }

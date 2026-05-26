@@ -1,0 +1,148 @@
+import type {
+  IssuerContext,
+  JsonValue,
+} from "../pkg/fedi_credential_sdk_wasm.js";
+
+type WasmSdk = typeof import("../pkg/fedi_credential_sdk_wasm.js");
+
+type KeygenWorkerRequest = {
+  readonly run: number;
+  readonly runCount: number;
+};
+
+type KeygenTiming = {
+  readonly run: number;
+  readonly elapsedMs: number;
+};
+
+type KeygenWorkerResponse =
+  | {
+      readonly type: "progress";
+      readonly run: number;
+      readonly message: string;
+    }
+  | {
+      readonly type: "timing";
+      readonly timing: KeygenTiming;
+    }
+  | {
+      readonly type: "error";
+      readonly message: string;
+      readonly stack?: string;
+    };
+
+type WorkerScope = typeof globalThis & {
+  readonly addEventListener: (
+    event: "message",
+    listener: (event: MessageEvent<KeygenWorkerRequest>) => void,
+  ) => void;
+  readonly postMessage: (message: KeygenWorkerResponse) => void;
+};
+
+const workerScope = globalThis as WorkerScope;
+let tracingInitialized = false;
+let wasmSdkPromise: Promise<WasmSdk> | undefined;
+
+const credentialInfo = {
+  schema: "rsa-keygen-smoke-v1",
+  trust_level: 1,
+} satisfies JsonValue;
+
+function assert(condition: boolean, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function loadSdk(): Promise<WasmSdk> {
+  wasmSdkPromise ??= import("../pkg/fedi_credential_sdk_wasm.js");
+  return wasmSdkPromise;
+}
+
+function smokeTestGeneratedIssuer(sdk: WasmSdk, issuer: IssuerContext) {
+  const { HolderContext, PendingIssuance, VerificationContext } = sdk;
+  const exported = issuer.exportSecretKey();
+  assert(
+    /^[0-9a-f]+$/.test(exported.issuer_id_secret_key),
+    "generated issuer identity secret key is not hex",
+  );
+  assert(
+    exported.issuance_secret_key.length > 0,
+    "generated issuer issuance secret key is empty",
+  );
+
+  const issuerBundle = issuer.issuerBundle([]);
+  assert(
+    issuerBundle.issuer.issuer_id_pubkey.length > 0,
+    "generated issuer identity public key is empty",
+  );
+  assert(
+    issuerBundle.issuer.issuance_key.length > 0,
+    "generated issuer issuance public key is empty",
+  );
+
+  const holder = HolderContext.generate();
+  const result = PendingIssuance.createRequest(
+    issuerBundle,
+    credentialInfo,
+    holder.publicKey,
+  );
+  const response = issuer.issueCredential(credentialInfo, result.request);
+  const credential = result.pending.finalize(issuerBundle, response);
+
+  const verifier = new VerificationContext();
+  verifier.addIssuerBundle(issuerBundle);
+  assert(
+    verifier.verifyCredential(credential) === true,
+    "generated issuer credential verification failed",
+  );
+}
+
+async function generateIssuerForTiming(run: number): Promise<KeygenTiming> {
+  workerScope.postMessage({
+    type: "progress",
+    run,
+    message: "loading WASM SDK",
+  });
+  const sdk = await loadSdk();
+
+  if (!tracingInitialized) {
+    sdk.initTracing();
+    tracingInitialized = true;
+  }
+
+  workerScope.postMessage({
+    type: "progress",
+    run,
+    message: "starting RSA keygen",
+  });
+  const started = performance.now();
+  const issuer = sdk.IssuerContext.generate();
+  const elapsedMs = performance.now() - started;
+
+  workerScope.postMessage({
+    type: "progress",
+    run,
+    message: "smoke testing generated issuer",
+  });
+  smokeTestGeneratedIssuer(sdk, issuer);
+
+  return { run, elapsedMs };
+}
+
+workerScope.addEventListener("message", (event) => {
+  void (async () => {
+    try {
+      workerScope.postMessage({
+        type: "timing",
+        timing: await generateIssuerForTiming(event.data.run),
+      });
+    } catch (error) {
+      workerScope.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+    }
+  })();
+});

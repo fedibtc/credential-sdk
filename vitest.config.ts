@@ -6,6 +6,11 @@ export default defineConfig({
   plugins: [wasm(), topLevelAwait()],
   test: {
     environment: "node",
-    exclude: ["**/node_modules/**", "**/dist/**", "**/target/**"],
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/target/**",
+      "**/*.browser.test.ts",
+    ],
   },
 });
