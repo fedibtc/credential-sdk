@@ -8,8 +8,7 @@ repository.workspace = true
 readme = "README.md"
 
 [features]
-default = ["thread-rng"]
-thread-rng = []
+default = []
 sys-rng = []
 
 [dependencies]
