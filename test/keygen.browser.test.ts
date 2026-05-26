@@ -1,7 +1,12 @@
 import { describe, it } from "vitest";
+import { cdp } from "vitest/browser";
 import KeygenBrowserWorker from "./keygen.browser.worker.ts?worker";
 
 type KeygenStrategy = "thread_rng" | "system_rng";
+
+type BrowserCdpSession = {
+  send(method: string, params?: Record<string, unknown>): Promise<unknown>;
+};
 
 type KeygenTiming = {
   readonly repeat: number;
@@ -38,13 +43,37 @@ function envNumber(name: string, defaultValue: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultValue;
 }
 
+function envPositiveNumber(name: string): number | undefined {
+  const rawValue = envValue(name);
+  if (rawValue === undefined) {
+    return undefined;
+  }
+
+  const parsed = Number(rawValue);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 const keygenStrategies = ["thread_rng", "system_rng"] as const;
 const concurrentWorkers = envNumber("VITE_RSA_KEYGEN_RUNS", 4);
 const repeatCount = envNumber("VITE_RSA_KEYGEN_REPEATS", 5);
 const slowKeygenTimeoutMs = envNumber("VITE_RSA_KEYGEN_TIMEOUT_MS", 3_600_000);
+const cpuThrottleRate = envPositiveNumber("VITE_RSA_KEYGEN_CPU_THROTTLE_RATE");
 
 function writeTiming(message: string) {
   console.info(message);
+}
+
+async function configureCpuThrottling() {
+  if (cpuThrottleRate === undefined || cpuThrottleRate === 1) {
+    return;
+  }
+
+  await (cdp() as BrowserCdpSession).send("Emulation.setCPUThrottlingRate", {
+    rate: cpuThrottleRate,
+  });
+  writeTiming(
+    `browser Worker WASM RSA keygen CPU throttling enabled: rate=${cpuThrottleRate}`,
+  );
 }
 
 function keygenMethodLabel(strategy: KeygenStrategy): string {
@@ -77,7 +106,9 @@ function reportKeygenStats(
   writeTiming(
     `browser Worker WASM RSA keygen comparison: concurrent_workers=${concurrentWorkers}, repeats=${repeatCount}, samples_per_strategy=${
       concurrentWorkers * repeatCount
-    }, strategy_batches=sequential, wall=${(wallElapsedMs / 1000).toFixed(3)}s`,
+    }, strategy_batches=sequential, cpu_throttle_rate=${
+      cpuThrottleRate ?? 1
+    }, wall=${(wallElapsedMs / 1000).toFixed(3)}s`,
   );
 
   reportKeygenStatsForStrategy(timings, "thread_rng");
@@ -302,6 +333,7 @@ describe("RSA issuer key generation in a browser Worker", () => {
   it(
     "generates issuer keys and reports timing",
     async () => {
+      await configureCpuThrottling();
       const wallStarted = performance.now();
       const timings = await runBrowserWorkerKeygens(concurrentWorkers);
 
