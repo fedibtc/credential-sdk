@@ -17,3 +17,12 @@ fedi-credential-sdk-protocol = { path = "crates/protocol", version = "0.0.1" }
 
 [profile.release]
 opt-level = "s"
+
+[profile.wasm-speed]
+inherits = "release"
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+debug = false
+strip = "debuginfo"
