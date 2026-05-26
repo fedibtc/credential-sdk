@@ -12,7 +12,7 @@ The keygen path is not mocked.
 | Variable | Values tested | Notes |
 |---|---|---|
 | RNG strategy | `thread_rng`, `system_rng` | `thread_rng` uses `rand::rng()` in WASM. `system_rng` uses direct `SysRng`, which maps to `globalThis.crypto.getRandomValues` in the worker. Use `VITE_RSA_KEYGEN_STRATEGIES=thread_rng` to run only one strategy. |
-| Build profile | normal, speed | Normal uses `pnpm run build` with release `opt-level = "s"`. Speed uses `pnpm run build:wasm:speed` with `opt-level = 3`, fat LTO, one codegen unit, `panic = "abort"`, and `wasm-opt -O3`. |
+| Build profile | speed | `pnpm run build` and `pnpm run build:wasm:speed` use `opt-level = 3`, fat LTO, one codegen unit, `panic = "abort"`, and `wasm-opt -O3`. |
 | Concurrent workers | 1, 4, 6, 8, 10 per strategy | Each worker runs one isolated keygen attempt. Current benchmark methodology ends each setup when the first worker succeeds, terminates the remaining workers, repeats the setup five times sequentially, and aggregates those first-success samples. |
 | CPU throttle rate | unset, `1`, `4`, etc. | Optional Chromium DevTools Protocol CPU throttling for browser-worker benchmarks. Use `VITE_RSA_KEYGEN_CPU_THROTTLE_RATE=<rate>`; unset or `1` means unthrottled. |
 
@@ -20,9 +20,8 @@ The keygen path is not mocked.
 
 | Purpose | Command |
 |---|---|
-| Normal WASM build | `devenv shell pnpm run build` |
-| Speed WASM build with default thread RNG | `devenv shell pnpm run build:wasm:speed:thread-rng` |
-| Speed WASM build with default system RNG | `devenv shell pnpm run build:wasm:speed:system-rng` |
+| Speed WASM build with default thread RNG | `devenv shell pnpm run build` |
+| Speed WASM build with system RNG | `devenv shell pnpm run build:wasm:sys-rng` |
 | Browser worker benchmark | `VITE_RSA_KEYGEN_STRATEGIES=<strategy> VITE_RSA_KEYGEN_CONCURRENT_WORKERS=<workers> VITE_RSA_KEYGEN_REPEATS=5 VITE_RSA_KEYGEN_TIMEOUT_MS=3600000 pnpm exec vitest --config vitest.browser.config.ts run test/keygen.browser.test.ts --testTimeout 3600000 --reporter verbose` |
 | Browser worker benchmark with CPU throttle | `VITE_RSA_KEYGEN_CPU_THROTTLE_RATE=<rate> VITE_RSA_KEYGEN_STRATEGIES=<strategy> VITE_RSA_KEYGEN_CONCURRENT_WORKERS=<workers> VITE_RSA_KEYGEN_REPEATS=5 VITE_RSA_KEYGEN_TIMEOUT_MS=3600000 pnpm exec vitest --config vitest.browser.config.ts run test/keygen.browser.test.ts --testTimeout 3600000 --reporter verbose` |
 

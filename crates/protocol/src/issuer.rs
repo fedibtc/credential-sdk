@@ -1,5 +1,7 @@
 //! Issuer-side PBRSA issuance operations.
 
+#[cfg(not(feature = "sys-rng"))]
+use blind_rsa_signatures::DefaultRng;
 use blind_rsa_signatures::{
     pbrsa::PartiallyBlindKeyPairSha384PSSDeterministic,
     reexports::rand::{
@@ -18,6 +20,18 @@ use crate::{
 
 pub const ISSUER_MODULUS_BITS: usize = 2048;
 const KEYGEN_PROGRESS_RANDOM_DRAWS: u64 = 100_000;
+
+fn default_pbrsa_rng() -> impl TryCryptoRng<Error = Infallible> {
+    #[cfg(feature = "sys-rng")]
+    {
+        UnwrapErr(SysRng)
+    }
+
+    #[cfg(not(feature = "sys-rng"))]
+    {
+        DefaultRng
+    }
+}
 
 struct KeygenProgressRng<R> {
     inner: R,
@@ -87,13 +101,13 @@ pub struct IssuerContext {
 
 impl IssuerContext {
     /// Generate an issuer context with fresh Nostr identity and PBRSA key pairs.
-    #[cfg(not(feature = "issuer-keygen-system-rng"))]
+    #[cfg(not(feature = "sys-rng"))]
     pub fn generate() -> Result<Self, CredentialsError> {
         Self::generate_with_thread_rng()
     }
 
     /// Generate an issuer context with fresh Nostr identity and PBRSA key pairs.
-    #[cfg(feature = "issuer-keygen-system-rng")]
+    #[cfg(feature = "sys-rng")]
     pub fn generate() -> Result<Self, CredentialsError> {
         Self::generate_with_system_rng()
     }
@@ -217,7 +231,7 @@ impl IssuerContext {
         info: Value,
         request: &IssuanceRequest,
     ) -> Result<IssuanceResponse, CredentialsError> {
-        self.issue_credential_with_rng(info, request, &mut UnwrapErr(SysRng))
+        self.issue_credential_with_rng(info, request, &mut default_pbrsa_rng())
     }
 
     pub(crate) fn issue_credential_with_rng(

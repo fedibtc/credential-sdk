@@ -1,8 +1,14 @@
 //! Holder-side PBRSA issuance operations.
 
+use core::convert::Infallible;
+
+#[cfg(feature = "sys-rng")]
+use blind_rsa_signatures::reexports::rand::{rand_core::UnwrapErr, rngs::SysRng};
+#[cfg(not(feature = "sys-rng"))]
+use blind_rsa_signatures::DefaultRng;
 use blind_rsa_signatures::{
-    reexports::rand::{rand_core::UnwrapErr, rngs::SysRng},
-    BlindMessage, BlindingResult, MessageRandomizer, Secret,
+    reexports::rand::rand_core::TryCryptoRng, BlindMessage, BlindingResult, MessageRandomizer,
+    Secret,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -14,6 +20,18 @@ use crate::{
     Credential, CredentialProof, CredentialsError, IssuanceRequest, IssuanceResponse, IssuerId,
     PbrsaPublicKey, ProtocolV1, SignedCredential,
 };
+
+fn default_pbrsa_rng() -> impl TryCryptoRng<Error = Infallible> {
+    #[cfg(feature = "sys-rng")]
+    {
+        UnwrapErr(SysRng)
+    }
+
+    #[cfg(not(feature = "sys-rng"))]
+    {
+        DefaultRng
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -85,7 +103,7 @@ impl PendingIssuance {
         info: Value,
         blind_msg: Value,
     ) -> Result<(IssuanceRequest, Self), CredentialsError> {
-        let mut rng = UnwrapErr(SysRng);
+        let mut rng = default_pbrsa_rng();
 
         Self::create_request_with_rng(issuer_public_key, issuer_id, info, blind_msg, &mut rng)
     }

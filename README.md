@@ -179,12 +179,13 @@ pnpm run build
 pnpm test
 ```
 
-`pnpm run build` runs `wasm-pack build crates/wasm --scope fedibtc --target bundler --out-dir ../../pkg --no-opt`. Run it inside `devenv shell` so `secp256k1-sys` uses Nix LLVM clang for wasm32 C code.
+`pnpm run build` builds the WASM package with the speed-oriented Cargo profile and runs `wasm-opt -O3`. Run it inside `devenv shell` so `secp256k1-sys` uses Nix LLVM clang for wasm32 C code.
 
 Useful scripts:
 
 - `pnpm run docs` rebuilds the WASM package, generates the TypeDoc API reference, generates rustdoc, and copies both into `dist/docs/api`; run it inside `devenv shell`.
 - `pnpm run docs:serve` rebuilds the full docs site and serves it locally with Vite; run it inside `devenv shell`.
+- `pnpm run build:wasm:sys-rng` builds with the old direct system RNG path instead of the default thread RNG.
 - `pnpm run test:rust` runs Rust unit tests for the full workspace.
 - `pnpm run test:ts` rebuilds the WASM package, typechecks TypeScript, and runs Vitest.
 - `pnpm run check` runs typecheck and the full test suite.
