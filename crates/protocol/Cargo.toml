@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 readme = "README.md"
 
+[features]
+issuer-keygen-system-rng = []
+
 [dependencies]
 blind-rsa-signatures = "0.17.1"
 hex = "0.4.3"

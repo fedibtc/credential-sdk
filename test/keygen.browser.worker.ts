@@ -5,20 +5,29 @@ import type {
 
 type WasmSdk = typeof import("../pkg/fedi_credential_sdk_wasm.js");
 
+type KeygenStrategy = "thread_rng" | "system_rng";
+
 type KeygenWorkerRequest = {
+  readonly repeat: number;
+  readonly repeatCount: number;
   readonly run: number;
   readonly runCount: number;
+  readonly strategy: KeygenStrategy;
 };
 
 type KeygenTiming = {
+  readonly repeat: number;
   readonly run: number;
+  readonly strategy: KeygenStrategy;
   readonly elapsedMs: number;
 };
 
 type KeygenWorkerResponse =
   | {
       readonly type: "progress";
+      readonly repeat: number;
       readonly run: number;
+      readonly strategy: KeygenStrategy;
       readonly message: string;
     }
   | {
@@ -98,10 +107,26 @@ function smokeTestGeneratedIssuer(sdk: WasmSdk, issuer: IssuerContext) {
   );
 }
 
-async function generateIssuerForTiming(run: number): Promise<KeygenTiming> {
+function keygenStrategyLabel(strategy: KeygenStrategy): string {
+  return strategy === "thread_rng" ? "thread RNG" : "system RNG";
+}
+
+function generateIssuer(sdk: WasmSdk, strategy: KeygenStrategy): IssuerContext {
+  return strategy === "thread_rng"
+    ? sdk.IssuerContext.generateWithThreadRng()
+    : sdk.IssuerContext.generateWithSystemRng();
+}
+
+async function generateIssuerForTiming(
+  repeat: number,
+  run: number,
+  strategy: KeygenStrategy,
+): Promise<KeygenTiming> {
   workerScope.postMessage({
     type: "progress",
+    repeat,
     run,
+    strategy,
     message: "loading WASM SDK",
   });
   const sdk = await loadSdk();
@@ -111,23 +136,29 @@ async function generateIssuerForTiming(run: number): Promise<KeygenTiming> {
     tracingInitialized = true;
   }
 
+  const strategyLabel = keygenStrategyLabel(strategy);
+
   workerScope.postMessage({
     type: "progress",
+    repeat,
     run,
-    message: "starting RSA keygen",
+    strategy,
+    message: `starting RSA keygen with ${strategyLabel}`,
   });
   const started = performance.now();
-  const issuer = sdk.IssuerContext.generate();
+  const issuer = generateIssuer(sdk, strategy);
   const elapsedMs = performance.now() - started;
 
   workerScope.postMessage({
     type: "progress",
+    repeat,
     run,
-    message: "smoke testing generated issuer",
+    strategy,
+    message: `smoke testing generated issuer from ${strategyLabel}`,
   });
   smokeTestGeneratedIssuer(sdk, issuer);
 
-  return { run, elapsedMs };
+  return { repeat, run, strategy, elapsedMs };
 }
 
 workerScope.addEventListener("message", (event) => {
@@ -135,7 +166,11 @@ workerScope.addEventListener("message", (event) => {
     try {
       workerScope.postMessage({
         type: "timing",
-        timing: await generateIssuerForTiming(event.data.run),
+        timing: await generateIssuerForTiming(
+          event.data.repeat,
+          event.data.run,
+          event.data.strategy,
+        ),
       });
     } catch (error) {
       workerScope.postMessage({

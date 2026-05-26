@@ -166,6 +166,22 @@ impl IssuerContext {
         })
     }
 
+    /// Generate a new issuer context using a thread-local CSPRNG seeded from the system RNG.
+    #[wasm_bindgen(js_name = generateWithThreadRng)]
+    pub fn generate_with_thread_rng() -> Result<IssuerContext, JsError> {
+        Ok(Self {
+            inner: protocol::IssuerContext::generate_with_thread_rng()?,
+        })
+    }
+
+    /// Generate a new issuer context using direct system randomness for each keygen draw.
+    #[wasm_bindgen(js_name = generateWithSystemRng)]
+    pub fn generate_with_system_rng() -> Result<IssuerContext, JsError> {
+        Ok(Self {
+            inner: protocol::IssuerContext::generate_with_system_rng()?,
+        })
+    }
+
     /// Import an issuer context from previously exported issuer secret keys.
     #[wasm_bindgen(js_name = importSecretKey)]
     pub fn import_secret_key(
