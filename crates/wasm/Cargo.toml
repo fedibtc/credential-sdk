@@ -11,7 +11,7 @@ readme.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [features]
-issuer-keygen-system-rng = ["fedi-credential-sdk-protocol/issuer-keygen-system-rng"]
+sys-rng = ["fedi-credential-sdk-protocol/sys-rng"]
 
 [dependencies]
 fedi-credential-sdk-protocol.workspace = true

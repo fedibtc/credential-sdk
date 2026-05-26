@@ -8,7 +8,9 @@ repository.workspace = true
 readme = "README.md"
 
 [features]
-issuer-keygen-system-rng = []
+default = ["thread-rng"]
+thread-rng = []
+sys-rng = []
 
 [dependencies]
 blind-rsa-signatures = "0.17.1"
