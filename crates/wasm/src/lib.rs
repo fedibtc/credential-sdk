@@ -140,6 +140,15 @@ fn reflect_error(error: JsValue) -> JsError {
     )
 }
 
+/// Install a tracing subscriber that forwards Rust tracing events to the JavaScript console.
+///
+/// Returns `true` when this call installs the subscriber. Returns `false` when another global
+/// tracing subscriber is already installed.
+#[wasm_bindgen(js_name = initTracing)]
+pub fn init_tracing() -> bool {
+    tracing_wasm::try_set_as_global_default().is_ok()
+}
+
 #[wasm_bindgen]
 #[derive(Clone)]
 /// Issuer-side context for creating issuer bundles, issuing credentials, and revoking credentials.

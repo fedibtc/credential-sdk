@@ -2,7 +2,10 @@
 
 use blind_rsa_signatures::{
     pbrsa::PartiallyBlindKeyPairSha384PSSDeterministic,
-    reexports::rand::{rand_core::UnwrapErr, rngs::SysRng},
+    reexports::rand::{
+        rand_core::{TryCryptoRng, TryRng, UnwrapErr},
+        rngs::SysRng,
+    },
 };
 use serde_json::Value;
 
@@ -13,6 +16,63 @@ use crate::{
 };
 
 pub const ISSUER_MODULUS_BITS: usize = 2048;
+const KEYGEN_PROGRESS_RANDOM_DRAWS: u64 = 100_000;
+
+struct KeygenProgressRng<R> {
+    inner: R,
+    random_draws: u64,
+    next_progress_log_at: u64,
+}
+
+impl<R> KeygenProgressRng<R> {
+    fn new(inner: R) -> Self {
+        tracing::info!("issuer RSA keygen started");
+        Self {
+            inner,
+            random_draws: 0,
+            next_progress_log_at: KEYGEN_PROGRESS_RANDOM_DRAWS,
+        }
+    }
+
+    fn random_draws(&self) -> u64 {
+        self.random_draws
+    }
+
+    fn record_random_draw(&mut self) {
+        self.random_draws += 1;
+        if self.random_draws >= self.next_progress_log_at {
+            tracing::info!(
+                random_draws = self.random_draws,
+                "issuer RSA keygen still running"
+            );
+            self.next_progress_log_at += KEYGEN_PROGRESS_RANDOM_DRAWS;
+        }
+    }
+}
+
+impl<R: TryRng> TryRng for KeygenProgressRng<R> {
+    type Error = R::Error;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        let value = self.inner.try_next_u32()?;
+        self.record_random_draw();
+        Ok(value)
+    }
+
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        let value = self.inner.try_next_u64()?;
+        self.record_random_draw();
+        Ok(value)
+    }
+
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
+        self.inner.try_fill_bytes(dst)?;
+        self.record_random_draw();
+        Ok(())
+    }
+}
+
+impl<R: TryCryptoRng> TryCryptoRng for KeygenProgressRng<R> {}
 
 /// Runtime issuer context containing issuer identity and PBRSA signing key.
 #[derive(Clone)]
@@ -24,7 +84,22 @@ pub struct IssuerContext {
 impl IssuerContext {
     /// Generate an issuer context with fresh Nostr identity and PBRSA key pairs.
     pub fn generate() -> Result<Self, CredentialsError> {
-        Self::generate_with_rng(nostr::Keys::generate(), &mut UnwrapErr(SysRng))
+        let span = tracing::info_span!("issuer_rsa_keygen", modulus_bits = ISSUER_MODULUS_BITS);
+        let _span_guard = span.enter();
+        let mut rng = KeygenProgressRng::new(UnwrapErr(SysRng));
+        let generated = Self::generate_with_rng(nostr::Keys::generate(), &mut rng);
+        match &generated {
+            Ok(_) => tracing::info!(
+                random_draws = rng.random_draws(),
+                "issuer RSA keygen finished"
+            ),
+            Err(error) => tracing::warn!(
+                random_draws = rng.random_draws(),
+                %error,
+                "issuer RSA keygen failed"
+            ),
+        }
+        generated
     }
 
     pub(crate) fn generate_with_rng(
