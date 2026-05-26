@@ -11,9 +11,9 @@ The keygen path is not mocked.
 
 | Variable | Values tested | Notes |
 |---|---|---|
-| RNG strategy | `thread_rng`, `system_rng` | `thread_rng` uses `rand::rng()` in WASM. `system_rng` uses direct `SysRng`, which maps to `globalThis.crypto.getRandomValues` in the worker. |
+| RNG strategy | `thread_rng`, `system_rng` | `thread_rng` uses `rand::rng()` in WASM. `system_rng` uses direct `SysRng`, which maps to `globalThis.crypto.getRandomValues` in the worker. Use `VITE_RSA_KEYGEN_STRATEGIES=thread_rng` to run only one strategy. |
 | Build profile | normal, speed | Normal uses `pnpm run build` with release `opt-level = "s"`. Speed uses `pnpm run build:wasm:speed` with `opt-level = 3`, fat LTO, one codegen unit, `panic = "abort"`, and `wasm-opt -O3`. |
-| Concurrent workers | 1, 4, 10 per strategy | Each worker runs one isolated keygen attempt. Current benchmark methodology ends each setup when the first worker succeeds, terminates the remaining workers, repeats the setup five times sequentially, and aggregates those first-success samples. |
+| Concurrent workers | 1, 4, 6, 8, 10 per strategy | Each worker runs one isolated keygen attempt. Current benchmark methodology ends each setup when the first worker succeeds, terminates the remaining workers, repeats the setup five times sequentially, and aggregates those first-success samples. |
 | CPU throttle rate | unset, `1`, `4`, etc. | Optional Chromium DevTools Protocol CPU throttling for browser-worker benchmarks. Use `VITE_RSA_KEYGEN_CPU_THROTTLE_RATE=<rate>`; unset or `1` means unthrottled. |
 
 ## Commands
@@ -23,8 +23,8 @@ The keygen path is not mocked.
 | Normal WASM build | `devenv shell pnpm run build` |
 | Speed WASM build with default thread RNG | `devenv shell pnpm run build:wasm:speed:thread-rng` |
 | Speed WASM build with default system RNG | `devenv shell pnpm run build:wasm:speed:system-rng` |
-| Browser worker benchmark | `VITE_RSA_KEYGEN_RUNS=<workers> VITE_RSA_KEYGEN_REPEATS=5 VITE_RSA_KEYGEN_TIMEOUT_MS=3600000 pnpm exec vitest --config vitest.browser.config.ts run test/keygen.browser.test.ts --testTimeout 3600000 --reporter verbose` |
-| Browser worker benchmark with CPU throttle | `VITE_RSA_KEYGEN_CPU_THROTTLE_RATE=<rate> VITE_RSA_KEYGEN_RUNS=<workers> VITE_RSA_KEYGEN_REPEATS=5 VITE_RSA_KEYGEN_TIMEOUT_MS=3600000 pnpm exec vitest --config vitest.browser.config.ts run test/keygen.browser.test.ts --testTimeout 3600000 --reporter verbose` |
+| Browser worker benchmark | `VITE_RSA_KEYGEN_STRATEGIES=<strategy> VITE_RSA_KEYGEN_CONCURRENT_WORKERS=<workers> VITE_RSA_KEYGEN_REPEATS=5 VITE_RSA_KEYGEN_TIMEOUT_MS=3600000 pnpm exec vitest --config vitest.browser.config.ts run test/keygen.browser.test.ts --testTimeout 3600000 --reporter verbose` |
+| Browser worker benchmark with CPU throttle | `VITE_RSA_KEYGEN_CPU_THROTTLE_RATE=<rate> VITE_RSA_KEYGEN_STRATEGIES=<strategy> VITE_RSA_KEYGEN_CONCURRENT_WORKERS=<workers> VITE_RSA_KEYGEN_REPEATS=5 VITE_RSA_KEYGEN_TIMEOUT_MS=3600000 pnpm exec vitest --config vitest.browser.config.ts run test/keygen.browser.test.ts --testTimeout 3600000 --reporter verbose` |
 
 ## Benchmark Strategy
 
@@ -43,8 +43,10 @@ this table. Results below should use the race-to-first strategy above.
 
 | Build | Concurrent workers | CPU throttle rate | Strategy | Repetitions | Fastest first success | Slowest first success | Average first success | Median first success |
 |---|---:|---:|---|---:|---:|---:|---:|---:|
-| speed | 4 | 1 | `thread_rng` | 5 | TBD | TBD | TBD | TBD |
-| speed | 4 | 1 | `system_rng` | 5 | TBD | TBD | TBD | TBD |
+| speed | 1 | 4 | `thread_rng` | 5 | 27.935s | 129.064s | 85.383s | 86.787s |
+| speed | 4 | 4 | `thread_rng` | 5 | 10.677s | 39.096s | 27.116s | 29.451s |
+| speed | 6 | 4 | `thread_rng` | 5 | 3.781s | 41.572s | 17.280s | 11.764s |
+| speed | 8 | 4 | `thread_rng` | 5 | 26.922s | 68.052s | 39.306s | 31.053s |
 
 ## Current Observations
 
@@ -54,3 +56,4 @@ this table. Results below should use the race-to-first strategy above.
 | Build profile should be controlled. | Speed and normal WASM builds use different optimization settings. | Compare RNG strategies only within the same build profile. |
 | CPU throttle should be controlled. | Chromium CPU throttling is optional and changes execution timing. | Compare runs only within the same throttle rate. |
 | Safe-prime search variance is large. | Earlier batches showed wide timing spreads between workers. | Race-to-first-success should better model concurrent keygen attempts. |
+| More workers can still regress. | In the speed/thread-RNG/4x-throttle run, 6 workers had the best median and average, while 8 workers was slower. | Worker count needs tuning instead of assuming more concurrent attempts is always better. |

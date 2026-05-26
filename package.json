@@ -31,7 +31,7 @@
     "test:keygen:ts": "pnpm run build && pnpm run typecheck && RUN_RSA_KEYGEN_TESTS=1 vitest run test/keygen.test.ts --testTimeout 1200000 --reporter verbose",
     "test:keygen:ts:concurrent": "pnpm run build && pnpm run typecheck && RUN_RSA_KEYGEN_TESTS=1 RSA_KEYGEN_RUNS=10 RSA_KEYGEN_CONCURRENT=1 RSA_KEYGEN_TIMEOUT_MS=3600000 vitest run test/keygen.test.ts --testTimeout 3600000 --reporter verbose",
     "test:keygen:browser": "pnpm run build && pnpm run typecheck && vitest --config vitest.browser.config.ts run test/keygen.browser.test.ts --testTimeout 1200000 --reporter verbose",
-    "test:keygen:browser:concurrent": "pnpm run build && pnpm run typecheck && VITE_RSA_KEYGEN_RUNS=10 VITE_RSA_KEYGEN_CONCURRENT=1 VITE_RSA_KEYGEN_TIMEOUT_MS=3600000 vitest --config vitest.browser.config.ts run test/keygen.browser.test.ts --testTimeout 3600000 --reporter verbose",
+    "test:keygen:browser:concurrent": "pnpm run build && pnpm run typecheck && VITE_RSA_KEYGEN_CONCURRENT_WORKERS=10 VITE_RSA_KEYGEN_TIMEOUT_MS=3600000 vitest --config vitest.browser.config.ts run test/keygen.browser.test.ts --testTimeout 3600000 --reporter verbose",
     "test:keygen": "pnpm run test:keygen:rust && pnpm run test:keygen:ts",
     "test:keygen:concurrent": "pnpm run test:keygen:rust:concurrent && pnpm run test:keygen:ts:concurrent",
     "test": "pnpm run build && pnpm run test:rust && pnpm run test:ts",
