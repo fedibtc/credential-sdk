@@ -1,15 +1,21 @@
 import { describe, it } from "vitest";
 import KeygenBrowserWorker from "./keygen.browser.worker.ts?worker";
 
+type KeygenStrategy = "thread_rng" | "system_rng";
+
 type KeygenTiming = {
+  readonly repeat: number;
   readonly run: number;
+  readonly strategy: KeygenStrategy;
   readonly elapsedMs: number;
 };
 
 type KeygenWorkerResponse =
   | {
       readonly type: "progress";
+      readonly repeat: number;
       readonly run: number;
+      readonly strategy: KeygenStrategy;
       readonly message: string;
     }
   | {
@@ -27,36 +33,31 @@ function envValue(name: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-function envBool(name: string): boolean {
-  const value = envValue(name);
-  return (
-    value === "1" ||
-    value === "true" ||
-    value === "TRUE" ||
-    value === "yes" ||
-    value === "YES" ||
-    value === "on" ||
-    value === "ON"
-  );
-}
-
 function envNumber(name: string, defaultValue: number): number {
   const parsed = Number(envValue(name));
   return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultValue;
 }
 
-const keygenRuns = envNumber("VITE_RSA_KEYGEN_RUNS", 1);
-const runKeygensConcurrently =
-  envBool("VITE_RSA_KEYGEN_CONCURRENT") && keygenRuns > 1;
-const slowKeygenTimeoutMs = envNumber("VITE_RSA_KEYGEN_TIMEOUT_MS", 1_200_000);
+const keygenStrategies = ["thread_rng", "system_rng"] as const;
+const concurrentWorkers = envNumber("VITE_RSA_KEYGEN_RUNS", 4);
+const repeatCount = envNumber("VITE_RSA_KEYGEN_REPEATS", 5);
+const slowKeygenTimeoutMs = envNumber("VITE_RSA_KEYGEN_TIMEOUT_MS", 3_600_000);
 
 function writeTiming(message: string) {
   console.info(message);
 }
 
+function keygenMethodLabel(strategy: KeygenStrategy): string {
+  return strategy === "thread_rng"
+    ? "IssuerContext.generateWithThreadRng()"
+    : "IssuerContext.generateWithSystemRng()";
+}
+
 function writeRunTiming(timing: KeygenTiming, runCount: number) {
   writeTiming(
-    `IssuerContext.generate() browser Worker WASM RSA keygen run ${
+    `${keygenMethodLabel(timing.strategy)} browser Worker WASM RSA keygen repeat ${
+      timing.repeat
+    }/${repeatCount} worker ${
       timing.run
     }/${runCount} completed in ${(timing.elapsedMs / 1000).toFixed(3)}s`,
   );
@@ -72,9 +73,28 @@ function median(values: readonly number[]): number {
 function reportKeygenStats(
   timings: readonly KeygenTiming[],
   wallElapsedMs: number,
-  concurrent: boolean,
 ) {
-  const sortedByElapsed = [...timings].sort(
+  writeTiming(
+    `browser Worker WASM RSA keygen comparison: concurrent_workers=${concurrentWorkers}, repeats=${repeatCount}, samples_per_strategy=${
+      concurrentWorkers * repeatCount
+    }, strategy_batches=sequential, wall=${(wallElapsedMs / 1000).toFixed(3)}s`,
+  );
+
+  reportKeygenStatsForStrategy(timings, "thread_rng");
+  reportKeygenStatsForStrategy(timings, "system_rng");
+  reportKeygenRepeatStats(timings, "thread_rng");
+  reportKeygenRepeatStats(timings, "system_rng");
+  reportKeygenComparison(timings);
+}
+
+function reportKeygenStatsForStrategy(
+  timings: readonly KeygenTiming[],
+  strategy: KeygenStrategy,
+) {
+  const strategyTimings = timings.filter(
+    (timing) => timing.strategy === strategy,
+  );
+  const sortedByElapsed = [...strategyTimings].sort(
     (a, b) => a.elapsedMs - b.elapsedMs,
   );
   const sortedSeconds = sortedByElapsed.map(
@@ -87,11 +107,9 @@ function reportKeygenStats(
   const slowest = sortedByElapsed[sortedByElapsed.length - 1];
 
   writeTiming(
-    `IssuerContext.generate() browser Worker WASM RSA keygen summary: runs=${
-      timings.length
-    }, concurrent=${concurrent}, wall=${(wallElapsedMs / 1000).toFixed(
-      3,
-    )}s, fastest=${(fastest.elapsedMs / 1000).toFixed(3)}s (run ${
+    `${keygenMethodLabel(strategy)} browser Worker WASM RSA keygen summary: runs=${
+      strategyTimings.length
+    }, fastest=${(fastest.elapsedMs / 1000).toFixed(3)}s (run ${
       fastest.run
     }), slowest=${(slowest.elapsedMs / 1000).toFixed(3)}s (run ${
       slowest.run
@@ -100,13 +118,82 @@ function reportKeygenStats(
     )}s`,
   );
 
-  for (const timing of [...timings].sort((a, b) => a.run - b.run)) {
+  for (const timing of [...strategyTimings].sort(
+    (a, b) => a.repeat - b.repeat || a.run - b.run,
+  )) {
     writeTiming(
-      `IssuerContext.generate() browser Worker WASM RSA keygen sample ${
-        timing.run
-      }: ${(timing.elapsedMs / 1000).toFixed(3)}s`,
+      `${keygenMethodLabel(strategy)} browser Worker WASM RSA keygen sample repeat ${
+        timing.repeat
+      } worker ${timing.run}: ${(timing.elapsedMs / 1000).toFixed(3)}s`,
     );
   }
+}
+
+function reportKeygenRepeatStats(
+  timings: readonly KeygenTiming[],
+  strategy: KeygenStrategy,
+) {
+  for (let repeat = 1; repeat <= repeatCount; repeat += 1) {
+    const repeatTimings = timings.filter(
+      (timing) => timing.strategy === strategy && timing.repeat === repeat,
+    );
+    const sortedSeconds = repeatTimings
+      .map((timing) => timing.elapsedMs / 1000)
+      .sort((a, b) => a - b);
+
+    writeTiming(
+      `${keygenMethodLabel(strategy)} browser Worker WASM RSA keygen repeat ${repeat}/${repeatCount} summary: fastest=${sortedSeconds[0].toFixed(
+        3,
+      )}s, slowest=${sortedSeconds[sortedSeconds.length - 1].toFixed(
+        3,
+      )}s, average=${average(sortedSeconds).toFixed(3)}s, median=${median(
+        sortedSeconds,
+      ).toFixed(3)}s`,
+    );
+  }
+}
+
+function secondsForStrategy(
+  timings: readonly KeygenTiming[],
+  strategy: KeygenStrategy,
+): number[] {
+  return timings
+    .filter((timing) => timing.strategy === strategy)
+    .map((timing) => timing.elapsedMs / 1000)
+    .sort((a, b) => a - b);
+}
+
+function average(values: readonly number[]): number {
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+function reportKeygenComparison(timings: readonly KeygenTiming[]) {
+  const threadSeconds = secondsForStrategy(timings, "thread_rng");
+  const systemSeconds = secondsForStrategy(timings, "system_rng");
+  const threadMedian = median(threadSeconds);
+  const systemMedian = median(systemSeconds);
+  const threadAverage = average(threadSeconds);
+  const systemAverage = average(systemSeconds);
+  const medianWinner: KeygenStrategy =
+    threadMedian <= systemMedian ? "thread_rng" : "system_rng";
+  const averageWinner: KeygenStrategy =
+    threadAverage <= systemAverage ? "thread_rng" : "system_rng";
+
+  writeTiming(
+    `browser Worker WASM RSA keygen result: median_winner=${keygenMethodLabel(
+      medianWinner,
+    )}, thread_median=${threadMedian.toFixed(
+      3,
+    )}s, system_median=${systemMedian.toFixed(3)}s, average_winner=${keygenMethodLabel(
+      averageWinner,
+    )}, thread_average=${threadAverage.toFixed(
+      3,
+    )}s, system_average=${systemAverage.toFixed(3)}s`,
+  );
+}
+
+function isKeygenStrategy(value: unknown): value is KeygenStrategy {
+  return value === "thread_rng" || value === "system_rng";
 }
 
 function isKeygenWorkerResponse(value: unknown): value is KeygenWorkerResponse {
@@ -117,18 +204,24 @@ function isKeygenWorkerResponse(value: unknown): value is KeygenWorkerResponse {
   const response = value as KeygenWorkerResponse;
   return (
     (response.type === "progress" &&
+      typeof response.repeat === "number" &&
       typeof response.run === "number" &&
+      isKeygenStrategy(response.strategy) &&
       typeof response.message === "string") ||
     (response.type === "timing" &&
+      typeof response.timing?.repeat === "number" &&
       typeof response.timing?.run === "number" &&
+      isKeygenStrategy(response.timing.strategy) &&
       typeof response.timing.elapsedMs === "number") ||
     (response.type === "error" && typeof response.message === "string")
   );
 }
 
 function runBrowserWorkerKeygen(
+  repeat: number,
   run: number,
   runCount: number,
+  strategy: KeygenStrategy,
 ): Promise<KeygenTiming> {
   const worker = new KeygenBrowserWorker();
 
@@ -154,7 +247,9 @@ function runBrowserWorkerKeygen(
 
       if (event.data.type === "progress") {
         writeTiming(
-          `IssuerContext.generate() browser Worker WASM RSA keygen run ${
+          `${keygenMethodLabel(event.data.strategy)} browser Worker WASM RSA keygen repeat ${
+            event.data.repeat
+          }/${repeatCount} worker ${
             event.data.run
           }/${runCount}: ${event.data.message}`,
         );
@@ -176,26 +271,30 @@ function runBrowserWorkerKeygen(
       );
     });
 
-    worker.postMessage({ run, runCount });
+    worker.postMessage({ repeat, repeatCount, run, runCount, strategy });
   });
 }
 
 async function runBrowserWorkerKeygens(
   runCount: number,
-  concurrent: boolean,
 ): Promise<KeygenTiming[]> {
-  if (concurrent) {
-    return Promise.all(
-      Array.from({ length: runCount }, (_, index) =>
-        runBrowserWorkerKeygen(index + 1, runCount),
-      ),
-    );
+  const timings: KeygenTiming[] = [];
+
+  for (const strategy of keygenStrategies) {
+    for (let repeat = 1; repeat <= repeatCount; repeat += 1) {
+      writeTiming(
+        `${keygenMethodLabel(strategy)} browser Worker WASM RSA keygen batch starting: repeat=${repeat}/${repeatCount}, workers=${runCount}`,
+      );
+      timings.push(
+        ...(await Promise.all(
+          Array.from({ length: runCount }, (_, index) =>
+            runBrowserWorkerKeygen(repeat, index + 1, runCount, strategy),
+          ),
+        )),
+      );
+    }
   }
 
-  const timings: KeygenTiming[] = [];
-  for (let index = 0; index < runCount; index += 1) {
-    timings.push(await runBrowserWorkerKeygen(index + 1, runCount));
-  }
   return timings;
 }
 
@@ -204,16 +303,9 @@ describe("RSA issuer key generation in a browser Worker", () => {
     "generates issuer keys and reports timing",
     async () => {
       const wallStarted = performance.now();
-      const timings = await runBrowserWorkerKeygens(
-        keygenRuns,
-        runKeygensConcurrently,
-      );
+      const timings = await runBrowserWorkerKeygens(concurrentWorkers);
 
-      reportKeygenStats(
-        timings,
-        performance.now() - wallStarted,
-        runKeygensConcurrently,
-      );
+      reportKeygenStats(timings, performance.now() - wallStarted);
     },
     slowKeygenTimeoutMs,
   );

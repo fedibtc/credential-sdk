@@ -3,7 +3,8 @@
 use blind_rsa_signatures::{
     pbrsa::PartiallyBlindKeyPairSha384PSSDeterministic,
     reexports::rand::{
-        rand_core::{TryCryptoRng, TryRng, UnwrapErr},
+        self,
+        rand_core::{Infallible, TryCryptoRng, TryRng, UnwrapErr},
         rngs::SysRng,
     },
 };
@@ -20,15 +21,17 @@ const KEYGEN_PROGRESS_RANDOM_DRAWS: u64 = 100_000;
 
 struct KeygenProgressRng<R> {
     inner: R,
+    rng_strategy: &'static str,
     random_draws: u64,
     next_progress_log_at: u64,
 }
 
 impl<R> KeygenProgressRng<R> {
-    fn new(inner: R) -> Self {
-        tracing::info!("issuer RSA keygen started");
+    fn new(inner: R, rng_strategy: &'static str) -> Self {
+        tracing::info!(rng_strategy, "issuer RSA keygen started");
         Self {
             inner,
+            rng_strategy,
             random_draws: 0,
             next_progress_log_at: KEYGEN_PROGRESS_RANDOM_DRAWS,
         }
@@ -42,6 +45,7 @@ impl<R> KeygenProgressRng<R> {
         self.random_draws += 1;
         if self.random_draws >= self.next_progress_log_at {
             tracing::info!(
+                rng_strategy = self.rng_strategy,
                 random_draws = self.random_draws,
                 "issuer RSA keygen still running"
             );
@@ -83,17 +87,50 @@ pub struct IssuerContext {
 
 impl IssuerContext {
     /// Generate an issuer context with fresh Nostr identity and PBRSA key pairs.
+    #[cfg(not(feature = "issuer-keygen-system-rng"))]
     pub fn generate() -> Result<Self, CredentialsError> {
-        let span = tracing::info_span!("issuer_rsa_keygen", modulus_bits = ISSUER_MODULUS_BITS);
+        Self::generate_with_thread_rng()
+    }
+
+    /// Generate an issuer context with fresh Nostr identity and PBRSA key pairs.
+    #[cfg(feature = "issuer-keygen-system-rng")]
+    pub fn generate() -> Result<Self, CredentialsError> {
+        Self::generate_with_system_rng()
+    }
+
+    /// Generate an issuer context using a thread-local CSPRNG seeded from the system RNG.
+    pub fn generate_with_thread_rng() -> Result<Self, CredentialsError> {
+        Self::generate_with_rng_source("thread_rng", rand::rng())
+    }
+
+    /// Generate an issuer context using direct system randomness for each keygen draw.
+    pub fn generate_with_system_rng() -> Result<Self, CredentialsError> {
+        Self::generate_with_rng_source("system_rng", UnwrapErr(SysRng))
+    }
+
+    fn generate_with_rng_source<R>(
+        rng_strategy: &'static str,
+        rng: R,
+    ) -> Result<Self, CredentialsError>
+    where
+        R: TryCryptoRng<Error = Infallible>,
+    {
+        let span = tracing::info_span!(
+            "issuer_rsa_keygen",
+            modulus_bits = ISSUER_MODULUS_BITS,
+            rng_strategy
+        );
         let _span_guard = span.enter();
-        let mut rng = KeygenProgressRng::new(UnwrapErr(SysRng));
+        let mut rng = KeygenProgressRng::new(rng, rng_strategy);
         let generated = Self::generate_with_rng(nostr::Keys::generate(), &mut rng);
         match &generated {
             Ok(_) => tracing::info!(
+                rng_strategy,
                 random_draws = rng.random_draws(),
                 "issuer RSA keygen finished"
             ),
             Err(error) => tracing::warn!(
+                rng_strategy,
                 random_draws = rng.random_draws(),
                 %error,
                 "issuer RSA keygen failed"
