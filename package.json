@@ -9,7 +9,7 @@
   "scripts": {
     "build": "pnpm run build:wasm",
     "build:wasm": "rm -rf pkg && wasm-pack build crates/wasm --scope fedibtc --target bundler --out-dir ../../pkg --no-opt && rm -f pkg/.gitignore && pnpm run format:pkg",
-    "build:wasm:speed": "bash scripts/build-wasm-speed.sh",
+    "build:wasm:speed": "rm -rf pkg && wasm-pack build crates/wasm --scope fedibtc --target bundler --out-dir ../../pkg --no-opt --dev -- --profile wasm-speed && wasm-opt -O3 -o pkg/fedi_credential_sdk_wasm_bg.wasm pkg/fedi_credential_sdk_wasm_bg.wasm && rm -f pkg/.gitignore && pnpm run format:pkg",
     "clean": "rm -rf dist pkg target",
     "check": "pnpm run format:check && pnpm run lint && pnpm run test",
     "docs": "pnpm run docs:api && pnpm run docs:rust && pnpm run docs:rust:copy",
