@@ -6,7 +6,7 @@ title: Issue A Credential
 
 Issuance has three actors:
 
-- The issuer publishes an `IssuerBundle`.
+- The issuer publishes an `IssuerAuthority`.
 - The holder creates an `IssuanceRequest` and keeps `PendingIssuance`.
 - The issuer returns an `IssuanceResponse`, which the holder finalizes into a
   `SignedCredential`.
@@ -30,11 +30,11 @@ const revocationLocations = [
   },
 ] satisfies readonly RevocationLocation[];
 
-const issuerBundle = issuer.issuerBundle(revocationLocations);
+const issuerAuthority = issuer.issuerAuthority(revocationLocations);
 ```
 
-Applications decide how holders and verifiers receive the issuer bundle. The SDK
-only creates and verifies the signed bundle.
+Applications decide how holders and verifiers receive the issuer authority. The SDK
+only creates and verifies the signed authority.
 
 ## Holder Request
 
@@ -48,7 +48,7 @@ const holder = HolderContext.generate();
 const blindMsg = holder.publicKey;
 
 const { request, pending } = PendingIssuance.createRequest(
-  issuerBundle,
+  issuerAuthority,
   credentialInfo,
   blindMsg,
 );
@@ -70,7 +70,7 @@ holder's pending state.
 ## Holder Finalization
 
 ```ts
-const credential = pending.finalize(issuerBundle, response);
+const credential = pending.finalize(issuerAuthority, response);
 ```
 
 The finalized `credential` can be stored by the holder and presented to

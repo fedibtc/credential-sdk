@@ -60,11 +60,11 @@ Here is this “triangle of trust” showed in the form of a diagram:
 
 ## Blinding/Cryptography Methodology
 
-- Issuer Bundle
-  Issuer signs issuance bundle with root identity keys (e.g. nsec). The bundle includes the pubkey used for issuing credentials (e.g. RSA 2048), the identity pubkey for the issuer (e.g. npub), and the location for posting credential revocations which MUST be scanned by verifiers in the process of credential verification.
-  Before a verifier can accept credentials from a given issuer, they must receive and verify the issuer’s “Issuer Bundle”, containing the details of their trusted set
+- Issuer Authority
+  Issuer signs issuance authority with root identity keys (e.g. nsec). The authority includes the pubkey used for issuing credentials (e.g. RSA 2048), the identity pubkey for the issuer (e.g. npub), and the location for posting credential revocations which MUST be scanned by verifiers in the process of credential verification.
+  Before a verifier can accept credentials from a given issuer, they must receive and verify the issuer’s “Issuer Authority”, containing the details of their trusted set
   ```json
-  // ex. Issuer Bundle
+  // ex. Issuer Authority
   {
   	"issuer": {
   	  // identity pubkey for issuer (like npub)
@@ -78,7 +78,7 @@ Here is this “triangle of trust” showed in the form of a diagram:
   		}]
   	},
   	"proof": {
-  	  // issuer_id_pubkey signs over issuer bundle.
+      // issuer_id_pubkey signs over issuer authority.
   		"signature": "issuer-signature"
   	}
   }
@@ -104,7 +104,7 @@ Here is this “triangle of trust” showed in the form of a diagram:
   	  "blind_msg": "anonymous-holder-public-key",
     },
     "proof": {
-      // signed by "issuance_key" in preloaded issuer bundle.
+      // signed by "issuance_key" in preloaded issuer authority.
       // signature is over whole "credential" object
       // THIS is the final version stored by the holder, so yes this signature
       // is UNblinded
@@ -138,7 +138,7 @@ Here is this “triangle of trust” showed in the form of a diagram:
   ```
 - Revocation
   Revocation can only happen in response to publicly attributable online activity that is associated with the holder’s pubkey which was signed (for example, abusing the blue check mark). Due to the privacy preserving nature of the blinded signature scheme described above, we have no real-world link between the individual and the public key that was credentialed.
-  The “Revocation” object should be published by the issuer to each of the revocations locations included in the issuer bundle.
+  The “Revocation” object should be published by the issuer to each of the revocations locations included in the issuer authority.
   ```json
   // Revocation object
   {
@@ -176,8 +176,8 @@ We looked at BBS+ and partially blinded schemes, and decided to go with the latt
   - Keys (both identity keys & RSA/issuance keys)
     - Generate secret keys (nsec & RSA 2048)
     - Import secret key (nsec and/or issuance keys)
-    - Create issuer bundle
-    - export issuer bundle
+    - Create issuer authority
+    - export issuer authority
   - Schema definition
     - Define/publish new schema definition containing blinded & unblinded fields
     - load previously-published schema definition
@@ -208,7 +208,7 @@ We looked at BBS+ and partially blinded schemes, and decided to go with the latt
       - Check / Show “revoked”?
     - Export credentials (for later use in applications e.g., nostr publishing)
 - Verifier
-  - Load issuer bundles (from nostr, manually, etc.)
+  - Load issuer authorities (from nostr, manually, etc.)
   - Import / select credentials
   - Perform verification operation, show “success”/”failure”
     - check if issuer is known

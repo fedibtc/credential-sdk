@@ -5,7 +5,7 @@ title: Quickstart
 # Quickstart
 
 This guide shows the smallest useful TypeScript flow with the npm package:
-create an issuer bundle, create a holder issuance request, issue a blind
+create an issuer authority, create a holder issuance request, issue a blind
 signature, finalize a credential, verify it, and then revoke it.
 
 ## Imports
@@ -37,15 +37,15 @@ const revocationLocations = [
   },
 ] satisfies readonly RevocationLocation[];
 
-// Issuer: create a signed public issuer bundle.
+// Issuer: create a signed public issuer authority.
 const issuer = IssuerContext.generate();
-const issuerBundle = issuer.issuerBundle(revocationLocations);
+const issuerAuthority = issuer.issuerAuthority(revocationLocations);
 
 // Holder: create a blinded issuance request and keep pending state locally.
 const holder = HolderContext.generate();
 const blindMsg = holder.publicKey;
 const { request, pending } = PendingIssuance.createRequest(
-  issuerBundle,
+  issuerAuthority,
   credentialInfo,
   blindMsg,
 );
@@ -54,11 +54,11 @@ const { request, pending } = PendingIssuance.createRequest(
 const response = issuer.issueCredential(credentialInfo, request);
 
 // Holder: unblind the response and finalize the credential.
-const credential = pending.finalize(issuerBundle, response);
+const credential = pending.finalize(issuerAuthority, response);
 
-// Verifier: trust the issuer bundle before accepting credentials.
+// Verifier: trust the issuer authority before accepting credentials.
 const verifier = new VerificationContext();
-verifier.addIssuerBundle(issuerBundle);
+verifier.addIssuerAuthority(issuerAuthority);
 
 const verified = verifier.verifyCredential(credential);
 console.log(verified); // true
@@ -98,7 +98,7 @@ const credentialInfo = {
 } satisfies JsonValue;
 
 const { request, pending } = PendingIssuance.createRequest(
-  issuerBundle,
+  issuerAuthority,
   credentialInfo,
   blindMsg,
 );
@@ -122,7 +122,7 @@ const importedPending = PendingIssuance.importState(pendingState);
 
 // Receive the issuer's response through your application transport.
 const response = await receiveIssuanceResponse();
-const credential = importedPending.finalize(issuerBundle, response);
+const credential = importedPending.finalize(issuerAuthority, response);
 localStorage.removeItem("pending-issuance");
 ```
 
@@ -134,7 +134,7 @@ log it or send it to the issuer.
 The SDK owns protocol-sensitive operations:
 
 - Key generation and import/export.
-- Issuer bundle signing.
+- Issuer authority signing.
 - Holder blinding and pending issuance state.
 - Issuer blind signing.
 - Holder finalization.

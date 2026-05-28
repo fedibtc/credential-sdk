@@ -79,21 +79,21 @@ function smokeTestGeneratedIssuer(issuer: IssuerContext) {
   expect(exported.issuer_id_secret_key).toMatch(/^[0-9a-f]+$/);
   expect(exported.issuance_secret_key.length).toBeGreaterThan(0);
 
-  const issuerBundle = issuer.issuerBundle([]);
-  expect(issuerBundle.issuer.issuer_id_pubkey.length).toBeGreaterThan(0);
-  expect(issuerBundle.issuer.issuance_key.length).toBeGreaterThan(0);
+  const issuerAuthority = issuer.issuerAuthority([]);
+  expect(issuerAuthority.issuer.issuer_id_pubkey.length).toBeGreaterThan(0);
+  expect(issuerAuthority.issuer.issuance_key.length).toBeGreaterThan(0);
 
   const holder = HolderContext.generate();
   const result = PendingIssuance.createRequest(
-    issuerBundle,
+    issuerAuthority,
     credentialInfo,
     holder.publicKey,
   );
   const response = issuer.issueCredential(credentialInfo, result.request);
-  const credential = result.pending.finalize(issuerBundle, response);
+  const credential = result.pending.finalize(issuerAuthority, response);
 
   const verifier = new VerificationContext();
-  expect(verifier.addIssuerBundle(issuerBundle)).toBeUndefined();
+  expect(verifier.addIssuerAuthority(issuerAuthority)).toBeUndefined();
   expect(verifier.verifyCredential(credential)).toBe(true);
 }
 
@@ -192,18 +192,18 @@ function workerSource(run: number, pkgUrl: string): string {
       throw new Error("generated issuer issuance secret key is empty");
     }
 
-    const issuerBundle = issuer.issuerBundle([]);
+    const issuerAuthority = issuer.issuerAuthority([]);
     const holder = HolderContext.generate();
     const result = PendingIssuance.createRequest(
-      issuerBundle,
+      issuerAuthority,
       credentialInfo,
       holder.publicKey,
     );
     const response = issuer.issueCredential(credentialInfo, result.request);
-    const credential = result.pending.finalize(issuerBundle, response);
+    const credential = result.pending.finalize(issuerAuthority, response);
 
     const verifier = new VerificationContext();
-    verifier.addIssuerBundle(issuerBundle);
+    verifier.addIssuerAuthority(issuerAuthority);
     if (verifier.verifyCredential(credential) !== true) {
       throw new Error("generated issuer credential verification failed");
     }

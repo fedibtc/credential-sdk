@@ -15,12 +15,12 @@ issuer, holder, and verifier.
   signs revocations for credentials it issued.
 - **Holder**: creates an issuance request that hides `blind_msg` from the issuer
   during signing, then finalizes the issuer response into a credential.
-- **Verifier**: trusts issuer bundles, ingests signed revocations, and verifies
+- **Verifier**: trusts issuer authorities, ingests signed revocations, and verifies
   finalized credentials against both.
 
 ## Main Objects
 
-- `IssuerBundle`: signed public issuer metadata. It binds the issuer identity
+- `IssuerAuthority`: signed public issuer metadata. It binds the issuer identity
   public key, issuance public key, and revocation locations.
 - `IssuanceRequest`: holder-created blinded request sent to the issuer.
 - `IssuanceResponse`: issuer-created blind signature response bound to visible
@@ -32,7 +32,7 @@ issuer, holder, and verifier.
 
 ## SDK Boundary
 
-The SDK deliberately does not fetch issuer bundles, publish revocations, scan QR
+The SDK deliberately does not fetch issuer authorities, publish revocations, scan QR
 codes, store pending issuance state, choose which issuers are trusted, or decide
 what application-specific credential fields mean.
 

@@ -63,7 +63,7 @@ export interface CredentialProof {
 }
 
 /** Signed issuer metadata that verifiers trust before accepting credentials. */
-export interface IssuerBundle {
+export interface IssuerAuthority {
   readonly version: 1;
   readonly issuer: Issuer;
   readonly proof: SchnorrSignatureProof;
@@ -74,7 +74,7 @@ export interface SchnorrSignatureProof {
   readonly signature: string;
 }
 
-/** Public issuer metadata bound into an issuer bundle. */
+/** Public issuer metadata bound into an issuer authority. */
 export interface Issuer {
   /** Nostr public key identifying the issuer. */
   readonly issuer_id_pubkey: string;
@@ -151,7 +151,7 @@ pub fn init_tracing() -> bool {
 
 #[wasm_bindgen]
 #[derive(Clone)]
-/// Issuer-side context for creating issuer bundles, issuing credentials, and revoking credentials.
+/// Issuer-side context for creating issuer authorities, issuing credentials, and revoking credentials.
 pub struct IssuerContext {
     inner: protocol::IssuerContext,
 }
@@ -211,14 +211,14 @@ impl IssuerContext {
         to_js(&self.inner.issue_credential(info, &request)?)
     }
 
-    /// Build and sign this issuer's public bundle with its revocation locations.
-    #[wasm_bindgen(js_name = issuerBundle, unchecked_return_type = "IssuerBundle")]
-    pub fn issuer_bundle(
+    /// Build and sign this issuer's public authority with its revocation locations.
+    #[wasm_bindgen(js_name = issuerAuthority, unchecked_return_type = "IssuerAuthority")]
+    pub fn issuer_authority(
         &self,
         #[wasm_bindgen(unchecked_param_type = "readonly RevocationLocation[]")] revocation: JsValue,
     ) -> Result<JsValue, JsError> {
         let revocation: Vec<protocol::RevocationLocation> = from_js(revocation)?;
-        to_js(&self.inner.issuer_bundle(revocation)?)
+        to_js(&self.inner.issuer_authority(revocation)?)
     }
 
     /// Sign a revocation for a finalized credential issued by this issuer.
@@ -281,16 +281,16 @@ impl PendingIssuance {
     /// Create a blinded holder issuance request and local pending issuance state.
     #[wasm_bindgen(js_name = createRequest, unchecked_return_type = "PendingIssuanceResult")]
     pub fn create_request(
-        #[wasm_bindgen(unchecked_param_type = "IssuerBundle")] issuer_bundle: JsValue,
+        #[wasm_bindgen(unchecked_param_type = "IssuerAuthority")] issuer_authority: JsValue,
         #[wasm_bindgen(unchecked_param_type = "JsonValue")] info: JsValue,
         #[wasm_bindgen(unchecked_param_type = "JsonValue")] blind_msg: JsValue,
     ) -> Result<JsValue, JsError> {
-        let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
+        let issuer_authority: protocol::IssuerAuthority = from_js(issuer_authority)?;
         let info: serde_json::Value = from_js(info)?;
         let blind_msg: serde_json::Value = from_js(blind_msg)?;
         let (request, pending) = protocol::PendingIssuance::create_request(
-            &issuer_bundle.issuer.issuance_key,
-            issuer_bundle.issuer.issuer_id_pubkey,
+            &issuer_authority.issuer.issuance_key,
+            issuer_authority.issuer.issuer_id_pubkey,
             info,
             blind_msg,
         )?;
@@ -325,18 +325,18 @@ impl PendingIssuance {
     #[wasm_bindgen(js_name = finalize, unchecked_return_type = "SignedCredential")]
     pub fn finalize(
         self,
-        #[wasm_bindgen(unchecked_param_type = "IssuerBundle")] issuer_bundle: JsValue,
+        #[wasm_bindgen(unchecked_param_type = "IssuerAuthority")] issuer_authority: JsValue,
         #[wasm_bindgen(unchecked_param_type = "IssuanceResponse")] response: JsValue,
     ) -> Result<JsValue, JsError> {
-        let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
+        let issuer_authority: protocol::IssuerAuthority = from_js(issuer_authority)?;
         let response: protocol::IssuanceResponse = from_js(response)?;
-        if issuer_bundle.issuer.issuer_id_pubkey != response.issuer_id {
+        if issuer_authority.issuer.issuer_id_pubkey != response.issuer_id {
             return Err(protocol::CredentialsError::IssuerIdMismatch.into());
         }
         to_js(
             &self
                 .inner
-                .finalize(&issuer_bundle.issuer.issuance_key, &response)?,
+                .finalize(&issuer_authority.issuer.issuance_key, &response)?,
         )
     }
 }
@@ -357,14 +357,14 @@ impl VerificationContext {
         }
     }
 
-    /// Verify and trust an issuer bundle for future credential checks.
-    #[wasm_bindgen(js_name = addIssuerBundle)]
-    pub fn add_issuer_bundle(
+    /// Verify and trust an issuer authority for future credential checks.
+    #[wasm_bindgen(js_name = addIssuerAuthority)]
+    pub fn add_issuer_authority(
         &mut self,
-        #[wasm_bindgen(unchecked_param_type = "IssuerBundle")] issuer_bundle: JsValue,
+        #[wasm_bindgen(unchecked_param_type = "IssuerAuthority")] issuer_authority: JsValue,
     ) -> Result<(), JsError> {
-        let issuer_bundle: protocol::IssuerBundle = from_js(issuer_bundle)?;
-        Ok(self.inner.add_issuer_bundle(&issuer_bundle)?)
+        let issuer_authority: protocol::IssuerAuthority = from_js(issuer_authority)?;
+        Ok(self.inner.add_issuer_authority(&issuer_authority)?)
     }
 
     /// Verify and store a signed revocation from a trusted issuer.

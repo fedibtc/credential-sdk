@@ -14,8 +14,8 @@ use crate::serde::{
     Sha256DigestBase64UrlUnpadded,
 };
 use crate::{
-    canonicalize_credential, canonicalize_issuer_bundle, canonicalize_revocation, CredentialsError,
-    PbrsaPublicKey,
+    canonicalize_credential, canonicalize_issuer_authority, canonicalize_revocation,
+    CredentialsError, PbrsaPublicKey,
 };
 
 /// Protocol version marker used by the MVP credential format.
@@ -80,7 +80,7 @@ pub struct IssuerSecretKeys {
 /// Signed issuer metadata used by verifiers before accepting credentials.
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IssuerBundle {
+pub struct IssuerAuthority {
     pub version: ProtocolV1,
     pub issuer: Issuer,
     pub proof: SchnorrSignatureProof,
@@ -94,13 +94,13 @@ pub struct SchnorrSignatureProof {
     pub signature: Signature,
 }
 
-impl IssuerBundle {
-    /// Compute the signature digest for this issuer bundle payload.
+impl IssuerAuthority {
+    /// Compute the signature digest for this issuer authority payload.
     pub fn digest(&self) -> Result<Output<Sha256>, CredentialsError> {
         self.issuer.digest()
     }
 
-    /// Verify this issuer bundle's identity signature and return the issuer metadata.
+    /// Verify this issuer authority's identity signature and return the issuer metadata.
     pub fn verify(&self) -> Result<Issuer, CredentialsError> {
         validate_revocation_locations(&self.issuer.revocation)?;
 
@@ -130,9 +130,9 @@ pub struct Issuer {
 impl Issuer {
     /// Compute the signature digest for this issuer metadata.
     pub fn digest(&self) -> Result<Output<Sha256>, CredentialsError> {
-        let canonical = canonicalize_issuer_bundle(self)?;
+        let canonical = canonicalize_issuer_authority(self)?;
         Ok(Sha256::new()
-            .chain_update(ISSUER_BUNDLE_SIGNATURE_DOMAIN_SEPARATOR)
+            .chain_update(ISSUER_AUTHORITY_SIGNATURE_DOMAIN_SEPARATOR)
             .chain_update(canonical)
             .finalize())
     }
@@ -201,9 +201,9 @@ impl Revocation {
     }
 }
 
-/// Domain separator for issuer bundle identity signatures.
-pub const ISSUER_BUNDLE_SIGNATURE_DOMAIN_SEPARATOR: &[u8] =
-    b"fedi-credential/issuer-bundle-signature/v1\0";
+/// Domain separator for issuer authority identity signatures.
+pub const ISSUER_AUTHORITY_SIGNATURE_DOMAIN_SEPARATOR: &[u8] =
+    b"fedi-credential/issuer-authority-signature/v1\0";
 
 /// Domain separator for revocation identity signatures.
 pub const REVOCATION_SIGNATURE_DOMAIN_SEPARATOR: &[u8] =

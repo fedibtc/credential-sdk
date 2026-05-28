@@ -6,7 +6,7 @@ title: Import And Export Issuer Keys
 
 Issuer contexts contain two kinds of secret material:
 
-- An issuer identity secret key used to sign issuer bundles and revocations.
+- An issuer identity secret key used to sign issuer authorities and revocations.
 - An issuance secret key used for blind credential signing.
 
 Export issuer keys when your application needs backup, restore, or stable issuer
@@ -40,7 +40,7 @@ if (!issuerSecretKeys) {
 }
 
 const issuer = IssuerContext.importSecretKey(issuerSecretKeys);
-const issuerBundle = issuer.issuerBundle(revocationLocations);
+const issuerAuthority = issuer.issuerAuthority(revocationLocations);
 ```
 
 Imported issuer keys preserve the issuer identity public key and issuance public

@@ -28,8 +28,8 @@ pub const PBRSA_PUBLIC_INFO_CANONICAL_TYPE: &str = "fedibtc.credentials.public-i
 /// Canonicalized payload type string for holder-hidden blind-message information.
 pub const PBRSA_BLIND_MSG_CANONICAL_TYPE: &str = "fedibtc.credentials.blind-msg";
 
-/// Canonicalized payload type string for issuer bundle signatures.
-pub const ISSUER_BUNDLE_CANONICAL_TYPE: &str = "fedibtc.credentials.issuer-bundle";
+/// Canonicalized payload type string for issuer authority signatures.
+pub const ISSUER_AUTHORITY_CANONICAL_TYPE: &str = "fedibtc.credentials.issuer-authority";
 
 /// Canonicalized payload type string for signed revocations.
 pub const REVOCATION_CANONICAL_TYPE: &str = "fedibtc.credentials.revocation";
@@ -70,10 +70,10 @@ pub fn canonicalize_pbrsa_blind_msg(
     canonicalize_json_value(&payload)
 }
 
-/// Build JCS canonical bytes for the issuer metadata signed in an issuer bundle.
-pub fn canonicalize_issuer_bundle(issuer: &Issuer) -> serde_json::Result<Vec<u8>> {
+/// Build JCS canonical bytes for the issuer metadata signed in an issuer authority.
+pub fn canonicalize_issuer_authority(issuer: &Issuer) -> serde_json::Result<Vec<u8>> {
     let payload = json!({
-        "type": ISSUER_BUNDLE_CANONICAL_TYPE,
+        "type": ISSUER_AUTHORITY_CANONICAL_TYPE,
         "issuer": issuer,
     });
 

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type {
-  IssuerBundle,
+  IssuerAuthority,
   JsonValue,
   RevocationLocation,
   SignedRevocation,
@@ -25,37 +25,37 @@ const credentialInfo = {
 
 const blindMessage = "anonymous-holder-public-key";
 
-let issuerBundle: IssuerBundle;
+let issuerAuthority: IssuerAuthority;
 let signedRevocation: SignedRevocation;
 
 beforeAll(() => {
   const issuer = createTestIssuer();
-  issuerBundle = issuer.issuerBundle(revocationLocations);
+  issuerAuthority = issuer.issuerAuthority(revocationLocations);
   const result = PendingIssuance.createRequest(
-    issuerBundle,
+    issuerAuthority,
     credentialInfo,
     blindMessage,
   );
   const response = issuer.issueCredential(credentialInfo, result.request);
-  const credential = result.pending.finalize(issuerBundle, response);
+  const credential = result.pending.finalize(issuerAuthority, response);
   signedRevocation = issuer.revokeCredential(credential);
 });
 
-describe("issuer bundle verification", () => {
-  it("accepts a signed issuer bundle", () => {
+describe("issuer authority verification", () => {
+  it("accepts a signed issuer authority", () => {
     const context = new VerificationContext();
 
-    expect(context.addIssuerBundle(issuerBundle)).toBeUndefined();
+    expect(context.addIssuerAuthority(issuerAuthority)).toBeUndefined();
   });
 
-  it("rejects tampered issuer bundle metadata", () => {
+  it("rejects tampered issuer authority metadata", () => {
     const context = new VerificationContext();
 
     expect(() =>
-      context.addIssuerBundle({
-        ...issuerBundle,
+      context.addIssuerAuthority({
+        ...issuerAuthority,
         issuer: {
-          ...issuerBundle.issuer,
+          ...issuerAuthority.issuer,
           revocation: [
             {
               location: "wss://evil.example.com",
@@ -72,14 +72,14 @@ describe("revocation verification", () => {
   it("accepts a signed revocation", () => {
     const context = new VerificationContext();
 
-    context.addIssuerBundle(issuerBundle);
+    context.addIssuerAuthority(issuerAuthority);
     expect(context.addRevocation(signedRevocation)).toBeUndefined();
   });
 
   it("rejects tampered revocation data", () => {
     const context = new VerificationContext();
 
-    context.addIssuerBundle(issuerBundle);
+    context.addIssuerAuthority(issuerAuthority);
 
     expect(() =>
       context.addRevocation({
@@ -94,10 +94,10 @@ describe("revocation verification", () => {
 });
 
 describe("verification context", () => {
-  it("accepts trusted issuer bundles and their revocations", () => {
+  it("accepts trusted issuer authorities and their revocations", () => {
     const context = new VerificationContext();
 
-    expect(context.addIssuerBundle(issuerBundle)).toBeUndefined();
+    expect(context.addIssuerAuthority(issuerAuthority)).toBeUndefined();
     expect(context.addRevocation(signedRevocation)).toBeUndefined();
   });
 

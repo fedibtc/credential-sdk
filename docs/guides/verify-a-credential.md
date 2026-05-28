@@ -4,31 +4,31 @@ title: Verify A Credential
 
 # Verify A Credential
 
-Verification is stateful. A verifier must trust an issuer bundle before it can
+Verification is stateful. A verifier must trust an issuer authority before it can
 accept credentials from that issuer.
 
 ```ts
 import { VerificationContext } from "@fedibtc/fedi-credential-sdk-wasm";
 
 const verifier = new VerificationContext();
-verifier.addIssuerBundle(issuerBundle);
+verifier.addIssuerAuthority(issuerAuthority);
 
 const accepted = verifier.verifyCredential(credential);
 console.log(accepted); // true
 ```
 
-## Trust Issuer Bundles First
+## Trust Issuer Authorities First
 
-`addIssuerBundle()` verifies the issuer bundle signature and stores the issuer's
+`addIssuerAuthority()` verifies the issuer authority signature and stores the issuer's
 identity and issuance public key in the verification context.
 
 ```ts
 const verifier = new VerificationContext();
 
 try {
-  verifier.addIssuerBundle(issuerBundle);
+  verifier.addIssuerAuthority(issuerAuthority);
 } catch (error) {
-  // The bundle is malformed or its proof does not verify.
+  // The authority is malformed or its proof does not verify.
 }
 ```
 
@@ -43,7 +43,7 @@ verifier.verifyCredential(credential); // throws: unknown issuer
 ## Verify Presented Credentials
 
 ```ts
-verifier.addIssuerBundle(issuerBundle);
+verifier.addIssuerAuthority(issuerAuthority);
 verifier.verifyCredential(credential); // true
 ```
 
@@ -56,6 +56,6 @@ Verification checks that:
 ## Verifier Policy
 
 The SDK only answers whether the credential is cryptographically valid for the
-trusted issuer bundles and revocations you loaded. Your application still
+trusted issuer authorities and revocations you loaded. Your application still
 decides which issuers to trust, how fresh revocation data must be, and what
 credential `info` values satisfy the verifier's policy.

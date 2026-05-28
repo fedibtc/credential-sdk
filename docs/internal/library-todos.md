@@ -12,7 +12,7 @@ The library should not own browser storage, QR code generation/scanning, camera 
 
 ## 1. Protocol Data Model
 
-- [x] Define canonical TypeScript/Rust structs for issuer bundles.
+- [x] Define canonical TypeScript/Rust structs for issuer authorities.
 - [x] Define canonical structs for finalized holder credentials.
 - [x] Define canonical structs for revocation objects.
 - [ ] Define canonical structs for verification results.
@@ -20,7 +20,7 @@ The library should not own browser storage, QR code generation/scanning, camera 
 ## 2. Canonicalization and Digests
 
 - [x] Choose and document canonical JSON encoding, for example JCS.
-- [x] Implement canonical serialization for issuer bundles.
+- [x] Implement canonical serialization for issuer authorities.
 - [x] Implement canonical serialization for credentials.
 - [x] Implement canonical serialization for revocation objects.
 - [x] Implement `credentialDigest(canonicalCredential)`.
@@ -34,18 +34,18 @@ The library should not own browser storage, QR code generation/scanning, camera 
 - [x] Implement pbRSA key import/parsing.
 - [x] Implement pbRSA key export/encoding.
 
-## 4. Issuer Bundle
+## 4. Issuer Authority
 
-- [x] Implement `createIssuerBundle`.
+- [x] Implement `createIssuerAuthority`.
 - [x] Include issuer identity public key.
 - [x] Include pbRSA issuance public key.
 - [x] Include revocation locations.
-- [x] Sign issuer bundle with issuer identity secret key.
-- [x] Implement `verifyIssuerBundle`.
+- [x] Sign issuer authority with issuer identity secret key.
+- [x] Implement `verifyIssuerAuthority`.
 - [x] Verify issuer identity signature.
 - [ ] Validate revocation location structure.
 - [x] Validate issuance key format.
-- [x] Return structured issuer bundle verification errors.
+- [x] Return structured issuer authority verification errors.
 
 ## 5. Holder Blinding Flow
 
@@ -81,10 +81,10 @@ The library should not own browser storage, QR code generation/scanning, camera 
 
 - [x] Implement `verifyCredential`.
 - [x] Verify credential structure.
-- [x] Verify issuer bundle structure.
+- [x] Verify issuer authority structure.
 - [x] Verify credential signature using issuer issuance public key.
-- [x] Check credential issuer matches issuer bundle identity.
-- [x] Accept caller-provided trusted issuer bundles.
+- [x] Check credential issuer matches issuer authority identity.
+- [x] Accept caller-provided trusted issuer authorities.
 
 ## 9. Revocation
 
@@ -101,7 +101,7 @@ The library should not own browser storage, QR code generation/scanning, camera 
 
 ## 11. Serialization Formats
 
-- [x] Define stable wire format for issuer bundles.
+- [x] Define stable wire format for issuer authorities.
 - [x] Define stable wire format for blinded holder messages.
 - [x] Define stable wire format for signed credential responses.
 - [x] Define stable wire format for finalized credentials.
@@ -112,8 +112,8 @@ The library should not own browser storage, QR code generation/scanning, camera 
 
 - [x] Expose `generateIssuerKeys`.
 
-- [ ] Expose `createIssuerBundle`.
-- [ ] Expose `verifyIssuerBundle`.
+- [ ] Expose `createIssuerAuthority`.
+- [ ] Expose `verifyIssuerAuthority`.
 - [x] Expose `blind`. // blinding of data to be included in blind_msg to prep for issuer pbrsa signature
 - [x] Expose `createCredential`.
 - [x] Expose `blindSignCredential`.

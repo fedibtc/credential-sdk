@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, CredentialsError, IssuerBundle,
+    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, CredentialsError, IssuerAuthority,
     IssuerId, PbrsaPublicKey, ProtocolV1, Revocation, SignedCredential, SignedRevocation,
 };
 
@@ -20,9 +20,12 @@ impl VerificationContext {
         Self::default()
     }
 
-    /// Verify and trust an issuer bundle for subsequent credential checks.
-    pub fn add_issuer_bundle(&mut self, bundle: &IssuerBundle) -> Result<(), CredentialsError> {
-        let issuer = bundle.verify()?;
+    /// Verify and trust an issuer authority for subsequent credential checks.
+    pub fn add_issuer_authority(
+        &mut self,
+        authority: &IssuerAuthority,
+    ) -> Result<(), CredentialsError> {
+        let issuer = authority.verify()?;
         self.issuers
             .insert(issuer.issuer_id_pubkey.clone(), issuer.issuance_key.clone());
 

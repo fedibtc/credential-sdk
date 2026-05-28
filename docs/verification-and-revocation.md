@@ -4,13 +4,13 @@ title: Verification And Revocation
 
 # Verification And Revocation
 
-Verification is stateful. A verifier must first trust one or more issuer bundles
+Verification is stateful. A verifier must first trust one or more issuer authorities
 before it can accept credentials from those issuers.
 
 ```ts
 const verifier = new VerificationContext();
 
-verifier.addIssuerBundle(issuerBundle);
+verifier.addIssuerAuthority(issuerAuthority);
 verifier.verifyCredential(credential); // true
 ```
 
@@ -30,7 +30,7 @@ Transport and publication are application concerns.
 ```ts
 const signedRevocation = issuer.revokeCredential(credential);
 
-verifier.addIssuerBundle(issuerBundle);
+verifier.addIssuerAuthority(issuerAuthority);
 verifier.addRevocation(signedRevocation);
 verifier.verifyCredential(credential); // throws: credential has been revoked
 ```
