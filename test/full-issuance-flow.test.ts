@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type {
-  IssuerBundle,
+  IssuerAuthority,
   JsonValue,
   RevocationLocation,
   SignedCredential,
@@ -29,10 +29,10 @@ const otherIssuerId = "22".repeat(32);
 describe("full credential issuance flow", () => {
   it("issues, verifies, revokes, imports issuer keys, and rejects tampering", () => {
     const issuer = createTestIssuer();
-    const issuerBundle = issuer.issuerBundle(revocationLocations);
-    const issuerId = issuerBundle.issuer.issuer_id_pubkey;
+    const issuerAuthority = issuer.issuerAuthority(revocationLocations);
+    const issuerId = issuerAuthority.issuer.issuer_id_pubkey;
 
-    expect(issuerBundle).toMatchObject({
+    expect(issuerAuthority).toMatchObject({
       version: 1,
       issuer: {
         issuer_id_pubkey: issuerId,
@@ -42,14 +42,16 @@ describe("full credential issuance flow", () => {
         signature: expect.any(String),
       },
     });
-    expect(issuerBundle.issuer.issuance_key.length).toBeGreaterThan(0);
-    const issuerBundleVerifier = new VerificationContext();
-    expect(issuerBundleVerifier.addIssuerBundle(issuerBundle)).toBeUndefined();
+    expect(issuerAuthority.issuer.issuance_key.length).toBeGreaterThan(0);
+    const issuerAuthorityVerifier = new VerificationContext();
+    expect(
+      issuerAuthorityVerifier.addIssuerAuthority(issuerAuthority),
+    ).toBeUndefined();
 
     const holder = HolderContext.generate();
     const blindMsg = holder.publicKey;
     const result = PendingIssuance.createRequest(
-      issuerBundle,
+      issuerAuthority,
       credentialInfo,
       blindMsg,
     );
@@ -72,7 +74,7 @@ describe("full credential issuance flow", () => {
     });
     expect(response.blind_signature.length).toBeGreaterThan(0);
 
-    const credential = result.pending.finalize(issuerBundle, response);
+    const credential = result.pending.finalize(issuerAuthority, response);
 
     expect(credential).toMatchObject({
       version: 1,
@@ -103,14 +105,16 @@ describe("full credential issuance flow", () => {
       signedRevocation.revocation.credential_digest.length,
     ).toBeGreaterThan(0);
     const revocationVerifier = new VerificationContext();
-    expect(revocationVerifier.addIssuerBundle(issuerBundle)).toBeUndefined();
+    expect(
+      revocationVerifier.addIssuerAuthority(issuerAuthority),
+    ).toBeUndefined();
     expect(revocationVerifier.addRevocation(signedRevocation)).toBeUndefined();
 
     const verifier = new VerificationContext();
     expect(() => verifier.verifyCredential(credential)).toThrow(
       /unknown issuer/,
     );
-    expect(verifier.addIssuerBundle(issuerBundle)).toBeUndefined();
+    expect(verifier.addIssuerAuthority(issuerAuthority)).toBeUndefined();
     expect(verifier.verifyCredential(credential)).toBe(true);
     expect(verifier.addRevocation(signedRevocation)).toBeUndefined();
     expect(() => verifier.verifyCredential(credential)).toThrow(
@@ -120,17 +124,17 @@ describe("full credential issuance flow", () => {
     const importedIssuer = IssuerContext.importSecretKey(
       issuer.exportSecretKey(),
     );
-    const importedBundle = importedIssuer.issuerBundle([]);
+    const importedAuthority = importedIssuer.issuerAuthority([]);
 
-    expect(importedBundle.issuer.issuer_id_pubkey).toBe(issuerId);
-    expect(importedBundle.issuer.issuance_key).toBe(
-      issuerBundle.issuer.issuance_key,
+    expect(importedAuthority.issuer.issuer_id_pubkey).toBe(issuerId);
+    expect(importedAuthority.issuer.issuance_key).toBe(
+      issuerAuthority.issuer.issuance_key,
     );
 
-    const tamperedBundle = {
-      ...issuerBundle,
+    const tamperedAuthority = {
+      ...issuerAuthority,
       issuer: {
-        ...issuerBundle.issuer,
+        ...issuerAuthority.issuer,
         revocation: [
           {
             location: "wss://evil.example.com",
@@ -138,7 +142,7 @@ describe("full credential issuance flow", () => {
           },
         ],
       },
-    } satisfies IssuerBundle;
+    } satisfies IssuerAuthority;
     const tamperedCredential = {
       ...credential,
       credential: {
@@ -156,9 +160,9 @@ describe("full credential issuance flow", () => {
     const tamperVerifier = new VerificationContext();
 
     expect(() =>
-      new VerificationContext().addIssuerBundle(tamperedBundle),
+      new VerificationContext().addIssuerAuthority(tamperedAuthority),
     ).toThrow(/verification failed/);
-    expect(tamperVerifier.addIssuerBundle(issuerBundle)).toBeUndefined();
+    expect(tamperVerifier.addIssuerAuthority(issuerAuthority)).toBeUndefined();
     expect(() => tamperVerifier.verifyCredential(tamperedCredential)).toThrow(
       /Verification failed|blind RSA operation failed/,
     );

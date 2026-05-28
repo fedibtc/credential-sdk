@@ -14,7 +14,7 @@ across screens before finalization.
 
 ```ts
 const { request, pending } = PendingIssuance.createRequest(
-  issuerBundle,
+  issuerAuthority,
   credentialInfo,
   blindMsg,
 );
@@ -39,7 +39,7 @@ if (!pendingState) {
 }
 
 const pending = PendingIssuance.importState(pendingState);
-const credential = pending.finalize(issuerBundle, response);
+const credential = pending.finalize(issuerAuthority, response);
 
 await appStorage.delete("pending-issuance");
 ```
@@ -51,8 +51,8 @@ not reuse that state for another issuer response.
 
 Finalization rejects mismatched inputs, including:
 
-- An issuer bundle with the wrong issuer identity.
-- An issuer bundle with the wrong issuance key.
+- An issuer authority with the wrong issuer identity.
+- An issuer authority with the wrong issuance key.
 - An issuer response whose `info` does not match the holder request.
 - A response created for a different `IssuanceRequest`.
 - Malformed or unknown-version pending state.

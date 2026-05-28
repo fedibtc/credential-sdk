@@ -80,27 +80,27 @@ function smokeTestGeneratedIssuer(sdk: WasmSdk, issuer: IssuerContext) {
     "generated issuer issuance secret key is empty",
   );
 
-  const issuerBundle = issuer.issuerBundle([]);
+  const issuerAuthority = issuer.issuerAuthority([]);
   assert(
-    issuerBundle.issuer.issuer_id_pubkey.length > 0,
+    issuerAuthority.issuer.issuer_id_pubkey.length > 0,
     "generated issuer identity public key is empty",
   );
   assert(
-    issuerBundle.issuer.issuance_key.length > 0,
+    issuerAuthority.issuer.issuance_key.length > 0,
     "generated issuer issuance public key is empty",
   );
 
   const holder = HolderContext.generate();
   const result = PendingIssuance.createRequest(
-    issuerBundle,
+    issuerAuthority,
     credentialInfo,
     holder.publicKey,
   );
   const response = issuer.issueCredential(credentialInfo, result.request);
-  const credential = result.pending.finalize(issuerBundle, response);
+  const credential = result.pending.finalize(issuerAuthority, response);
 
   const verifier = new VerificationContext();
-  verifier.addIssuerBundle(issuerBundle);
+  verifier.addIssuerAuthority(issuerAuthority);
   assert(
     verifier.verifyCredential(credential) === true,
     "generated issuer credential verification failed",

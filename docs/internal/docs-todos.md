@@ -91,7 +91,7 @@ Filename decision: do not number public docs filenames. The explicit TypeDoc
 - [x] Convert the full issuance flow test into a concise copy-paste TypeScript
       quickstart.
 - [x] Show the minimum import block.
-- [x] Show the issuer bundle creation step.
+- [x] Show the issuer authority creation step.
 - [x] Show holder request creation and pending state retention.
 - [x] Show issuer response creation.
 - [x] Show holder finalization.
@@ -118,7 +118,7 @@ Filename decision: do not number public docs filenames. The explicit TypeDoc
 ### 5. Concepts and Architecture
 
 - [ ] Write an architecture overview that defines issuer, holder, verifier,
-      issuer bundle, issuance request, issuance response, signed credential, and
+      issuer authority, issuance request, issuance response, signed credential, and
       signed revocation.
 - [ ] Add a protocol sequence diagram for issuance.
 - [ ] Add a protocol sequence diagram for verification and revocation.
@@ -136,7 +136,7 @@ Filename decision: do not number public docs filenames. The explicit TypeDoc
 
 ### 6. Wire Formats and Errors
 
-- [ ] Document the JSON shape of `IssuerBundle`.
+- [ ] Document the JSON shape of `IssuerAuthority`.
 - [ ] Document the JSON shape of `IssuanceRequest`.
 - [ ] Document the JSON shape of `IssuanceResponse`.
 - [ ] Document the JSON shape of `SignedCredential`.

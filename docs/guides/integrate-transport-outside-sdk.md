@@ -17,7 +17,7 @@ The holder sends an `IssuanceRequest` to the issuer and keeps
 
 ```ts
 const { request, pending } = PendingIssuance.createRequest(
-  issuerBundle,
+  issuerAuthority,
   credentialInfo,
   blindMsg,
 );
@@ -42,15 +42,15 @@ const pending = PendingIssuance.importState(
   await appStorage.get("pending-issuance"),
 );
 const response = JSON.parse(await receiveFromIssuer());
-const credential = pending.finalize(issuerBundle, response);
+const credential = pending.finalize(issuerAuthority, response);
 ```
 
 ## Revocation Transport
 
-Issuers can publish signed revocations anywhere their issuer bundle advertises.
+Issuers can publish signed revocations anywhere their issuer authority advertises.
 
 ```ts
-const issuerBundle = issuer.issuerBundle([
+const issuerAuthority = issuer.issuerAuthority([
   {
     protocol: "nostr",
     location: "wss://relay.example.com",
@@ -65,9 +65,9 @@ Verifiers fetch, parse, and ingest revocations before accepting credentials.
 
 ```ts
 const verifier = new VerificationContext();
-verifier.addIssuerBundle(issuerBundle);
+verifier.addIssuerAuthority(issuerAuthority);
 
-for (const revocationJson of await fetchRevocations(issuerBundle)) {
+for (const revocationJson of await fetchRevocations(issuerAuthority)) {
   verifier.addRevocation(JSON.parse(revocationJson));
 }
 

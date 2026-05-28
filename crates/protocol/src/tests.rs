@@ -87,8 +87,8 @@ fn smoke_test_generated_issuer(issuer: &IssuerContext) {
     assert!(!exported.issuer_id_secret_key.is_empty());
     assert!(!exported.issuance_secret_key.is_empty());
 
-    let issuer_bundle = issuer.issuer_bundle(vec![]).unwrap();
-    issuer_bundle.verify().unwrap();
+    let issuer_authority = issuer.issuer_authority(vec![]).unwrap();
+    issuer_authority.verify().unwrap();
 
     let credential_info = json!({
         "schema": "rsa-keygen-smoke-v1",
@@ -97,19 +97,19 @@ fn smoke_test_generated_issuer(issuer: &IssuerContext) {
     let holder = HolderContext::generate();
     let blind_msg = json!(holder.public_key());
     let (request, pending) = PendingIssuance::create_request(
-        &issuer_bundle.issuer.issuance_key,
-        issuer_bundle.issuer.issuer_id_pubkey.clone(),
+        &issuer_authority.issuer.issuance_key,
+        issuer_authority.issuer.issuer_id_pubkey.clone(),
         credential_info.clone(),
         blind_msg,
     )
     .unwrap();
     let response = issuer.issue_credential(credential_info, &request).unwrap();
     let credential = pending
-        .finalize(&issuer_bundle.issuer.issuance_key, &response)
+        .finalize(&issuer_authority.issuer.issuance_key, &response)
         .unwrap();
 
     let mut verifier = VerificationContext::new();
-    verifier.add_issuer_bundle(&issuer_bundle).unwrap();
+    verifier.add_issuer_authority(&issuer_authority).unwrap();
     verifier.verify_credential(&credential).unwrap();
 }
 
@@ -192,8 +192,8 @@ fn protocol_snapshots() {
     // Keep the Nostr RNG sequence aligned with the original generated-issuer
     // snapshots while avoiding slow safe-prime RSA key generation.
     let _discarded_identity_keys = nostr::Keys::generate_with_rng(&mut nostr_rng);
-    let issuer_bundle = issuer
-        .issuer_bundle_with_rng(
+    let issuer_authority = issuer
+        .issuer_authority_with_rng(
             vec![RevocationLocation {
                 protocol: "nostr".to_owned(),
                 location: "wss://relay.example.com".to_owned(),
@@ -202,7 +202,7 @@ fn protocol_snapshots() {
         )
         .unwrap();
 
-    insta::assert_json_snapshot!(issuer_bundle, @r###"
+    insta::assert_json_snapshot!(issuer_authority, @r###"
     {
       "version": 1,
       "issuer": {
@@ -216,7 +216,7 @@ fn protocol_snapshots() {
         ]
       },
       "proof": {
-        "signature": "vSX3b6J8C3rS3xgELRTy5OMxvpP74wWDWoG0sQ7elheUc05dYUSt1NSiqfDtIuTQZCWW-QUfbXVQSlX-g-5JWQ"
+        "signature": "2xoKYBx5zOvhInwiSnSwH0mugCsvgPqjEJLEvPhaAJ16b9pR0qlJzF2msXF9VeKX36zOWvvsu9PWlMbe1PsIGw"
       }
     }
     "###);
@@ -225,8 +225,8 @@ fn protocol_snapshots() {
     let holder = HolderContext::generate_with_rng(&mut nostr_rng);
     let blind_msg = json!(holder.public_key());
     let (request, pending) = PendingIssuance::create_request_with_rng(
-        &issuer_bundle.issuer.issuance_key,
-        issuer_bundle.issuer.issuer_id_pubkey.clone(),
+        &issuer_authority.issuer.issuance_key,
+        issuer_authority.issuer.issuer_id_pubkey.clone(),
         credential_info.clone(),
         blind_msg,
         &mut pbrsa_rng,
@@ -259,7 +259,7 @@ fn protocol_snapshots() {
 
     // Finalize the blinded response into the holder's credential.
     let mut credential = pending
-        .finalize(&issuer_bundle.issuer.issuance_key, &response)
+        .finalize(&issuer_authority.issuer.issuance_key, &response)
         .unwrap();
 
     insta::assert_json_snapshot!(credential, @r###"
@@ -298,16 +298,18 @@ fn protocol_snapshots() {
     "###);
     let other_identity_keys = nostr::Keys::generate_with_rng(&mut nostr_rng);
     let other_issuer = issuer_context_with_identity(other_identity_keys);
-    let other_issuer_bundle = other_issuer
-        .issuer_bundle_with_rng(vec![], &mut nostr_rng)
+    let other_issuer_authority = other_issuer
+        .issuer_authority_with_rng(vec![], &mut nostr_rng)
         .unwrap();
     let other_issuer_revocation = revocation_signed_by(&other_issuer, &credential, &mut nostr_rng);
 
     // Verify the same credential before and after trusting the issuer and revocation.
     let mut verifier = VerificationContext::new();
     let unknown_before_trust = verifier.verify_credential(&credential).unwrap_err();
-    verifier.add_issuer_bundle(&issuer_bundle).unwrap();
-    verifier.add_issuer_bundle(&other_issuer_bundle).unwrap();
+    verifier.add_issuer_authority(&issuer_authority).unwrap();
+    verifier
+        .add_issuer_authority(&other_issuer_authority)
+        .unwrap();
     let verified_before_revocation = verifier.verify_credential(&credential).is_ok();
     verifier.add_revocation(&other_issuer_revocation).unwrap();
     let verified_after_other_issuer_revocation = verifier.verify_credential(&credential).is_ok();
@@ -330,12 +332,12 @@ fn protocol_snapshots() {
 
     // Importing persisted issuer secrets must preserve both identity and issuance keys.
     let imported = IssuerContext::import_secret_key(&issuer.export_secret_key().unwrap()).unwrap();
-    let imported_bundle = imported.issuer_bundle(vec![]).unwrap();
+    let imported_authority = imported.issuer_authority(vec![]).unwrap();
 
     insta::assert_json_snapshot!(json!({
-        "original_issuer_id": issuer_bundle.issuer.issuer_id_pubkey,
-        "imported_issuer_id": imported_bundle.issuer.issuer_id_pubkey,
-        "same_issuance_public_key": issuer_bundle.issuer.issuance_key == imported_bundle.issuer.issuance_key,
+        "original_issuer_id": issuer_authority.issuer.issuer_id_pubkey,
+        "imported_issuer_id": imported_authority.issuer.issuer_id_pubkey,
+        "same_issuance_public_key": issuer_authority.issuer.issuance_key == imported_authority.issuer.issuance_key,
     }), @r###"
     {
       "imported_issuer_id": "edf91ee8ef705ad30cdbffffe86cd1fb08a6114178ed998f7a5ad52e25a67f97",
@@ -345,20 +347,20 @@ fn protocol_snapshots() {
     "###);
 
     // Tampering checks cover signed issuer metadata, credential payloads, and issuer mismatch.
-    let mut tampered_bundle = issuer_bundle.clone();
-    tampered_bundle.issuer.revocation[0].location = "wss://evil.example.com".to_owned();
+    let mut tampered_authority = issuer_authority.clone();
+    tampered_authority.issuer.revocation[0].location = "wss://evil.example.com".to_owned();
 
     credential.credential.blind_msg = json!("mallory-public-key");
     let mut verifier = VerificationContext::new();
-    verifier.add_issuer_bundle(&issuer_bundle).unwrap();
+    verifier.add_issuer_authority(&issuer_authority).unwrap();
 
     insta::assert_json_snapshot!(json!({
         "tampered_credential": verifier.verify_credential(&credential).unwrap_err().to_string(),
-        "tampered_bundle": tampered_bundle.verify().unwrap_err().to_string(),
+        "tampered_authority": tampered_authority.verify().unwrap_err().to_string(),
         "wrong_issuer_revoke": other_issuer.revoke_credential(&credential).unwrap_err().to_string(),
     }), @r###"
     {
-      "tampered_bundle": "verification failed",
+      "tampered_authority": "verification failed",
       "tampered_credential": "blind RSA operation failed: Verification failed",
       "wrong_issuer_revoke": "issuer_id does not match"
     }

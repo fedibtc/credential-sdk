@@ -35,13 +35,13 @@ const revocationLocations = [
 
 // Issuer creates signed public metadata for verifiers and holders.
 const issuer = IssuerContext.generate();
-const issuerBundle = issuer.issuerBundle(revocationLocations);
+const issuerAuthority = issuer.issuerAuthority(revocationLocations);
 
 // Holder creates a blinded issuance request and keeps pending state locally.
 const holder = HolderContext.generate();
 const blindMsg = holder.publicKey;
 const { request, pending } = PendingIssuance.createRequest(
-  issuerBundle,
+  issuerAuthority,
   credentialInfo,
   blindMsg,
 );
@@ -50,11 +50,11 @@ const { request, pending } = PendingIssuance.createRequest(
 const response = issuer.issueCredential(credentialInfo, request);
 
 // Holder unblinds and finalizes the response into a verifiable credential.
-const credential = pending.finalize(issuerBundle, response);
+const credential = pending.finalize(issuerAuthority, response);
 
-// Verifier must trust the issuer bundle before accepting credentials.
+// Verifier must trust the issuer authority before accepting credentials.
 const verifier = new VerificationContext();
-verifier.addIssuerBundle(issuerBundle);
+verifier.addIssuerAuthority(issuerAuthority);
 verifier.verifyCredential(credential); // true
 
 // Issuer can revoke a finalized credential. Transport/publication is app-owned.
@@ -88,7 +88,7 @@ During issuance, `credential.info` is public and `credential.blind_msg` is blind
 
 ```ts
 const { request, pending } = PendingIssuance.createRequest(
-  issuerBundle,
+  issuerAuthority,
   info,
   blindMsg,
 );
@@ -96,7 +96,7 @@ const pendingState = pending.exportState();
 
 // Store request and pendingState in application storage while issuance is pending.
 const importedPending = PendingIssuance.importState(pendingState);
-const credential = importedPending.finalize(issuerBundle, response);
+const credential = importedPending.finalize(issuerAuthority, response);
 ```
 
 The exported pending issuance state is sensitive holder-side issuance material. It is not a long-term holder private key, but it is required to unblind and finalize the issuer response, so applications should avoid logging or sharing it.
@@ -105,10 +105,10 @@ The exported pending issuance state is sensitive holder-side issuance material. 
 
 The current high-level API is organized around runtime contexts:
 
-- `IssuerContext`: generate/import/export issuer keys, create signed issuer bundles, issue credentials, and create signed revocations
+- `IssuerContext`: generate/import/export issuer keys, create signed issuer authorities, issue credentials, and create signed revocations
 - `PendingIssuance`: create holder issuance requests and finalize issuer responses
 - `HolderContext`: generate/import/export holder identity keys
-- `VerificationContext`: trust issuer bundles, ingest revocations, and verify credentials
+- `VerificationContext`: trust issuer authorities, ingest revocations, and verify credentials
 
 All validation failures cross the WASM boundary as thrown JavaScript errors. `VerificationContext.verifyCredential` returns `true` when the credential is trusted, correctly signed, and not revoked.
 
@@ -119,7 +119,7 @@ class IssuerContext {
   static generate(): IssuerContext;
   static importSecretKey(secretKey: IssuerSecretKeys): IssuerContext;
   exportSecretKey(): IssuerSecretKeys;
-  issuerBundle(revocation: readonly RevocationLocation[]): IssuerBundle;
+  issuerAuthority(revocation: readonly RevocationLocation[]): IssuerAuthority;
   issueCredential(info: JsonValue, request: IssuanceRequest): IssuanceResponse;
   revokeCredential(credential: SignedCredential): SignedRevocation;
 }
@@ -133,20 +133,20 @@ class HolderContext {
 
 class PendingIssuance {
   static createRequest(
-    issuerBundle: IssuerBundle,
+    issuerAuthority: IssuerAuthority,
     info: JsonValue,
     blindMsg: JsonValue,
   ): PendingIssuanceResult;
 
   finalize(
-    issuerBundle: IssuerBundle,
+    issuerAuthority: IssuerAuthority,
     response: IssuanceResponse,
   ): SignedCredential;
 }
 
 class VerificationContext {
   constructor();
-  addIssuerBundle(issuerBundle: IssuerBundle): void;
+  addIssuerAuthority(issuerAuthority: IssuerAuthority): void;
   addRevocation(revocation: SignedRevocation): void;
   verifyCredential(credential: SignedCredential): boolean;
 }
@@ -158,15 +158,15 @@ This checklist tracks coarse reusable-library readiness rather than every intern
 
 - [x] Rust/WASM build and TypeScript/Rust test workflows
 - [x] Runtime issuer, holder, and verifier contexts exposed through WASM/TypeScript
-- [x] Signed issuer bundle creation and verification
+- [x] Signed issuer authority creation and verification
 - [x] Holder issuance request flow with retained pending unblinding state
 - [x] Issuer issuance response flow with partially blind signing over hidden `blind_msg` plus visible `credential.info`
 - [x] Holder finalization into a verifiable credential with an unblinded signature
-- [x] Credential verification against trusted issuer bundles
+- [x] Credential verification against trusted issuer authorities
 - [x] Credential digesting plus signed revocation creation and verification
 - [x] Revocation-aware credential verification
-- [x] RFC 8785/JCS canonical JSON encoding with domain-separated credential, issuer bundle, and revocation digests/signatures
-- [x] Deterministic protocol snapshots for issuer bundles, issuance messages, credentials, revocations, and verifier outcomes
+- [x] RFC 8785/JCS canonical JSON encoding with domain-separated credential, issuer authority, and revocation digests/signatures
+- [x] Deterministic protocol snapshots for issuer authorities, issuance messages, credentials, revocations, and verifier outcomes
 - [ ] Expose machine-readable error or verification result codes across the WASM boundary
 - [ ] Complete a security review of the pbRSA suite, domain separation, randomness, key handling, replay risk, and malformed input behavior
 

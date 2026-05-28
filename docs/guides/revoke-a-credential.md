@@ -15,13 +15,13 @@ publish it to relays, HTTP endpoints, files, or QR codes.
 
 ## Ingest Revocations
 
-Verifiers must trust the issuer bundle before accepting revocations from that
+Verifiers must trust the issuer authority before accepting revocations from that
 issuer.
 
 ```ts
 const verifier = new VerificationContext();
 
-verifier.addIssuerBundle(issuerBundle);
+verifier.addIssuerAuthority(issuerAuthority);
 verifier.addRevocation(signedRevocation);
 ```
 
@@ -38,11 +38,11 @@ try {
 
 ## Publication Is App-Owned
 
-Issuer bundles contain `revocation` locations so applications can advertise
+Issuer authorities contain `revocation` locations so applications can advertise
 where revocations may be found.
 
 ```ts
-const issuerBundle = issuer.issuerBundle([
+const issuerAuthority = issuer.issuerAuthority([
   {
     protocol: "nostr",
     location: "wss://relay.example.com",

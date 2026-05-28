@@ -28,14 +28,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Issuer creates signed public metadata for verifiers and holders.
     let issuer = IssuerContext::generate()?;
-    let issuer_bundle = issuer.issuer_bundle(revocation_locations)?;
+    let issuer_authority = issuer.issuer_authority(revocation_locations)?;
 
     // Holder creates a blinded issuance request and keeps pending state locally.
     let holder = HolderContext::generate();
     let blind_msg = json!(holder.public_key());
     let (request, pending) = PendingIssuance::create_request(
-        &issuer_bundle.issuer.issuance_key,
-        issuer_bundle.issuer.issuer_id_pubkey.clone(),
+        &issuer_authority.issuer.issuance_key,
+        issuer_authority.issuer.issuer_id_pubkey.clone(),
         credential_info.clone(),
         blind_msg,
     )?;
@@ -44,11 +44,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let response = issuer.issue_credential(credential_info, &request)?;
 
     // Holder unblinds and finalizes the response into a verifiable credential.
-    let credential = pending.finalize(&issuer_bundle.issuer.issuance_key, &response)?;
+    let credential = pending.finalize(&issuer_authority.issuer.issuance_key, &response)?;
 
-    // Verifier must trust the issuer bundle before accepting credentials.
+    // Verifier must trust the issuer authority before accepting credentials.
     let mut verifier = VerificationContext::new();
-    verifier.add_issuer_bundle(&issuer_bundle)?;
+    verifier.add_issuer_authority(&issuer_authority)?;
     verifier.verify_credential(&credential)?;
 
     // Issuer can revoke a finalized credential. Transport/publication is app-owned.
@@ -64,11 +64,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 The high-level API is organized around runtime contexts and wire structs:
 
-- `IssuerContext`: generate/import/export issuer identity and issuance keys, create signed issuer bundles, issue credentials, and create signed revocations
+- `IssuerContext`: generate/import/export issuer identity and issuance keys, create signed issuer authorities, issue credentials, and create signed revocations
 - `HolderContext`: generate/import/export holder identity keys and expose the holder public key
 - `PendingIssuance`: create holder issuance requests and retain the unblinding state needed to finalize an issuer response
-- `VerificationContext`: trust signed issuer bundles, verify signed revocations, and verify finalized credentials against trusted issuers and known revocations
-- `IssuerBundle`, `IssuanceRequest`, `IssuanceResponse`, `SignedCredential`, and `SignedRevocation`: serde-compatible protocol wire objects
+- `VerificationContext`: trust signed issuer authorities, verify signed revocations, and verify finalized credentials against trusted issuers and known revocations
+- `IssuerAuthority`, `IssuanceRequest`, `IssuanceResponse`, `SignedCredential`, and `SignedRevocation`: serde-compatible protocol wire objects
 
 All fallible operations return `Result<_, CredentialsError>`. Important verification failures include `UnknownIssuer`, `CredentialRevoked`, `IssuerIdMismatch`, `InfoMismatch`, and `VerificationFailed`.
 
@@ -103,7 +103,7 @@ Canonical protocol inputs use RFC 8785/JCS encoding before signing or hashing. T
 
 - `canonicalize_pbrsa_info`
 - `canonicalize_pbrsa_blind_msg`
-- `canonicalize_issuer_bundle`
+- `canonicalize_issuer_authority`
 - `canonicalize_revocation`
 - `canonicalize_credential`
 
@@ -121,8 +121,8 @@ let secret_keys = issuer.export_secret_key()?;
 let imported = IssuerContext::import_secret_key(&secret_keys)?;
 
 assert_eq!(
-    issuer.issuer_bundle(vec![])?.issuer.issuer_id_pubkey,
-    imported.issuer_bundle(vec![])?.issuer.issuer_id_pubkey,
+    issuer.issuer_authority(vec![])?.issuer.issuer_id_pubkey,
+    imported.issuer_authority(vec![])?.issuer.issuer_id_pubkey,
 );
 ```
 

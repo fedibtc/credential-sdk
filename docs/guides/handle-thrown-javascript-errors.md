@@ -19,13 +19,13 @@ try {
 
 ## Common Failure Points
 
-`addIssuerBundle()` can throw when an issuer bundle is malformed or its proof
+`addIssuerAuthority()` can throw when an issuer authority is malformed or its proof
 does not verify.
 
 `PendingIssuance.importState()` can throw when exported state is malformed or
 uses an unsupported version.
 
-`PendingIssuance.finalize()` can throw when the issuer bundle, response, pending
+`PendingIssuance.finalize()` can throw when the issuer authority, response, pending
 state, or visible `info` do not match.
 
 `VerificationContext.verifyCredential()` can throw when the issuer is unknown,
@@ -41,7 +41,7 @@ Keep protocol failures separate from application transport failures:
 ```ts
 async function verifyPresentedCredential() {
   const verifier = new VerificationContext();
-  verifier.addIssuerBundle(issuerBundle);
+  verifier.addIssuerAuthority(issuerAuthority);
 
   for (const revocation of revocations) {
     verifier.addRevocation(revocation);

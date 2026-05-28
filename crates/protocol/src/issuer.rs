@@ -14,7 +14,7 @@ use serde_json::Value;
 
 use crate::{
     canonicalize_pbrsa_info, CredentialsError, IssuanceRequest, IssuanceResponse, Issuer,
-    IssuerBundle, IssuerId, IssuerSecretKeys, ProtocolV1, Revocation, RevocationLocation,
+    IssuerAuthority, IssuerId, IssuerSecretKeys, ProtocolV1, Revocation, RevocationLocation,
     RevocationProof, SchnorrSignatureProof, SignedCredential, SignedRevocation,
 };
 
@@ -168,20 +168,20 @@ impl IssuerContext {
 
     /// Build and sign this issuer's public metadata.
     ///
-    /// The returned bundle binds the issuer's derived Nostr identity key to the
+    /// The returned authority binds the issuer's derived Nostr identity key to the
     /// current PBRSA issuance public key and the supplied revocation locations.
-    pub fn issuer_bundle(
+    pub fn issuer_authority(
         &self,
         revocation: Vec<RevocationLocation>,
-    ) -> Result<IssuerBundle, CredentialsError> {
-        self.issuer_bundle_with_rng(revocation, &mut nostr::secp256k1::rand::rngs::OsRng)
+    ) -> Result<IssuerAuthority, CredentialsError> {
+        self.issuer_authority_with_rng(revocation, &mut nostr::secp256k1::rand::rngs::OsRng)
     }
 
-    pub(crate) fn issuer_bundle_with_rng(
+    pub(crate) fn issuer_authority_with_rng(
         &self,
         revocation: Vec<RevocationLocation>,
         rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
-    ) -> Result<IssuerBundle, CredentialsError> {
+    ) -> Result<IssuerAuthority, CredentialsError> {
         let issuer = Issuer {
             issuer_id_pubkey: self.issuer_id(),
             issuance_key: self.key_pair.pk.clone(),
@@ -189,7 +189,7 @@ impl IssuerContext {
         };
         let signature = self.sign_identity_digest_with_rng(issuer.digest()?, rng);
 
-        Ok(IssuerBundle {
+        Ok(IssuerAuthority {
             version: ProtocolV1,
             issuer,
             proof: SchnorrSignatureProof { signature },

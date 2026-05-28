@@ -37,7 +37,7 @@ const holder = HolderContext.generate();
 const blindMsg = holder.publicKey;
 
 const { request, pending } = PendingIssuance.createRequest(
-  issuerBundle,
+  issuerAuthority,
   credentialInfo,
   blindMsg,
 );

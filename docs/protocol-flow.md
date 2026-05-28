@@ -15,7 +15,7 @@ sequenceDiagram
   participant H as Holder
 
   I->>I: Generate issuer keys
-  I->>H: Share signed IssuerBundle
+  I->>H: Share signed IssuerAuthority
   H->>H: Choose blind_msg and credential info
   H->>H: Create IssuanceRequest and PendingIssuance
   H->>I: Send IssuanceRequest
@@ -32,7 +32,7 @@ sequenceDiagram
   participant I as Issuer
   participant H as Holder
 
-  I->>V: Share trusted IssuerBundle
+  I->>V: Share trusted IssuerAuthority
   H->>V: Present SignedCredential
   V->>V: Verify issuer is trusted
   V->>V: Verify credential signature

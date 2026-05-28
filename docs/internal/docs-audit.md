@@ -25,7 +25,7 @@ Status: historical product and protocol design notes.
 Current protocol facts worth preserving:
 
 - The actor model is issuer, holder, verifier.
-- Issuer bundles bind issuer identity, issuance key, and revocation locations.
+- Issuer authorities bind issuer identity, issuance key, and revocation locations.
 - Credentials separate issuer-visible `info` from holder-hidden `blind_msg`
   during issuance.
 - Revocations are signed by issuer identity keys and refer to credential
@@ -64,7 +64,7 @@ Canonical example sources:
 - `test/full-issuance-flow.test.ts`: best end-to-end source for the quickstart.
 - `test/credential.test.ts`: best source for pending issuance persistence,
   import/export, and mismatch failure examples.
-- `test/verification.test.ts`: best source for issuer bundle and revocation
+- `test/verification.test.ts`: best source for issuer authority and revocation
   verification examples.
 
 Decision: future public examples should either be extracted from tests or kept
