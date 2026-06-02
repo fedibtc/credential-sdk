@@ -57,18 +57,10 @@ export interface HolderAuthorization {
 export interface HolderAuthorizationRequest {
   /** External application's Nostr subject public key. */
   readonly subject_pubkey: string;
-  /** Application-defined audience or relying-party identifier. */
-  readonly audience: string;
   /** Credentials this authorization allows the subject to present. */
   readonly credentials: readonly SignedCredential[];
-  /** Future-proof scope field; omitted requests default to ["present"]. */
-  readonly scope?: readonly HolderAuthorizationScope[];
-  /** Unix timestamp in seconds. */
-  readonly issued_at: number;
   /** Unix timestamp in seconds. */
   readonly expires_at: number;
-  /** Future-proof application-chosen id; omitted requests default to an empty string. */
-  readonly authorization_id?: string;
 }
 
 /** Holder statement signed by `HolderContext.authorizeCredentialUse` and returned in `HolderAuthorization`. */
@@ -77,8 +69,6 @@ export interface HolderAuthorizationStatement {
   readonly holder_id_pubkey: string;
   /** External application's Nostr subject public key. */
   readonly subject_pubkey: string;
-  /** Application-defined audience or relying-party identifier. */
-  readonly audience: string;
   /** Credentials this authorization allows the subject to present. */
   readonly credential_refs: readonly CredentialRef[];
   /** Future-proof scope field; MVP code preserves it but does not interpret it. */
@@ -191,24 +181,21 @@ fn to_js<T: Serialize>(value: &T) -> Result<JsValue, JsError> {
         .map_err(|error| JsError::new(&error.to_string()))
 }
 
+fn current_unix_timestamp() -> Result<u64, JsError> {
+    let seconds = (js_sys::Date::now() / 1000.0).floor();
+    if !seconds.is_finite() || seconds < 0.0 {
+        return Err(JsError::new("current time must be non-negative"));
+    }
+
+    Ok(seconds as u64)
+}
+
 fn reflect_error(error: JsValue) -> JsError {
     JsError::new(
         &error
             .as_string()
             .unwrap_or_else(|| "failed to set JS object property".to_owned()),
     )
-}
-
-fn u64_from_js_number(value: f64, name: &str) -> Result<u64, JsError> {
-    const MAX_SAFE_JS_INTEGER: f64 = 9_007_199_254_740_991.0;
-
-    if !value.is_finite() || value < 0.0 || value.fract() != 0.0 || value > MAX_SAFE_JS_INTEGER {
-        return Err(JsError::new(&format!(
-            "{name} must be a non-negative safe integer"
-        )));
-    }
-
-    Ok(value as u64)
 }
 
 /// Install a tracing subscriber that forwards Rust tracing events to the JavaScript console.
@@ -347,7 +334,11 @@ impl HolderContext {
         #[wasm_bindgen(unchecked_param_type = "HolderAuthorizationRequest")] request: JsValue,
     ) -> Result<JsValue, JsError> {
         let request: protocol::HolderAuthorizationRequest = from_js(request)?;
-        to_js(&self.inner.authorize_credential_use(request)?)
+        to_js(
+            &self
+                .inner
+                .authorize_credential_use_at_time(request, current_unix_timestamp()?)?,
+        )
     }
 }
 
@@ -469,34 +460,20 @@ impl VerificationContext {
         Ok(true)
     }
 
-    /// Verify a credential and holder authorization for a concrete subject.
+    /// Verify a credential and holder authorization.
     #[wasm_bindgen(js_name = verifyCredentialAuthorization)]
     pub fn verify_credential_authorization(
         &self,
         #[wasm_bindgen(unchecked_param_type = "SignedCredential")] credential: JsValue,
-        credential_holder_id: String,
-        expected_subject_pubkey: String,
         #[wasm_bindgen(unchecked_param_type = "HolderAuthorization")] authorization: JsValue,
-        expected_audience: String,
-        now: f64,
     ) -> Result<bool, JsError> {
         let credential: protocol::SignedCredential = from_js(credential)?;
-        let credential_holder_id = credential_holder_id
-            .parse::<protocol::HolderId>()
-            .map_err(protocol::CredentialsError::from)?;
-        let expected_subject_pubkey = expected_subject_pubkey
-            .parse::<protocol::SubjectPubkey>()
-            .map_err(protocol::CredentialsError::from)?;
         let authorization: protocol::HolderAuthorization = from_js(authorization)?;
-        let now = u64_from_js_number(now, "now")?;
 
-        self.inner.verify_credential_authorization(
+        self.inner.verify_credential_authorization_at_time(
             &credential,
-            &credential_holder_id,
-            &expected_subject_pubkey,
             &authorization,
-            &expected_audience,
-            now,
+            current_unix_timestamp()?,
         )?;
         Ok(true)
     }

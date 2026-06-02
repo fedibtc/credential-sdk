@@ -92,15 +92,29 @@ impl HolderContext {
         &self,
         request: HolderAuthorizationRequest,
     ) -> Result<HolderAuthorization, CredentialsError> {
-        self.authorize_credential_use_with_rng(request, &mut nostr::secp256k1::rand::rngs::OsRng)
+        self.authorize_credential_use_at_time(request, current_unix_timestamp()?)
     }
 
-    pub(crate) fn authorize_credential_use_with_rng(
+    /// Create a signed authorization using an explicit issuance timestamp.
+    pub fn authorize_credential_use_at_time(
         &self,
         request: HolderAuthorizationRequest,
+        issued_at: u64,
+    ) -> Result<HolderAuthorization, CredentialsError> {
+        self.authorize_credential_use_with_rng_at_time(
+            request,
+            issued_at,
+            &mut nostr::secp256k1::rand::rngs::OsRng,
+        )
+    }
+
+    pub(crate) fn authorize_credential_use_with_rng_at_time(
+        &self,
+        request: HolderAuthorizationRequest,
+        issued_at: u64,
         rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
     ) -> Result<HolderAuthorization, CredentialsError> {
-        let authorization = request.into_statement(self.holder_id())?;
+        let authorization = request.into_statement(self.holder_id(), issued_at)?;
         let signature = self.sign_identity_digest_with_rng(authorization.digest()?, rng);
 
         Ok(HolderAuthorization {
@@ -262,4 +276,11 @@ impl PendingIssuance {
 
 fn invalid_pending_issuance_state(error: impl ToString) -> CredentialsError {
     CredentialsError::InvalidPendingIssuanceState(error.to_string())
+}
+
+pub(crate) fn current_unix_timestamp() -> Result<u64, CredentialsError> {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .map_err(|_| CredentialsError::VerificationFailed)
 }

@@ -2,16 +2,16 @@
 
 Rust-facing protocol crate for issuing, holding, verifying, and revoking Fedi-style privacy-preserving credentials with partially blind RSA signatures.
 
-This crate owns the protocol-sensitive pieces: issuer and holder key handling, holder blinding, issuer partial blind signing, holder finalization, credential verification, signed issuer metadata, signed revocations, canonicalization, and typed error handling.
+This crate owns the protocol-sensitive pieces: issuer and holder key handling, holder blinding, issuer partial blind signing, holder finalization, holder authorization signing, credential verification, signed issuer metadata, signed revocations, canonicalization, and typed error handling.
 
-It deliberately does not own application concerns such as persistence, QR codes, Nostr relay I/O, HTTP fetching, UI state, verifier policy, or revocation list refresh jobs. Credential `info` and `blind_msg` are arbitrary `serde_json::Value` objects; callers decide what their schemas and claims mean.
+It deliberately does not own application concerns such as persistence, QR codes, Nostr relay I/O, HTTP fetching, UI state, subject-key custody, verifier policy, or revocation list refresh jobs. Credential `info` and `blind_msg` are arbitrary `serde_json::Value` objects; callers decide what their schemas and claims mean.
 
 ## Usage
 
 ```rust
 use fedi_credential_sdk_protocol::{
-    HolderContext, IssuerContext, PendingIssuance, RevocationLocation,
-    VerificationContext,
+    HolderAuthorizationRequest, HolderContext, IssuerContext, PendingIssuance,
+    RevocationLocation, SubjectPubkey, VerificationContext,
 };
 use serde_json::json;
 
@@ -51,6 +51,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     verifier.add_issuer_authority(&issuer_authority)?;
     verifier.verify_credential(&credential)?;
 
+    // Holder authorizes an external application subject key to use this credential.
+    let subject_pubkey: SubjectPubkey = "33".repeat(32).parse()?;
+    let expires_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs()
+        + 3_600;
+    let authorization = holder.authorize_credential_use(HolderAuthorizationRequest {
+        subject_pubkey,
+        credentials: vec![credential.clone()],
+        expires_at,
+    })?;
+    verifier.verify_credential_authorization(&credential, &authorization)?;
+
     // Issuer can revoke a finalized credential. Transport/publication is app-owned.
     let signed_revocation = issuer.revoke_credential(&credential)?;
     verifier.add_revocation(&signed_revocation)?;
@@ -65,12 +78,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 The high-level API is organized around runtime contexts and wire structs:
 
 - `IssuerContext`: generate/import/export issuer identity and issuance keys, create signed issuer authorities, issue credentials, and create signed revocations
-- `HolderContext`: generate/import/export holder identity keys and expose the holder public key
+- `HolderContext`: generate/import/export holder identity keys, expose the holder public key, and authorize external app keys to use credentials
 - `PendingIssuance`: create holder issuance requests and retain the unblinding state needed to finalize an issuer response
-- `VerificationContext`: trust signed issuer authorities, verify signed revocations, and verify finalized credentials against trusted issuers and known revocations
-- `IssuerAuthority`, `IssuanceRequest`, `IssuanceResponse`, `SignedCredential`, and `SignedRevocation`: serde-compatible protocol wire objects
+- `VerificationContext`: trust signed issuer authorities, verify signed revocations, verify finalized credentials, and verify holder authorizations
+- `IssuerAuthority`, `IssuanceRequest`, `IssuanceResponse`, `SignedCredential`, `HolderAuthorization`, and `SignedRevocation`: serde-compatible protocol wire objects
 
-All fallible operations return `Result<_, CredentialsError>`. Important verification failures include `UnknownIssuer`, `CredentialRevoked`, `IssuerIdMismatch`, `InfoMismatch`, and `VerificationFailed`.
+All fallible operations return `Result<_, CredentialsError>`. Important verification failures include `UnknownIssuer`, `CredentialRevoked`, `IssuerIdMismatch`, `InfoMismatch`, `HolderIdMismatch`, `AuthorizationCredentialRefMissing`, `AuthorizationNotYetValid`, `AuthorizationExpired`, and `VerificationFailed`.
 
 ## Credential Flow
 
@@ -95,6 +108,10 @@ The finalized `SignedCredential` contains issuer-visible `info`, holder-hidden `
 
 During issuance, `info` is public to the issuer and `blind_msg` is hidden from the issuer while signing. `PendingIssuance::create_request` canonicalizes both values into the PBRSA metadata/message split, returns the blinded `IssuanceRequest`, and stores local unblinding state. `IssuerContext::issue_credential` signs the blinded request with the issuer's issuance key and visible `info`. `PendingIssuance::finalize` checks that the response matches the original issuer and `info`, unblinds the signature, builds a `SignedCredential`, and verifies it before returning.
 
+For holder authorization verification, the current Fedi/Nostr convention is
+that `credential.blind_msg` contains the holder public key string. The SDK uses
+that value to bind a `HolderAuthorization` to the presented credential.
+
 ## Serialization
 
 Protocol structs derive `Serialize` and `Deserialize` for stable JSON transport. Byte fields serialize as unpadded URL-safe base64 strings, including PBRSA public keys, blinded messages, blind signatures, finalized credential signatures, Schnorr signatures, and credential digests. `ProtocolV1` serializes as the JSON number `1` and rejects other versions during deserialization.
@@ -106,6 +123,7 @@ Canonical protocol inputs use RFC 8785/JCS encoding before signing or hashing. T
 - `canonicalize_issuer_authority`
 - `canonicalize_revocation`
 - `canonicalize_credential`
+- `canonicalize_holder_authorization`
 
 Most applications should use the context APIs instead of calling these helpers directly.
 

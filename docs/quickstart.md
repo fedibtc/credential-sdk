@@ -6,14 +6,19 @@ title: Quickstart
 
 This guide shows the smallest useful TypeScript flow with the npm package:
 create an issuer authority, create a holder issuance request, issue a blind
-signature, finalize a credential, verify it, and then revoke it.
+signature, finalize a credential, authorize an external app to use it, verify
+the authorization, and then revoke the credential.
 
 ## Imports
 
 The high-level API is organized around runtime contexts:
 
 ```ts
-import type { JsonValue, RevocationLocation } from "@fedibtc/fedi-credential-sdk-wasm";
+import type {
+  HolderAuthorizationRequest,
+  JsonValue,
+  RevocationLocation,
+} from "@fedibtc/fedi-credential-sdk-wasm";
 import {
   HolderContext,
   IssuerContext,
@@ -63,6 +68,26 @@ verifier.addIssuerAuthority(issuerAuthority);
 const verified = verifier.verifyCredential(credential);
 console.log(verified); // true
 
+// Holder: authorize an external application subject key to use this credential.
+// Subject-key generation and live proof-of-possession are application-owned.
+const subjectPubkey = "33".repeat(32);
+const holderAuthorizationRequest = {
+  subject_pubkey: subjectPubkey,
+  credentials: [credential],
+  expires_at: Math.floor(Date.now() / 1000) + 3_600,
+} satisfies HolderAuthorizationRequest;
+const holderAuthorization = holder.authorizeCredentialUse(
+  holderAuthorizationRequest,
+);
+
+// Verifier: check the credential, holder authorization, holder binding,
+// credential reference, and authorization time window.
+const authorized = verifier.verifyCredentialAuthorization(
+  credential,
+  holderAuthorization,
+);
+console.log(authorized); // true
+
 // Issuer: create a signed revocation for the finalized credential.
 const signedRevocation = issuer.revokeCredential(credential);
 
@@ -85,6 +110,12 @@ try {
 `blindMsg` is hidden from the issuer during signing and becomes
 `credential.blind_msg` after finalization. For the current Fedi/Nostr use case,
 this is usually the holder's public key, but the SDK accepts any JSON value.
+Holder authorization verification expects the common Fedi/Nostr shape where
+`credential.blind_msg` is the holder public key string.
+
+`HolderAuthorizationRequest.credentials` are the credentials the holder is
+authorizing. The SDK derives credential refs from those credentials and sets the
+authorization `issued_at`, `scope`, and `authorization_id` fields when signing.
 
 ## Persisting Pending Issuance
 
@@ -138,16 +169,20 @@ The SDK owns protocol-sensitive operations:
 - Holder blinding and pending issuance state.
 - Issuer blind signing.
 - Holder finalization.
+- Holder authorization signing.
 - Credential verification.
+- Holder authorization verification.
 - Revocation signing and verification.
 - Canonical JSON encoding used by signatures and digests.
 
 Your app still owns:
 
 - Storage for keys, pending issuance state, credentials, and trusted issuers.
+- Storage and transport for holder authorizations.
 - QR code generation and scanning.
 - Nostr relay, HTTP, file, or other transport.
 - UI state and user confirmation.
+- Subject-key generation, custody, and proof-of-possession.
 - Verifier policy and trust-list management.
 - Revocation refresh jobs.
 

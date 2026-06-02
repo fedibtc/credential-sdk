@@ -198,7 +198,6 @@ mod tests {
         let authorization = HolderAuthorizationStatement {
             holder_id_pubkey: holder_id.clone(),
             subject_pubkey: subject_pubkey.clone(),
-            audience: "https://verifier.example".to_owned(),
             credential_refs: vec![CredentialRef {
                 issuer_id_pubkey: issuer_id.clone(),
                 trust_badge_id: TrustBadgeId([3u8; 32].into()),
@@ -211,7 +210,7 @@ mod tests {
 
         let canonicalized = canonicalize_holder_authorization(&authorization).unwrap();
         let expected = format!(
-            r#"{{"authorization":{{"audience":"https://verifier.example","authorization_id":"auth-1","credential_refs":[{{"issuer_id_pubkey":"{}","trust_badge_id":"AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"}}],"expires_at":2000,"holder_id_pubkey":"{}","issued_at":1000,"scope":["present"],"subject_pubkey":"{}"}},"type":"{}","version":1}}"#,
+            r#"{{"authorization":{{"authorization_id":"auth-1","credential_refs":[{{"issuer_id_pubkey":"{}","trust_badge_id":"AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"}}],"expires_at":2000,"holder_id_pubkey":"{}","issued_at":1000,"scope":["present"],"subject_pubkey":"{}"}},"type":"{}","version":1}}"#,
             issuer_id.0, holder_id.0, subject_pubkey.0, HOLDER_AUTHORIZATION_CANONICAL_TYPE,
         );
 

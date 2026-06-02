@@ -109,21 +109,20 @@ describe("full credential issuance flow", () => {
 
     const holderAuthorizationRequest = {
       subject_pubkey: subjectPubkey,
-      audience: "https://verifier.example",
       credentials: [credential],
-      issued_at: 1_717_000_000,
-      expires_at: 1_717_003_600,
+      expires_at: Math.floor(Date.now() / 1000) + 3_600,
     } satisfies HolderAuthorizationRequest;
+    const issuedAtBefore = Math.floor(Date.now() / 1000);
     const holderAuthorization = holder.authorizeCredentialUse(
       holderAuthorizationRequest,
     );
+    const issuedAtAfter = Math.floor(Date.now() / 1000);
 
     expect(holderAuthorization).toMatchObject({
       version: 1,
       authorization: {
         holder_id_pubkey: holder.publicKey,
         subject_pubkey: subjectPubkey,
-        audience: holderAuthorizationRequest.audience,
         credential_refs: [
           {
             issuer_id_pubkey: issuerId,
@@ -131,7 +130,6 @@ describe("full credential issuance flow", () => {
           },
         ],
         scope: ["present"],
-        issued_at: holderAuthorizationRequest.issued_at,
         expires_at: holderAuthorizationRequest.expires_at,
         authorization_id: "",
       },
@@ -139,6 +137,12 @@ describe("full credential issuance flow", () => {
         signature: expect.any(String),
       },
     });
+    expect(holderAuthorization.authorization.issued_at).toBeGreaterThanOrEqual(
+      issuedAtBefore,
+    );
+    expect(holderAuthorization.authorization.issued_at).toBeLessThanOrEqual(
+      issuedAtAfter,
+    );
     expect(holderAuthorization.proof.signature.length).toBeGreaterThan(0);
 
     const authorizationVerifier = new VerificationContext();
@@ -148,11 +152,7 @@ describe("full credential issuance flow", () => {
     expect(
       authorizationVerifier.verifyCredentialAuthorization(
         credential,
-        holder.publicKey,
-        subjectPubkey,
         holderAuthorization,
-        holderAuthorizationRequest.audience,
-        holderAuthorizationRequest.issued_at + 1,
       ),
     ).toBe(true);
 

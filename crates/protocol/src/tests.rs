@@ -4,10 +4,10 @@ use std::time::{Duration, Instant};
 
 use crate::{
     Credential, CredentialProof, CredentialRef, HolderAuthorization, HolderAuthorizationRequest,
-    HolderAuthorizationScope, HolderAuthorizationStatement, HolderContext, HolderId,
-    IssuerAuthority, IssuerContext, IssuerId, IssuerSecretKeys, PendingIssuance, ProtocolV1,
-    Revocation, RevocationLocation, RevocationProof, SchnorrSignatureProof, SignedCredential,
-    SignedRevocation, SubjectPubkey, TrustBadgeId, VerificationContext,
+    HolderAuthorizationStatement, HolderContext, HolderId, IssuerAuthority, IssuerContext,
+    IssuerId, IssuerSecretKeys, PendingIssuance, ProtocolV1, Revocation, RevocationLocation,
+    RevocationProof, SchnorrSignatureProof, SignedCredential, SignedRevocation, SubjectPubkey,
+    TrustBadgeId, VerificationContext,
 };
 
 const TEST_RNG_SEED: u64 = 0x5eed_f00d_cafe_babe;
@@ -85,12 +85,8 @@ fn holder_authorization_request(
         credential_for_authorization(IssuerId(nostr::PublicKey::from_byte_array([7u8; 32])));
     let request = HolderAuthorizationRequest {
         subject_pubkey: SubjectPubkey(subject_public_key),
-        audience: "https://verifier.example".to_owned(),
         credentials: vec![credential.clone()],
-        scope: vec![HolderAuthorizationScope::Present],
-        issued_at: 1_717_000_000,
         expires_at: 1_717_003_600,
-        authorization_id: "auth-1".to_owned(),
     };
 
     (request, credential)
@@ -100,10 +96,7 @@ struct CredentialAuthorizationFixture {
     verifier: VerificationContext,
     holder: HolderContext,
     credential: SignedCredential,
-    credential_holder_id: HolderId,
-    subject_pubkey: SubjectPubkey,
     authorization: HolderAuthorization,
-    audience: String,
     issued_at: u64,
     expires_at: u64,
 }
@@ -149,36 +142,28 @@ fn credential_authorization_fixture() -> CredentialAuthorizationFixture {
     let subject = nostr::Keys::generate_with_rng(&mut nostr_rng);
     let credential =
         issue_credential_for_holder(&issuer, &issuer_authority, &holder, &mut pbrsa_rng);
-    let audience = "https://verifier.example".to_owned();
     let issued_at = 1_717_000_000;
     let expires_at = 1_717_003_600;
     let subject_pubkey = SubjectPubkey(subject.public_key());
     let authorization = holder
-        .authorize_credential_use_with_rng(
+        .authorize_credential_use_with_rng_at_time(
             HolderAuthorizationRequest {
                 subject_pubkey: subject_pubkey.clone(),
-                audience: audience.clone(),
                 credentials: vec![credential.clone()],
-                scope: vec![HolderAuthorizationScope::Present],
-                issued_at,
                 expires_at,
-                authorization_id: "auth-1".to_owned(),
             },
+            issued_at,
             &mut nostr_rng,
         )
         .unwrap();
     let mut verifier = VerificationContext::new();
     verifier.add_issuer_authority(&issuer_authority).unwrap();
-    let credential_holder_id = HolderId(holder.public_key());
 
     CredentialAuthorizationFixture {
         verifier,
         holder,
         credential,
-        credential_holder_id,
-        subject_pubkey,
         authorization,
-        audience,
         issued_at,
         expires_at,
     }
@@ -525,7 +510,7 @@ fn holder_context_authorizes_credential_use() {
     };
 
     let authorization = holder
-        .authorize_credential_use_with_rng(request, &mut rng)
+        .authorize_credential_use_with_rng_at_time(request, 1_717_000_000, &mut rng)
         .unwrap();
 
     assert_eq!(authorization.version, ProtocolV1);
@@ -571,12 +556,9 @@ fn verification_context_verifies_credential_authorization() {
         .expect("holder authorization signature verifies");
     fixture
         .verifier
-        .verify_credential_authorization(
+        .verify_credential_authorization_at_time(
             &fixture.credential,
-            &fixture.credential_holder_id,
-            &fixture.subject_pubkey,
             &fixture.authorization,
-            &fixture.audience,
             fixture.issued_at + 1,
         )
         .unwrap();
@@ -587,26 +569,29 @@ fn verification_context_rejects_invalid_credential_authorizations() {
     let fixture = credential_authorization_fixture();
     let mut rng =
         <NostrRng as nostr::secp256k1::rand::SeedableRng>::seed_from_u64(TEST_RNG_SEED + 1);
-    let other_holder = HolderId(nostr::Keys::generate_with_rng(&mut rng).public_key());
-    let other_subject = SubjectPubkey(nostr::Keys::generate_with_rng(&mut rng).public_key());
+    let other_holder = HolderContext::generate_with_rng(&mut rng);
     let different_credential = credential_for_authorization(IssuerId(
         nostr::Keys::generate_with_rng(&mut rng).public_key(),
     ));
     let missing_ref_authorization = fixture
         .holder
-        .authorize_credential_use_with_rng(
+        .authorize_credential_use_with_rng_at_time(
             HolderAuthorizationRequest {
-                subject_pubkey: fixture.subject_pubkey.clone(),
-                audience: fixture.audience.clone(),
+                subject_pubkey: fixture.authorization.authorization.subject_pubkey.clone(),
                 credentials: vec![different_credential],
-                scope: vec![HolderAuthorizationScope::Present],
-                issued_at: fixture.issued_at,
                 expires_at: fixture.expires_at,
-                authorization_id: "auth-2".to_owned(),
             },
+            fixture.issued_at,
             &mut rng,
         )
         .unwrap();
+    let mut holder_mismatch_statement = fixture.authorization.authorization.clone();
+    holder_mismatch_statement.holder_id_pubkey = HolderId(other_holder.public_key());
+    let holder_mismatch_authorization = authorization_statement_signed_by_holder(
+        &other_holder,
+        holder_mismatch_statement,
+        &mut rng,
+    );
     let mut issuer_mismatch_statement = fixture.authorization.authorization.clone();
     issuer_mismatch_statement.credential_refs = vec![CredentialRef {
         issuer_id_pubkey: IssuerId(nostr::Keys::generate_with_rng(&mut rng).public_key()),
@@ -618,83 +603,47 @@ fn verification_context_rejects_invalid_credential_authorizations() {
         &mut rng,
     );
     let mut tampered_authorization = fixture.authorization.clone();
-    tampered_authorization.authorization.audience = "https://tampered.example".to_owned();
+    tampered_authorization.authorization.authorization_id = "tampered".to_owned();
 
     insta::assert_json_snapshot!(json!({
-        "wrong_holder": fixture.verifier.verify_credential_authorization(
+        "holder_mismatch": fixture.verifier.verify_credential_authorization_at_time(
             &fixture.credential,
-            &other_holder,
-            &fixture.subject_pubkey,
-            &fixture.authorization,
-            &fixture.audience,
+            &holder_mismatch_authorization,
             fixture.issued_at + 1,
         ).unwrap_err().to_string(),
-        "wrong_subject": fixture.verifier.verify_credential_authorization(
+        "expired": fixture.verifier.verify_credential_authorization_at_time(
             &fixture.credential,
-            &fixture.credential_holder_id,
-            &other_subject,
             &fixture.authorization,
-            &fixture.audience,
-            fixture.issued_at + 1,
-        ).unwrap_err().to_string(),
-        "wrong_audience": fixture.verifier.verify_credential_authorization(
-            &fixture.credential,
-            &fixture.credential_holder_id,
-            &fixture.subject_pubkey,
-            &fixture.authorization,
-            "https://other.example",
-            fixture.issued_at + 1,
-        ).unwrap_err().to_string(),
-        "expired": fixture.verifier.verify_credential_authorization(
-            &fixture.credential,
-            &fixture.credential_holder_id,
-            &fixture.subject_pubkey,
-            &fixture.authorization,
-            &fixture.audience,
             fixture.expires_at,
         ).unwrap_err().to_string(),
-        "future_issued_at": fixture.verifier.verify_credential_authorization(
+        "future_issued_at": fixture.verifier.verify_credential_authorization_at_time(
             &fixture.credential,
-            &fixture.credential_holder_id,
-            &fixture.subject_pubkey,
             &fixture.authorization,
-            &fixture.audience,
             fixture.issued_at - 1,
         ).unwrap_err().to_string(),
-        "missing_credential_ref": fixture.verifier.verify_credential_authorization(
+        "missing_credential_ref": fixture.verifier.verify_credential_authorization_at_time(
             &fixture.credential,
-            &fixture.credential_holder_id,
-            &fixture.subject_pubkey,
             &missing_ref_authorization,
-            &fixture.audience,
             fixture.issued_at + 1,
         ).unwrap_err().to_string(),
-        "issuer_mismatch_ref": fixture.verifier.verify_credential_authorization(
+        "issuer_mismatch_ref": fixture.verifier.verify_credential_authorization_at_time(
             &fixture.credential,
-            &fixture.credential_holder_id,
-            &fixture.subject_pubkey,
             &issuer_mismatch_authorization,
-            &fixture.audience,
             fixture.issued_at + 1,
         ).unwrap_err().to_string(),
-        "tampered_authorization": fixture.verifier.verify_credential_authorization(
+        "tampered_authorization": fixture.verifier.verify_credential_authorization_at_time(
             &fixture.credential,
-            &fixture.credential_holder_id,
-            &fixture.subject_pubkey,
             &tampered_authorization,
-            "https://tampered.example",
             fixture.issued_at + 1,
         ).unwrap_err().to_string(),
     }), @r###"
     {
       "expired": "authorization has expired",
       "future_issued_at": "authorization is not yet valid",
+      "holder_mismatch": "holder_id does not match",
       "issuer_mismatch_ref": "credential is not referenced by authorization",
       "missing_credential_ref": "credential is not referenced by authorization",
-      "tampered_authorization": "verification failed",
-      "wrong_audience": "authorization audience does not match",
-      "wrong_holder": "holder_id does not match",
-      "wrong_subject": "subject_pubkey does not match"
+      "tampered_authorization": "verification failed"
     }
     "###);
 }

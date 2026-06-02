@@ -45,6 +45,34 @@ const response = JSON.parse(await receiveFromIssuer());
 const credential = pending.finalize(issuerAuthority, response);
 ```
 
+## Holder Authorization Transport
+
+A holder wallet can authorize an external application subject key to use
+selected credentials. The authorization is a transportable JSON object like the
+other protocol objects.
+
+```ts
+const holderAuthorization = holder.authorizeCredentialUse({
+  subject_pubkey: subjectPubkey,
+  credentials: [credential],
+  expires_at: Math.floor(Date.now() / 1000) + 3_600,
+});
+
+await sendToExternalApp(JSON.stringify(holderAuthorization));
+```
+
+The external app presents the credential and holder authorization together.
+
+```ts
+const holderAuthorization = JSON.parse(await receiveFromExternalApp());
+
+verifier.addIssuerAuthority(issuerAuthority);
+verifier.verifyCredentialAuthorization(credential, holderAuthorization);
+```
+
+The SDK does not choose the authorization transport, store the authorization, or
+authenticate the external application's subject key.
+
 ## Revocation Transport
 
 Issuers can publish signed revocations anywhere their issuer authority advertises.

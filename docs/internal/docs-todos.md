@@ -120,8 +120,11 @@ Filename decision: do not number public docs filenames. The explicit TypeDoc
 - [ ] Write an architecture overview that defines issuer, holder, verifier,
       issuer authority, issuance request, issuance response, signed credential, and
       signed revocation.
+- [x] Update architecture coverage for holder authorization objects and the
+      holder-to-external-app authorization boundary.
 - [ ] Add a protocol sequence diagram for issuance.
 - [ ] Add a protocol sequence diagram for verification and revocation.
+- [x] Add a protocol sequence diagram for holder authorization.
 - [ ] Add a trust-boundary diagram showing what the SDK owns and what the app
       owns.
 - [ ] Explain privacy properties in plain language:
@@ -140,6 +143,7 @@ Filename decision: do not number public docs filenames. The explicit TypeDoc
 - [ ] Document the JSON shape of `IssuanceRequest`.
 - [ ] Document the JSON shape of `IssuanceResponse`.
 - [ ] Document the JSON shape of `SignedCredential`.
+- [x] Document the JSON shape of `HolderAuthorization`.
 - [ ] Document the JSON shape of `SignedRevocation`.
 - [ ] Document encoding conventions:
   - [ ] Protocol version is JSON number `1`.

@@ -15,7 +15,7 @@ assuming its referenced credential remains valid.
 
 ## Architecture Placement
 
-- [ ] Keep the existing issuer/holder/verifier role split.
+- [x] Keep the existing issuer/holder/verifier role split.
 - [x] Add initial holder authorization wire types in
       `crates/protocol/src/authorization.rs`.
 - [x] Re-export `authorization.rs` from `crates/protocol/src/lib.rs`.
@@ -25,16 +25,16 @@ assuming its referenced credential remains valid.
       `crates/protocol/src/canonical.rs`.
 - [x] Add holder-side signing to `crates/protocol/src/holder.rs` on
       `HolderContext`.
-- [ ] Add verifier-side holder authorization checks to
+- [x] Add verifier-side holder authorization checks to
       `crates/protocol/src/verifier.rs`.
-- [ ] Keep issuer code in `crates/protocol/src/issuer.rs` unchanged unless a
+- [x] Keep issuer code in `crates/protocol/src/issuer.rs` unchanged unless a
       shared identity-signature helper needs to move.
-- [ ] Add serialization helpers only if existing `crates/protocol/src/serde.rs`
+- [x] Add serialization helpers only if existing `crates/protocol/src/serde.rs`
       encodings are insufficient.
 - [x] Add WASM and TypeScript bindings in `crates/wasm/src/lib.rs`.
 - [x] Add Rust protocol tests near existing protocol tests and TypeScript flow
       tests under `test/`.
-- [ ] Do not add SDK modules for QR codes, Nostr relay queries, HTTP endpoints,
+- [x] Do not add SDK modules for QR codes, Nostr relay queries, HTTP endpoints,
       browser storage, app pairing, UI consent, or subject-key custody.
 
 ## Library-Owned Components
@@ -57,8 +57,9 @@ assuming its referenced credential remains valid.
       and `SignedRevocation` shapes.
 - [x] Include `authorization_id` as a signed future-proof field.
 - [x] Include authorization `scope` as a signed future-proof field.
-- [ ] Defer any verifier semantics for `authorization_id`.
-- [ ] Defer any scope-specific verifier policy.
+- [x] Omit signed audience/purpose scoping from the MVP holder authorization.
+- [x] Defer any verifier semantics for `authorization_id`.
+- [x] Defer any scope-specific verifier policy.
 - [x] Omit `AuthorizedPresentation` types from the MVP.
 - [x] Omit holder authorization revocation types from the MVP.
 
@@ -70,8 +71,8 @@ assuming its referenced credential remains valid.
 - [x] Add a digest method on `HolderAuthorizationStatement`.
 - [x] Keep credential digest calculation inside holder authorization creation
       instead of exposing standalone WASM/TypeScript digest plumbing.
-- [ ] Do not add authorized-presentation digesting in the MVP.
-- [ ] Do not add holder authorization revocation digesting in the MVP.
+- [x] Do not add authorized-presentation digesting in the MVP.
+- [x] Do not add holder authorization revocation digesting in the MVP.
 
 ### 3. Identity Signature Helpers
 
@@ -94,6 +95,8 @@ assuming its referenced credential remains valid.
       of accepting a caller-provided holder id.
 - [x] Derive signed `CredentialRef` values from supplied `SignedCredential`
       values instead of accepting caller-provided credential digests.
+- [x] Derive signed `issued_at`, `scope`, and `authorization_id` in the SDK
+      instead of requiring them in the wallet request.
 - [x] Keep external subject key custody out of `HolderContext`.
 - [x] Do not add wallet consent, storage, pairing, or transport logic to
       `holder.rs`.
@@ -124,18 +127,18 @@ class HolderContext {
 - [x] Add pure verification helper for `HolderAuthorization`.
 - [x] Add `VerificationContext::verify_credential_authorization` for checks
       the SDK can perform generically.
-- [x] Require the consuming application to pass the holder id extracted from
-      `credential.credential.blind_msg`.
-- [x] Require the consuming application to pass the expected subject key from
-      its app-owned authentication or transport flow.
+- [x] Extract the holder id from the `credential.credential.blind_msg` string
+      shape used by the issuance guide.
+- [x] Leave expected subject-key possession checks to app-owned authentication
+      or transport flow.
 - [x] Verify the credential with existing `VerificationContext` issuer and
       credential revocation state.
 - [x] Compute the credential digest with SDK canonicalization.
 - [x] Match credential digest and issuer id to a `CredentialRef`.
 - [x] Verify the extracted credential holder id equals
       `authorization.holder_id_pubkey`.
-- [x] Verify the expected subject key equals `authorization.subject_pubkey`.
-- [x] Check authorization `issued_at`, `expires_at`, and expected audience.
+- [x] Check authorization `issued_at` and `expires_at`.
+- [x] Leave credential schema and purpose policy to verifier applications.
 - [x] Preserve but do not interpret `authorization_id` in MVP verification.
 - [x] Preserve but do not apply scope-specific policy in MVP verification.
 - [x] Leave schema interpretation, trust decisions, subject proof-of-possession,
@@ -148,11 +151,7 @@ impl VerificationContext {
     pub fn verify_credential_authorization(
         &self,
         credential: &SignedCredential,
-        credential_holder_id: &HolderId,
-        expected_subject_pubkey: &SubjectPubkey,
         authorization: &HolderAuthorization,
-        expected_audience: &str,
-        now: u64,
     ) -> Result<(), CredentialsError>;
 }
 ```
@@ -161,10 +160,10 @@ impl VerificationContext {
 
 - [x] Add specific Rust error variants only where existing variants are too
       ambiguous.
-- [x] Cover at least wrong holder, wrong subject, expired authorization, future
-      issued-at, wrong audience, and missing credential ref.
-- [ ] Preserve current thrown-JavaScript-error behavior at the WASM boundary.
-- [ ] Avoid broad result-shape changes until the existing machine-readable
+- [x] Cover at least wrong holder, expired authorization, future issued-at, and
+      missing credential ref.
+- [x] Preserve current thrown-JavaScript-error behavior at the WASM boundary.
+- [x] Avoid broad result-shape changes until the existing machine-readable
       error-code TODO is addressed.
 
 ### 7. WASM And TypeScript Surface
@@ -189,8 +188,6 @@ impl VerificationContext {
 - [x] Add tests that holder authorization signing derives holder id and
       credential refs from the high-level request.
 - [x] Add verifier rejection tests for wrong holder key.
-- [x] Add rejection tests for wrong subject key.
-- [x] Add rejection tests for wrong audience.
 - [x] Add rejection tests for expired authorization.
 - [x] Add rejection tests for future `issued_at`.
 - [x] Add rejection tests when credential digest does not match any
@@ -199,7 +196,7 @@ impl VerificationContext {
       `CredentialRef`.
 - [x] Add rejection tests when extracted credential holder key does not match
       `authorization.holder_id_pubkey`.
-- [ ] Add WASM serialization shape tests.
+- [x] Add WASM serialization shape tests.
 - [ ] Add thrown JavaScript error tests for representative failures.
 - [x] Add complete wallet-to-app-to-verifier TypeScript flow test.
 
@@ -221,7 +218,7 @@ impl VerificationContext {
 ### Wallet Application
 
 - [ ] Let the user choose which credential an external app may use.
-- [ ] Decide `audience` and expiration.
+- [ ] Decide authorization expiration.
 - [ ] Obtain or verify the external app's `subject_pubkey`.
 - [ ] Select the `SignedCredential` values to authorize; SDK code derives
       `CredentialRef` values.
@@ -246,12 +243,12 @@ impl VerificationContext {
 
 - [ ] Choose trusted issuer authorities.
 - [ ] Fetch and refresh issuer credential revocations.
-- [ ] Define acceptable audience strings.
 - [ ] Authenticate or otherwise identify the external application's subject key
       when live subject possession matters.
+- [ ] Compare the expected subject key to `authorization.subject_pubkey`.
 - [ ] Parse credential schemas.
-- [ ] Extract the holder key from `credential.blind_msg`.
-- [ ] Apply policy to credential `info`, issuer, holder, subject, audience, and
+- [ ] Use the SDK-supported `credential.blind_msg` holder key string shape.
+- [ ] Apply policy to credential schema and `info`, issuer, holder, subject, and
       freshness.
 - [ ] Decide how errors are presented to users.
 

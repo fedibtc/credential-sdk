@@ -12,6 +12,7 @@ Findings:
 - The main issuance example matches the high-level flow in
   `test/full-issuance-flow.test.ts`.
 - The API summary matches the exported WASM classes in `crates/wasm/src/lib.rs`.
+- The API summary now includes holder authorization creation and verification.
 - The docs script description needed updating because `pnpm run docs` now builds
   TypeDoc and rustdoc.
 - Remaining gap: README is doing too much. The new top-level docs pages should
@@ -30,6 +31,8 @@ Current protocol facts worth preserving:
   during issuance.
 - Revocations are signed by issuer identity keys and refer to credential
   digests.
+- Holder authorizations are signed by holder identity keys and let external app
+  subject keys use selected credentials until expiration.
 - QR, Nostr relay, HTTP, browser storage, and UI concerns are application-owned.
 
 Historical or stale material:

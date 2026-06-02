@@ -31,6 +31,15 @@ state, or visible `info` do not match.
 `VerificationContext.verifyCredential()` can throw when the issuer is unknown,
 the credential proof fails, or the credential has been revoked.
 
+`HolderContext.authorizeCredentialUse()` can throw when the request contains an
+invalid subject key or credential shape.
+
+`VerificationContext.verifyCredentialAuthorization()` can throw when the
+credential fails verification, the holder authorization proof fails, the
+credential is not referenced by the authorization, the credential holder does
+not match the authorization holder, or the authorization is outside its time
+window.
+
 `IssuerContext.importSecretKey()` and `HolderContext.importSecretKey()` can
 throw when stored secret material is malformed.
 

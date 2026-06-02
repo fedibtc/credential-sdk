@@ -77,8 +77,7 @@ pub struct CredentialRef {
 ///
 /// Present is the only defined MVP value. Scope-specific verifier policy is
 /// reserved for future protocol work; MVP verification only checks that the
-/// authorization is valid for the credential, holder, subject, audience, and
-/// time window.
+/// authorization is valid for the credential, holder, subject, and time window.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HolderAuthorizationScope {
@@ -99,33 +98,11 @@ pub struct HolderAuthorizationRequest {
     /// The auxiliary key or actor that the holder authorizes.
     pub subject_pubkey: SubjectPubkey,
 
-    /// Opaque application-defined audience or relying-party identifier.
-    pub audience: String,
-
     /// Credentials this authorization grants the subject permission to present.
     pub credentials: Vec<SignedCredential>,
 
-    /// Future-proof scope field.
-    ///
-    /// MVP code signs and preserves this field but does not implement
-    /// scope-specific verifier policy. If omitted during deserialization, this
-    /// defaults to `[HolderAuthorizationScope::Present]`.
-    #[serde(default = "default_holder_authorization_scope")]
-    pub scope: Vec<HolderAuthorizationScope>,
-
-    /// Unix timestamp in seconds.
-    pub issued_at: u64,
-
     /// Unix timestamp in seconds.
     pub expires_at: u64,
-
-    /// Future-proof application-chosen id.
-    ///
-    /// MVP code signs and preserves this field, but does not use it for
-    /// replacement, replay tracking, or revocation. If omitted during
-    /// deserialization, this defaults to an empty string.
-    #[serde(default)]
-    pub authorization_id: String,
 }
 
 impl HolderAuthorizationRequest {
@@ -133,6 +110,7 @@ impl HolderAuthorizationRequest {
     pub fn into_statement(
         self,
         holder_id_pubkey: HolderId,
+        issued_at: u64,
     ) -> Result<HolderAuthorizationStatement, CredentialsError> {
         let credential_refs = self
             .credentials
@@ -149,12 +127,11 @@ impl HolderAuthorizationRequest {
         Ok(HolderAuthorizationStatement {
             holder_id_pubkey,
             subject_pubkey: self.subject_pubkey,
-            audience: self.audience,
             credential_refs,
-            scope: self.scope,
-            issued_at: self.issued_at,
+            scope: default_holder_authorization_scope(),
+            issued_at,
             expires_at: self.expires_at,
-            authorization_id: self.authorization_id,
+            authorization_id: String::new(),
         })
     }
 }
@@ -167,9 +144,6 @@ pub struct HolderAuthorizationStatement {
 
     /// The auxiliary key or actor that the holder authorizes.
     pub subject_pubkey: SubjectPubkey,
-
-    /// Opaque application-defined audience or relying-party identifier.
-    pub audience: String,
 
     /// Credentials this authorization grants the subject permission to present.
     pub credential_refs: Vec<CredentialRef>,

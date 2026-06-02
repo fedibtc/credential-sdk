@@ -53,9 +53,26 @@ Verification checks that:
 - The credential proof verifies against that issuer's issuance public key.
 - The credential does not match any ingested revocation.
 
+## Verify Holder-Authorized Credentials
+
+When a wallet authorizes an external application to use a credential, verifiers
+receive both the `SignedCredential` and the holder-signed `HolderAuthorization`.
+
+```ts
+verifier.addIssuerAuthority(issuerAuthority);
+verifier.verifyCredentialAuthorization(credential, holderAuthorization); // true
+```
+
+This checks the credential, holder authorization signature, holder binding,
+credential reference, and authorization time window. Your application still
+checks that the current caller controls
+`holderAuthorization.authorization.subject_pubkey` and that the credential
+schema is appropriate for the verifier's policy.
+
 ## Verifier Policy
 
 The SDK only answers whether the credential is cryptographically valid for the
-trusted issuer authorities and revocations you loaded. Your application still
-decides which issuers to trust, how fresh revocation data must be, and what
-credential `info` values satisfy the verifier's policy.
+trusted issuer authorities and revocations you loaded, and whether a holder
+authorization is bound to a credential. Your application still decides which
+issuers to trust, how fresh revocation data must be, what credential `info`
+values satisfy policy, and how to authenticate holder authorization subjects.
