@@ -5,6 +5,7 @@
 //! callers decide what schema, holder identifiers, and claims mean.
 
 pub mod canonical;
+pub mod authorization;
 pub mod error;
 pub mod holder;
 pub mod issuer;
@@ -13,6 +14,7 @@ pub mod types;
 pub mod verifier;
 
 pub use canonical::*;
+pub use authorization::*;
 pub use error::*;
 pub use holder::*;
 pub use issuer::*;

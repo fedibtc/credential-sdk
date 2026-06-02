@@ -1,28 +1,9 @@
-//! Temporary holder-authorization protocol types.
+//! Holder authorization protocol types.
 //!
-//! ============================================================================
-//! TEMPORARY FILE: MOVE THIS INTO `fedi-credential-sdk-protocol`.
-//!
-//! These types describe holder-signed authorizations that are not yet available
-//! in `fedi-credential-sdk-protocol`. This file is intentionally provisional so
-//! the holder authorization design can reference concrete shapes while the
-//! credential protocol is being extended.
-//!
-//! The final upstream form should stay close to existing SDK signed-object
-//! wrappers, while reusing SDK-native protocol types instead of placeholder
-//! strings:
-//!
-//! - `ProtocolV1` for version fields.
-//! - `SchnorrSignatureProof` for direct holder and subject signatures.
-//! - Nostr public key wrappers matching `IssuerId`.
-//! - `sha2::digest::Output<Sha256>` for credential digests, encoded the same way
-//!   as `Revocation.credential_digest`.
-//!
-//! Do not grow this into an application crate. Once the protocol design settles,
-//! move these types, canonical serialization rules, digest/signature algorithms,
-//! verification APIs, and test vectors into `fedi-credential-sdk-protocol`, then
-//! delete this file.
-//! ============================================================================
+//! These types describe holder-signed authorizations that allow an auxiliary
+//! subject key to present holder credentials without sharing the holder key.
+//! This module is provisional until canonical serialization, digesting, signing,
+//! verification APIs, and test vectors land.
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -30,7 +11,7 @@ use sha2::{digest::Output, Sha256};
 use std::str::FromStr;
 
 use crate::serde::Sha256DigestBase64UrlUnpadded;
-use crate::{IssuerId, ProtocolV1, SchnorrSignatureProof};
+use crate::types::{IssuerId, ProtocolV1, SchnorrSignatureProof};
 
 /// Public identity of a credential holder.
 ///

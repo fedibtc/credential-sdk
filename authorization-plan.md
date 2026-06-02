@@ -12,9 +12,11 @@ consuming applications.
 ## Architecture Placement
 
 - [ ] Keep the existing issuer/holder/verifier role split.
-- [ ] Add holder authorization wire types to `crates/protocol/src/types.rs`
-      unless the file becomes too large, in which case add a dedicated
-      `authorization.rs` and re-export it from `lib.rs`.
+- [x] Add initial holder authorization wire types in dedicated
+      `crates/protocol/src/authorization.rs`.
+- [x] Re-export `authorization.rs` from `crates/protocol/src/lib.rs`.
+- [ ] Move final shared pieces into `types.rs` only if the dedicated module
+      proves unnecessary.
 - [ ] Add holder authorization canonicalization and domain separators to
       `crates/protocol/src/canonical.rs`.
 - [ ] Add holder-side signing methods to `crates/protocol/src/holder.rs` on
@@ -35,25 +37,29 @@ consuming applications.
 
 ### 1. Protocol Types
 
-- [ ] Add `HolderId` as a transparent wrapper around `nostr::PublicKey`,
+- [x] Add `HolderId` as a transparent wrapper around `nostr::PublicKey`,
       matching the current `IssuerId` pattern.
-- [ ] Add `SubjectPubkey` as a transparent wrapper around `nostr::PublicKey`.
-- [ ] Add `CredentialRef` containing issuer id and credential digest.
-- [ ] Add `HolderAuthorizationScope` with v1 value `Present`.
-- [ ] Add `AuthorizationId` if a typed wrapper is useful for ordering,
-      equality, and revocation maps.
-- [ ] Add `HolderAuthorizationStatement`.
-- [ ] Add `HolderAuthorization`.
+- [x] Add `SubjectPubkey` as a transparent wrapper around `nostr::PublicKey`.
+- [x] Add `TrustBadgeId` as a transparent wrapper around
+      `sha2::digest::Output<Sha256>`, serialized with the same
+      `Sha256DigestBase64UrlUnpadded` encoding used by
+      `Revocation.credential_digest`.
+- [x] Add `CredentialRef` containing issuer id and `TrustBadgeId`.
+- [x] Add `HolderAuthorizationScope` with v1 value `Present`.
+- [ ] Decide whether `authorization_id` stays a `String` or becomes a typed
+      `AuthorizationId` wrapper for ordering, equality, and revocation maps.
+- [x] Add `HolderAuthorizationStatement`.
+- [x] Add `HolderAuthorization`.
 - [ ] Add `AuthorizedPresentationStatement`.
 - [ ] Add `AuthorizedPresentation`.
 - [ ] Add `HolderAuthorizationRevocationStatement`.
 - [ ] Add `HolderAuthorizationRevocation`.
-- [ ] Reuse `ProtocolV1` for every new `version` field.
-- [ ] Reuse `SchnorrSignatureProof` for holder, subject, and holder-revocation
-      proofs.
-- [ ] Reuse base64url-unpadded digest/signature encodings already present in
-      the SDK.
-- [ ] Preserve existing `SignedCredential`, `Credential`, `IssuerAuthority`,
+- [x] Reuse `ProtocolV1` for `HolderAuthorization.version`.
+- [x] Reuse `SchnorrSignatureProof` for `HolderAuthorization.proof`.
+- [x] Reuse base64url-unpadded digest encoding for `TrustBadgeId`.
+- [ ] Reuse `ProtocolV1`, `SchnorrSignatureProof`, and existing digest encoding
+      for the remaining presentation and revocation types.
+- [x] Preserve existing `SignedCredential`, `Credential`, `IssuerAuthority`,
       and `SignedRevocation` shapes.
 
 ### 2. Canonicalization And Digests
@@ -132,7 +138,8 @@ class HolderContext {
 
 ### 5. Subject Presentation Support
 
-- [ ] Define `AuthorizedPresentation` as a protocol object.
+- [ ] Define `AuthorizedPresentationStatement` and `AuthorizedPresentation` in
+      `authorization.rs`.
 - [ ] Add digest and verification helpers for `AuthorizedPresentation`.
 - [ ] Do not add external application key storage to the SDK.
 - [ ] Prefer not to add a `SubjectContext` in v1.
@@ -205,6 +212,7 @@ impl VerificationContext {
 - [ ] Add TypeScript interfaces for `HolderAuthorization`.
 - [ ] Add TypeScript interfaces for `HolderAuthorizationStatement`.
 - [ ] Add TypeScript interfaces for `CredentialRef`.
+- [ ] Add TypeScript interface or alias for `TrustBadgeId`.
 - [ ] Add TypeScript interfaces for `HolderAuthorizationScope`.
 - [ ] Add TypeScript interfaces for `AuthorizedPresentation`.
 - [ ] Add TypeScript interfaces for `AuthorizedPresentationStatement`.
@@ -308,7 +316,9 @@ These remain outside the SDK:
 
 ## Suggested Implementation Order
 
-- [ ] Add protocol types and serde encodings.
+- [x] Add initial holder authorization protocol type stubs and serde encodings.
+- [ ] Finish protocol types and serde encodings for authorized presentation and
+      holder authorization revocation.
 - [ ] Add canonicalization, domain separators, digest methods, and test
       vectors.
 - [ ] Refactor identity signature verification to support non-issuer public
