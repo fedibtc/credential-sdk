@@ -1,304 +1,335 @@
-# Holder Authorization Plan
+# Holder Authorization Implementation Plan
 
 ## Status
 
-Draft plan for adding holder-authorized credential use to the credential SDK.
+Draft implementation checklist for the design in `authorization-design.md`.
 
-This document is adapted from the holder authorization design in
-`fedibtc/decentralized-federations` PR 11, with SDK-specific integration notes
-and review findings folded in.
+The plan keeps the same boundary used by issuance: protocol-sensitive signed
+objects, canonicalization, signing, and verification live in the library;
+storage, transport, QR codes, Nostr relay I/O, UI, and verifier policy live in
+consuming applications.
 
-## Motivation
+## Architecture Placement
 
-Users may receive credentials in one application or wallet and use them in a
-different external application. The wallet should be able to grant that external
-application permission to use selected credentials without sharing the wallet's
-long-lived holder secret key.
+- [ ] Keep the existing issuer/holder/verifier role split.
+- [ ] Add holder authorization wire types to `crates/protocol/src/types.rs`
+      unless the file becomes too large, in which case add a dedicated
+      `authorization.rs` and re-export it from `lib.rs`.
+- [ ] Add holder authorization canonicalization and domain separators to
+      `crates/protocol/src/canonical.rs`.
+- [ ] Add holder-side signing methods to `crates/protocol/src/holder.rs` on
+      `HolderContext`.
+- [ ] Add verifier-side signature checks, authorization checks, and revocation
+      ingestion to `crates/protocol/src/verifier.rs`.
+- [ ] Keep issuer code in `crates/protocol/src/issuer.rs` unchanged unless
+      shared identity-signing helpers need to move out of issuer-specific code.
+- [ ] Add serialization helpers only if existing `crates/protocol/src/serde.rs`
+      encodings are insufficient.
+- [ ] Add WASM and TypeScript bindings in `crates/wasm/src/lib.rs`.
+- [ ] Add Rust protocol tests near existing protocol tests and TypeScript flow
+      tests under `test/`.
+- [ ] Do not add SDK modules for QR codes, Nostr relay queries, HTTP endpoints,
+      browser storage, app pairing, or UI consent.
 
-The core idea is auxiliary identity authorization:
+## Library-Owned Components
 
-```text
-<holder key> authorizes <external app or service key> to use <selected credential>
+### 1. Protocol Types
+
+- [ ] Add `HolderId` as a transparent wrapper around `nostr::PublicKey`,
+      matching the current `IssuerId` pattern.
+- [ ] Add `SubjectPubkey` as a transparent wrapper around `nostr::PublicKey`.
+- [ ] Add `CredentialRef` containing issuer id and credential digest.
+- [ ] Add `HolderAuthorizationScope` with v1 value `Present`.
+- [ ] Add `AuthorizationId` if a typed wrapper is useful for ordering,
+      equality, and revocation maps.
+- [ ] Add `HolderAuthorizationStatement`.
+- [ ] Add `HolderAuthorization`.
+- [ ] Add `AuthorizedPresentationStatement`.
+- [ ] Add `AuthorizedPresentation`.
+- [ ] Add `HolderAuthorizationRevocationStatement`.
+- [ ] Add `HolderAuthorizationRevocation`.
+- [ ] Reuse `ProtocolV1` for every new `version` field.
+- [ ] Reuse `SchnorrSignatureProof` for holder, subject, and holder-revocation
+      proofs.
+- [ ] Reuse base64url-unpadded digest/signature encodings already present in
+      the SDK.
+- [ ] Preserve existing `SignedCredential`, `Credential`, `IssuerAuthority`,
+      and `SignedRevocation` shapes.
+
+### 2. Canonicalization And Digests
+
+- [ ] Add canonical type strings for holder authorization, authorized
+      presentation, and holder authorization revocation.
+- [ ] Add
+      `fedi-credential/holder-authorization-signature/v1\0`.
+- [ ] Add
+      `fedi-credential/authorized-presentation-signature/v1\0`.
+- [ ] Add
+      `fedi-credential/holder-authorization-revocation-signature/v1\0`.
+- [ ] Add `canonicalize_holder_authorization`.
+- [ ] Add `canonicalize_authorized_presentation`.
+- [ ] Add `canonicalize_holder_authorization_revocation`.
+- [ ] Add digest methods on `HolderAuthorizationStatement`.
+- [ ] Add digest methods on `AuthorizedPresentationStatement`.
+- [ ] Add digest methods on `HolderAuthorizationRevocationStatement`.
+- [ ] Expose credential digest calculation to WASM/TypeScript so applications
+      can build `CredentialRef` without reimplementing SDK canonicalization.
+
+### 3. Identity Signature Helpers
+
+- [ ] Refactor Schnorr verification so it is not tied only to `IssuerId`.
+- [ ] Keep public APIs strongly typed instead of accepting raw key strings for
+      internal protocol verification.
+- [ ] Update issuer authority verification to use the shared helper.
+- [ ] Update issuer revocation verification to use the shared helper.
+- [ ] Use the shared helper for holder authorization verification.
+- [ ] Use the shared helper for authorized presentation verification.
+- [ ] Use the shared helper for holder authorization revocation verification.
+- [ ] Add tests proving issuer authority and issuer revocation behavior remains
+      unchanged after the helper refactor.
+
+### 4. Holder-Side Signing
+
+- [ ] Add `HolderContext::authorize_credential_use`.
+- [ ] Add `HolderContext::revoke_holder_authorization`.
+- [ ] Reject holder authorization statements whose `holder_id_pubkey` does not
+      equal `HolderContext.publicKey`.
+- [ ] Reject holder authorization revocation statements whose
+      `holder_id_pubkey` does not equal `HolderContext.publicKey`.
+- [ ] Keep external subject key custody out of `HolderContext`.
+- [ ] Do not add wallet consent, storage, pairing, or transport logic to
+      `holder.rs`.
+
+Proposed Rust shape:
+
+```rust
+impl HolderContext {
+    pub fn authorize_credential_use(
+        &self,
+        authorization: HolderAuthorizationStatement,
+    ) -> Result<HolderAuthorization, CredentialsError>;
+
+    pub fn revoke_holder_authorization(
+        &self,
+        revocation: HolderAuthorizationRevocationStatement,
+    ) -> Result<HolderAuthorizationRevocation, CredentialsError>;
+}
 ```
 
-This keeps the wallet and external application key-custody boundaries separate.
-The external application controls its own key and proves possession of that key
-when presenting. The holder wallet signs an authorization that links that
-external key to specific credential use.
-
-## SDK Boundary
-
-The SDK should own protocol-sensitive pieces:
-
-- Canonical holder authorization wire types.
-- Holder authorization signing and verification.
-- Domain-separated digest construction.
-- WASM and TypeScript bindings for the protocol objects.
-- Test vectors for signatures and canonicalization.
-
-Applications still own:
-
-- Wallet UI and consent.
-- Transport between wallet, external app, verifier, and Nostr relays.
-- Secure storage of holder keys and external app keys.
-- Verifier policy.
-- Revocation freshness requirements.
-- Which credential schemas are accepted.
-
-## Design Goals
-
-- Do not require the external application to use the holder wallet's key.
-- Bind an authorization to a concrete credential or credential selector.
-- Bind an authorization to a concrete external subject key.
-- Support verifier challenge or presentation signatures so copied
-  authorizations are not enough by themselves.
-- Include scope, audience, and lifetime in v1.
-- Keep the authorization shape close to existing signed SDK objects:
-  `{ version, authorization, proof }`.
-- Reuse the SDK's Nostr public key representation and Schnorr signature proof
-  shape.
-- Keep Nostr publication optional. Direct or private setup-channel delivery
-  should be the default for wallet-to-application permission grants.
-
-## Non-Goals
-
-- Holder authorizations are not issuer credentials.
-- Holder authorizations do not replace attester-issued credentials.
-- Holder authorizations do not decide verifier policy.
-- Holder authorizations do not add selective disclosure to the SDK.
-- Holder authorizations do not make public Nostr publication mandatory.
-
-## Proposed Wire Shape
-
-The first SDK-native type should be a holder-signed statement:
+Proposed WASM shape:
 
 ```ts
-interface HolderAuthorization {
-  readonly version: 1;
-  readonly authorization: HolderAuthorizationStatement;
-  readonly proof: SchnorrSignatureProof;
-}
+class HolderContext {
+  authorizeCredentialUse(
+    authorization: HolderAuthorizationStatement,
+  ): HolderAuthorization;
 
-interface HolderAuthorizationStatement {
-  readonly holder_id_pubkey: string;
-  readonly subject_pubkey: string;
-  readonly audience: string;
-  readonly credential_refs: readonly CredentialRef[];
-  readonly scope: readonly AuthorizationScope[];
-  readonly issued_at: number;
-  readonly expires_at: number;
-  readonly authorization_id: string;
-}
-
-interface CredentialRef {
-  readonly issuer_id_pubkey: string;
-  readonly credential_digest: string;
-  readonly schema?: string;
-}
-
-type AuthorizationScope = "present";
-```
-
-Notes:
-
-- `holder_id_pubkey` is the wallet holder key signing the authorization.
-- `subject_pubkey` is the external application or service identity key.
-- `audience` identifies the verifier, relying party, or application context that
-  may accept the authorization.
-- `credential_refs` should prefer credential digests over a free-form
-  `trust_badge` string. If broader badge semantics are needed later, model them
-  as explicit credential selectors and require a matching verified credential.
-- `scope` starts narrow. `present` means the subject may present the referenced
-  credential. Future scopes should be versioned extensions.
-- `issued_at` and `expires_at` prevent indefinite bearer delegation.
-- `authorization_id` gives revocation and replacement schemes a stable target.
-
-## Credential Binding
-
-The authorization must be checked against an actual `SignedCredential`.
-
-Verification must prove all of the following:
-
-- The credential verifies against trusted issuer authorities and current
-  revocations.
-- The credential digest matches one of
-  `authorization.credential_refs[].credential_digest`.
-- The credential issuer matches the corresponding
-  `authorization.credential_refs[].issuer_id_pubkey`.
-- The holder public key in the authorization is bound to the credential holder.
-- The external subject proves possession of `subject_pubkey` for this
-  presentation.
-
-The current SDK treats `credential.blind_msg` as arbitrary JSON. For a generic
-SDK API, v1 must choose one of these approaches:
-
-- Standardize a holder-bound credential schema where `blind_msg` contains a
-  holder pubkey at a known path.
-- Require callers to pass the holder pubkey they extracted from credential
-  application data, then have the SDK verify that it equals
-  `authorization.holder_id_pubkey`.
-
-Do not accept a holder authorization by only checking that the signed
-`trust_badge` or schema name is supported by verifier policy. That would let any
-holder key claim any badge without proving control of a matching credential.
-
-## Presentation Shape
-
-Applications need a presentation object that carries the pieces verifiers must
-check together:
-
-```ts
-interface AuthorizedCredentialPresentation {
-  readonly version: 1;
-  readonly subject_pubkey: string;
-  readonly credential: SignedCredential;
-  readonly holder_authorization: HolderAuthorization;
-  readonly challenge: string;
-  readonly audience: string;
-  readonly proof: SchnorrSignatureProof;
+  revokeHolderAuthorization(
+    revocation: HolderAuthorizationRevocationStatement,
+  ): HolderAuthorizationRevocation;
 }
 ```
 
-The presentation proof should be signed by `subject_pubkey` over a
-domain-separated digest of:
+### 5. Subject Presentation Support
 
-- `subject_pubkey`
-- credential digest
-- holder authorization digest or `authorization_id`
-- challenge
-- audience
-- presentation version
+- [ ] Define `AuthorizedPresentation` as a protocol object.
+- [ ] Add digest and verification helpers for `AuthorizedPresentation`.
+- [ ] Do not add external application key storage to the SDK.
+- [ ] Prefer not to add a `SubjectContext` in v1.
+- [ ] Let consuming applications sign presentation digests with their own
+      Nostr/key-management stack.
+- [ ] Revisit SDK-owned subject signing only if consuming apps cannot reliably
+      produce `SchnorrSignatureProof` objects.
 
-This proves that the external application key named in the holder authorization
-is actively participating in the current presentation. A copied holder
-authorization alone should not be sufficient.
+### 6. Verifier-Side Checks
 
-## Verification Algorithm
+- [ ] Add pure verification helper for `HolderAuthorization`.
+- [ ] Add pure verification helper for `AuthorizedPresentation`.
+- [ ] Add pure verification helper for `HolderAuthorizationRevocation`.
+- [ ] Add holder authorization revocation storage to `VerificationContext`,
+      mirroring existing credential revocation ingestion.
+- [ ] Add `VerificationContext::add_holder_authorization_revocation`.
+- [ ] Add `VerificationContext::verify_credential_authorization` for the
+      checks the SDK can perform generically.
+- [ ] Require the consuming application to pass the holder id extracted from
+      `credential.credential.blind_msg`.
+- [ ] Verify the credential with existing `VerificationContext` issuer and
+      credential revocation state.
+- [ ] Compute the credential digest with SDK canonicalization.
+- [ ] Match credential digest and issuer id to a `CredentialRef`.
+- [ ] Verify the extracted credential holder id equals
+      `authorization.holder_id_pubkey`.
+- [ ] Verify the subject presentation proof.
+- [ ] Check subject, authorization id, credential digest, audience, challenge,
+      time bounds, and scope.
+- [ ] Reject holder authorizations that match an ingested holder authorization
+      revocation.
+- [ ] Leave schema interpretation, trust decisions, and display behavior to the
+      consuming verifier application.
 
-For a verifier:
+Proposed Rust shape:
 
-1. Parse the presentation.
-2. Verify the subject presentation proof with `subject_pubkey`.
-3. Verify the holder authorization signature with
-   `holder_authorization.authorization.holder_id_pubkey`.
-4. Check authorization time bounds.
-5. Check authorization audience matches the presentation audience.
-6. Check presentation `subject_pubkey` equals
-   `holder_authorization.authorization.subject_pubkey`.
-7. Verify the presented credential with `VerificationContext`.
-8. Compute the credential digest and match it to a credential ref.
-9. Check holder binding between the credential and
-   `holder_authorization.authorization.holder_id_pubkey`.
-10. Apply local verifier policy to issuer, schema, scope, audience, holder, and
-    credential data.
-11. Check authorization revocation or replacement state if the deployment uses
-    one.
+```rust
+impl VerificationContext {
+    pub fn add_holder_authorization_revocation(
+        &mut self,
+        revocation: &HolderAuthorizationRevocation,
+    ) -> Result<(), CredentialsError>;
 
-## Canonicalization And Signatures
-
-Add holder authorization canonicalization to `fedi-credential-sdk-protocol`.
-
-Recommended digest construction:
-
-```text
-SHA256(
-  "fedi-credential/holder-authorization-signature/v1\0" ||
-  JCS({
-    "type": "fedibtc.credentials.holder-authorization",
-    "version": 1,
-    "authorization": <HolderAuthorizationStatement>
-  })
-)
+    pub fn verify_credential_authorization(
+        &self,
+        credential: &SignedCredential,
+        credential_holder_id: &HolderId,
+        authorization: &HolderAuthorization,
+        presentation: &AuthorizedPresentation,
+        expected_audience: &str,
+        expected_challenge: &str,
+        now: u64,
+    ) -> Result<(), CredentialsError>;
+}
 ```
 
-Do not sign raw `authorization` JSON without type and version context.
+### 7. Error Handling
 
-Add a separate presentation domain separator:
+- [ ] Add specific Rust error variants only where existing variants are too
+      ambiguous.
+- [ ] Cover at least wrong holder, wrong subject, expired authorization, future
+      issued-at, wrong audience, wrong challenge, missing credential ref, and
+      revoked holder authorization.
+- [ ] Preserve current thrown-JavaScript-error behavior at the WASM boundary.
+- [ ] Avoid broad result-shape changes until the existing machine-readable
+      error-code TODO is addressed.
 
-```text
-fedi-credential/authorized-presentation-signature/v1\0
-```
+### 8. WASM And TypeScript Surface
 
-## SDK API Plan
+- [ ] Add TypeScript interfaces for `HolderAuthorization`.
+- [ ] Add TypeScript interfaces for `HolderAuthorizationStatement`.
+- [ ] Add TypeScript interfaces for `CredentialRef`.
+- [ ] Add TypeScript interfaces for `HolderAuthorizationScope`.
+- [ ] Add TypeScript interfaces for `AuthorizedPresentation`.
+- [ ] Add TypeScript interfaces for `AuthorizedPresentationStatement`.
+- [ ] Add TypeScript interfaces for `HolderAuthorizationRevocation`.
+- [ ] Add TypeScript interfaces for
+      `HolderAuthorizationRevocationStatement`.
+- [ ] Expose holder authorization signing on `HolderContext`.
+- [ ] Expose holder authorization revocation signing on `HolderContext`.
+- [ ] Expose credential digest calculation.
+- [ ] Expose holder authorization verification.
+- [ ] Expose authorized presentation verification.
+- [ ] Expose holder authorization revocation verification.
+- [ ] Expose credential-bound authorization verification on
+      `VerificationContext`.
 
-Rust protocol crate:
+### 9. Tests
 
-- Add `HolderId`, `SubjectPubkey`, `CredentialRef`,
-  `HolderAuthorizationStatement`, `HolderAuthorization`, and presentation types.
-- Reuse `ProtocolV1` and `SchnorrSignatureProof`.
-- Add `canonicalize_holder_authorization`.
-- Add holder authorization and authorized presentation domain separators.
-- Add holder authorization digest and verification methods.
-- Add presentation digest and verification helpers.
-- Extract a generic Nostr identity signature verification helper so it is not
-  tied to `IssuerId`.
-- Add test vectors for canonical JSON, signatures, tampering, expiry, wrong
-  audience, wrong subject, wrong credential digest, and wrong holder binding.
+- [ ] Add deterministic canonical JSON tests for holder authorization.
+- [ ] Add deterministic canonical JSON tests for authorized presentation.
+- [ ] Add deterministic canonical JSON tests for holder authorization
+      revocation.
+- [ ] Add valid holder authorization signing and verification tests.
+- [ ] Add rejection tests for wrong holder key.
+- [ ] Add rejection tests for wrong subject key.
+- [ ] Add rejection tests for wrong audience.
+- [ ] Add rejection tests for expired authorization.
+- [ ] Add rejection tests for future `issued_at`.
+- [ ] Add rejection tests when credential digest does not match any
+      `CredentialRef`.
+- [ ] Add rejection tests when credential issuer does not match the selected
+      `CredentialRef`.
+- [ ] Add rejection tests when extracted credential holder key does not match
+      `authorization.holder_id_pubkey`.
+- [ ] Add subject presentation challenge mismatch tests.
+- [ ] Add subject presentation replay-across-audience tests.
+- [ ] Add holder authorization revocation acceptance and rejection tests.
+- [ ] Add WASM serialization shape tests.
+- [ ] Add thrown JavaScript error tests for representative failures.
+- [ ] Add complete wallet-to-app-to-verifier TypeScript flow test.
 
-Holder API:
+### 10. Documentation
 
-- Add `HolderContext.authorizeCredentialUse(...)`.
-- The API should sign only after the caller supplies credential refs, audience,
-  scope, and expiration.
+- [ ] Add guide: wallet grants credential use to an external app.
+- [ ] Add guide: external app presents an authorized credential.
+- [ ] Add guide: verifier checks an authorized credential presentation.
+- [ ] Add guide: holder authorization revocation.
+- [ ] Add guide: choosing a holder key representation inside
+      `credential.blind_msg`.
+- [ ] Update architecture docs to include the auxiliary subject authorization
+      flow.
+- [ ] Update README public API summary after the API lands.
 
-Verifier API:
+## Application-Owned Components
 
-- Add `VerificationContext.verifyHolderAuthorization(...)` for the pure holder
-  authorization signature and lifetime checks.
-- Add `VerificationContext.verifyAuthorizedPresentation(...)` only if the SDK can
-  receive enough holder-binding information generically.
-- Otherwise expose lower-level helpers and document the app-owned holder-binding
-  check clearly.
+### Wallet Application
 
-WASM and TypeScript:
+- [ ] Let the user choose which credential an external app may use.
+- [ ] Decide `audience`, `scope`, and expiration.
+- [ ] Obtain or verify the external app's `subject_pubkey`.
+- [ ] Build `CredentialRef` values from SDK credential digests.
+- [ ] Show consent UI.
+- [ ] Call `HolderContext.authorizeCredentialUse`.
+- [ ] Store or deliver `HolderAuthorization`.
+- [ ] Decide whether to create and publish holder authorization revocations.
 
-- Add TS interfaces for all new wire objects.
-- Expose holder authorization creation and verification methods.
-- Preserve JSON-compatible serialization with base64url-unpadded signatures.
+### External Application
 
-## Nostr Delivery
+- [ ] Generate and store its subject key.
+- [ ] Request authorization from the wallet.
+- [ ] Store received holder authorizations.
+- [ ] Receive verifier challenges.
+- [ ] Sign `AuthorizedPresentationStatement` with the subject key.
+- [ ] Build the application-specific envelope carrying credential,
+      authorization, and presentation proof.
+- [ ] Transport that envelope to verifiers.
 
-Nostr can be used for discovery, but should not be required for wallet-to-app
-authorization.
+### Verifier Application
 
-If published over Nostr:
+- [ ] Choose trusted issuer authorities.
+- [ ] Fetch and refresh issuer credential revocations.
+- [ ] Fetch and refresh holder authorization revocations, if used.
+- [ ] Generate challenges.
+- [ ] Define acceptable audience strings.
+- [ ] Parse credential schemas.
+- [ ] Extract the holder key from `credential.blind_msg`.
+- [ ] Apply policy to credential `info`, issuer, holder, subject, scope,
+      audience, and freshness.
+- [ ] Decide how errors are presented to users.
 
-- Use an event authored by `holder_id_pubkey`.
-- Use a `p` tag for `subject_pubkey` as an index.
-- Treat all tags as lookup hints only.
-- Put canonical JSON for `HolderAuthorization` in event content.
-- Verify the Nostr event signature.
-- Verify `event.pubkey == authorization.holder_id_pubkey`.
-- Verify the holder authorization proof independently.
+### Transport And Discovery
 
-Public Nostr publication links the holder, external subject, and credential use.
-That may be acceptable for public FMan discovery, but it is likely wrong as the
-default for private wallet-to-application authorization.
+These remain outside the SDK:
 
-## Relationship To FMan
+- [ ] QR payloads.
+- [ ] Deep links.
+- [ ] HTTP endpoints.
+- [ ] Nostr relay queries and publication.
+- [ ] Encrypted setup channels.
+- [ ] App-to-wallet pairing flows.
+- [ ] Verifier challenge transport.
 
-The FMan flow is one instance of the general pattern:
+## Suggested Implementation Order
 
-- FMan generates its own service identity key.
-- Holder wallet authorizes that FMan subject key to present a selected
-  credential or trust badge.
-- FMan advertisements or credential bundles carry the holder authorization or an
-  authorized presentation.
-- FI verification checks the FMan subject key, holder authorization, credential,
-  and local policy together.
+- [ ] Add protocol types and serde encodings.
+- [ ] Add canonicalization, domain separators, digest methods, and test
+      vectors.
+- [ ] Refactor identity signature verification to support non-issuer public
+      keys.
+- [ ] Add holder authorization signing in `holder.rs`.
+- [ ] Add holder authorization verification in `verifier.rs`.
+- [ ] Expose credential digest and holder authorization APIs through WASM.
+- [ ] Add holder authorization revocation types, signing, ingestion, and
+      verification.
+- [ ] Add authorized presentation digest and verification.
+- [ ] Add the credential-bound `VerificationContext` helper.
+- [ ] Add TypeScript tests for the complete wallet-to-app-to-verifier flow.
+- [ ] Add user-facing guides.
 
-Any existing FMan verification spec must be updated so it no longer assumes the
-FMan service identity is always the direct credential holder.
+## Open Implementation Decisions
 
-## Open Questions
-
-- Exact `audience` format.
-- Whether `scope` needs values beyond `present` in v1.
-- Whether v1 supports one credential ref or many.
-- Authorization revocation mechanism and publication location.
-- Whether authorization replacement uses Nostr addressable events,
-  `authorization_id`, explicit signed revocations, or short expirations only.
-- Whether the SDK should standardize holder binding inside `blind_msg`.
-- Whether authorized presentations should be a first-class SDK object or an
-  application-level object assembled from lower-level SDK helpers.
-- Minimum and maximum expiration windows for wallet-granted authorizations.
+- [ ] Decide whether `CredentialRef` supports multiple credentials in v1 or
+      forces one credential per authorization.
+- [ ] Decide whether holder authorization revocations are required in the first
+      release or whether short expirations are enough initially.
+- [ ] Decide whether to add a conventional holder-key helper for common
+      `blind_msg` shapes while keeping arbitrary schema parsing app-owned.
+- [ ] Decide whether presentation signing remains app-owned permanently or gets
+      a future generic identity-signing context.
