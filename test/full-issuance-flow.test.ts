@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type {
+  HolderAuthorizationRequest,
   IssuerAuthority,
   JsonValue,
   RevocationLocation,
@@ -25,6 +26,7 @@ const revocationLocations = [
   },
 ] satisfies readonly RevocationLocation[];
 const otherIssuerId = "22".repeat(32);
+const subjectPubkey = "33".repeat(32);
 
 describe("full credential issuance flow", () => {
   it("issues, verifies, revokes, imports issuer keys, and rejects tampering", () => {
@@ -104,6 +106,41 @@ describe("full credential issuance flow", () => {
     expect(
       signedRevocation.revocation.credential_digest.length,
     ).toBeGreaterThan(0);
+
+    const holderAuthorizationRequest = {
+      subject_pubkey: subjectPubkey,
+      audience: "https://verifier.example",
+      credentials: [credential],
+      issued_at: 1_717_000_000,
+      expires_at: 1_717_003_600,
+    } satisfies HolderAuthorizationRequest;
+    const holderAuthorization = holder.authorizeCredentialUse(
+      holderAuthorizationRequest,
+    );
+
+    expect(holderAuthorization).toMatchObject({
+      version: 1,
+      authorization: {
+        holder_id_pubkey: holder.publicKey,
+        subject_pubkey: subjectPubkey,
+        audience: holderAuthorizationRequest.audience,
+        credential_refs: [
+          {
+            issuer_id_pubkey: issuerId,
+            trust_badge_id: signedRevocation.revocation.credential_digest,
+          },
+        ],
+        scope: ["present"],
+        issued_at: holderAuthorizationRequest.issued_at,
+        expires_at: holderAuthorizationRequest.expires_at,
+        authorization_id: "",
+      },
+      proof: {
+        signature: expect.any(String),
+      },
+    });
+    expect(holderAuthorization.proof.signature.length).toBeGreaterThan(0);
+
     const revocationVerifier = new VerificationContext();
     expect(
       revocationVerifier.addIssuerAuthority(issuerAuthority),

@@ -46,6 +46,65 @@ export interface SignedCredential {
   readonly proof: CredentialProof;
 }
 
+/** Holder-signed authorization allowing an auxiliary subject key to use credentials. */
+export interface HolderAuthorization {
+  readonly version: 1;
+  readonly authorization: HolderAuthorizationStatement;
+  readonly proof: SchnorrSignatureProof;
+}
+
+/** Input for `HolderContext.authorizeCredentialUse`. */
+export interface HolderAuthorizationRequest {
+  /** External application's Nostr subject public key. */
+  readonly subject_pubkey: string;
+  /** Application-defined audience or relying-party identifier. */
+  readonly audience: string;
+  /** Credentials this authorization allows the subject to present. */
+  readonly credentials: readonly SignedCredential[];
+  /** Future-proof scope field; omitted requests default to ["present"]. */
+  readonly scope?: readonly HolderAuthorizationScope[];
+  /** Unix timestamp in seconds. */
+  readonly issued_at: number;
+  /** Unix timestamp in seconds. */
+  readonly expires_at: number;
+  /** Future-proof application-chosen id; omitted requests default to an empty string. */
+  readonly authorization_id?: string;
+}
+
+/** Holder statement signed by `HolderContext.authorizeCredentialUse` and returned in `HolderAuthorization`. */
+export interface HolderAuthorizationStatement {
+  /** Nostr public key identifying the holder. */
+  readonly holder_id_pubkey: string;
+  /** External application's Nostr subject public key. */
+  readonly subject_pubkey: string;
+  /** Application-defined audience or relying-party identifier. */
+  readonly audience: string;
+  /** Credentials this authorization allows the subject to present. */
+  readonly credential_refs: readonly CredentialRef[];
+  /** Future-proof scope field; MVP code preserves it but does not interpret it. */
+  readonly scope: readonly HolderAuthorizationScope[];
+  /** Unix timestamp in seconds. */
+  readonly issued_at: number;
+  /** Unix timestamp in seconds. */
+  readonly expires_at: number;
+  /** Future-proof application-chosen id; MVP code preserves it but does not interpret it. */
+  readonly authorization_id: string;
+}
+
+/** Credential selected for holder-authorized presentation. */
+export interface CredentialRef {
+  /** Nostr public key identifying the issuer. */
+  readonly issuer_id_pubkey: string;
+  /** Unpadded URL-safe base64 encoded canonical credential digest. */
+  readonly trust_badge_id: TrustBadgeId;
+}
+
+/** Unpadded URL-safe base64 encoded canonical credential digest. */
+export type TrustBadgeId = string;
+
+/** Holder authorization scopes supported by the MVP wire format. */
+export type HolderAuthorizationScope = "present";
+
 /** Credential payload signed by the issuer's issuance key. */
 export interface Credential {
   /** Nostr public key identifying the issuer. */
@@ -267,6 +326,16 @@ impl HolderContext {
     #[wasm_bindgen(getter, js_name = publicKey)]
     pub fn public_key(&self) -> String {
         self.inner.public_key().to_string()
+    }
+
+    /// Create a signed holder authorization for an auxiliary subject key.
+    #[wasm_bindgen(js_name = authorizeCredentialUse, unchecked_return_type = "HolderAuthorization")]
+    pub fn authorize_credential_use(
+        &self,
+        #[wasm_bindgen(unchecked_param_type = "HolderAuthorizationRequest")] request: JsValue,
+    ) -> Result<JsValue, JsError> {
+        let request: protocol::HolderAuthorizationRequest = from_js(request)?;
+        to_js(&self.inner.authorize_credential_use(request)?)
     }
 }
 

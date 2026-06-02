@@ -2,16 +2,22 @@
 //!
 //! These types describe holder-signed authorizations that allow an auxiliary
 //! subject key to present holder credentials without sharing the holder key.
-//! This module is provisional until canonical serialization, digesting, signing,
-//! verification APIs, and test vectors land.
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use sha2::{digest::Output, Sha256};
+use sha2::{digest::Output, Digest, Sha256};
 use std::str::FromStr;
 
-use crate::serde::Sha256DigestBase64UrlUnpadded;
-use crate::types::{IssuerId, ProtocolV1, SchnorrSignatureProof};
+use crate::{
+    canonical::canonicalize_holder_authorization,
+    serde::Sha256DigestBase64UrlUnpadded,
+    types::{IssuerId, ProtocolV1, SchnorrSignatureProof, SignedCredential},
+    CredentialsError,
+};
+
+/// Domain separator for holder authorization identity signatures.
+pub const HOLDER_AUTHORIZATION_SIGNATURE_DOMAIN_SEPARATOR: &[u8] =
+    b"fedi-credential/holder-authorization-signature/v1\0";
 
 /// Public identity of a credential holder.
 ///
@@ -76,6 +82,80 @@ pub enum HolderAuthorizationScope {
     Present,
 }
 
+fn default_holder_authorization_scope() -> Vec<HolderAuthorizationScope> {
+    vec![HolderAuthorizationScope::Present]
+}
+
+/// Application input used by a holder context to create a signed authorization.
+///
+/// The caller supplies the credentials being delegated. The SDK derives
+/// `holder_id_pubkey` from `HolderContext` and derives `credential_refs` from
+/// the supplied credentials using `Credential::digest()`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct HolderAuthorizationRequest {
+    /// The auxiliary key or actor that the holder authorizes.
+    pub subject_pubkey: SubjectPubkey,
+
+    /// Opaque application-defined audience or relying-party identifier.
+    pub audience: String,
+
+    /// Credentials this authorization grants the subject permission to present.
+    pub credentials: Vec<SignedCredential>,
+
+    /// Future-proof scope field.
+    ///
+    /// MVP code signs and preserves this field but does not implement
+    /// scope-specific verifier policy. If omitted during deserialization, this
+    /// defaults to `[HolderAuthorizationScope::Present]`.
+    #[serde(default = "default_holder_authorization_scope")]
+    pub scope: Vec<HolderAuthorizationScope>,
+
+    /// Unix timestamp in seconds.
+    pub issued_at: u64,
+
+    /// Unix timestamp in seconds.
+    pub expires_at: u64,
+
+    /// Future-proof application-chosen id.
+    ///
+    /// MVP code signs and preserves this field, but does not use it for
+    /// replacement, replay tracking, or revocation. If omitted during
+    /// deserialization, this defaults to an empty string.
+    #[serde(default)]
+    pub authorization_id: String,
+}
+
+impl HolderAuthorizationRequest {
+    /// Convert this application input into the canonical statement to sign.
+    pub fn into_statement(
+        self,
+        holder_id_pubkey: HolderId,
+    ) -> Result<HolderAuthorizationStatement, CredentialsError> {
+        let credential_refs = self
+            .credentials
+            .into_iter()
+            .map(|credential| {
+                let trust_badge_id = TrustBadgeId(credential.credential.digest()?);
+                Ok(CredentialRef {
+                    issuer_id_pubkey: credential.credential.issuer_id_pubkey,
+                    trust_badge_id,
+                })
+            })
+            .collect::<Result<Vec<_>, CredentialsError>>()?;
+
+        Ok(HolderAuthorizationStatement {
+            holder_id_pubkey,
+            subject_pubkey: self.subject_pubkey,
+            audience: self.audience,
+            credential_refs,
+            scope: self.scope,
+            issued_at: self.issued_at,
+            expires_at: self.expires_at,
+            authorization_id: self.authorization_id,
+        })
+    }
+}
+
 /// Unsigned statement authorizing an auxiliary public key to present credentials.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct HolderAuthorizationStatement {
@@ -110,6 +190,17 @@ pub struct HolderAuthorizationStatement {
     pub authorization_id: String,
 }
 
+impl HolderAuthorizationStatement {
+    /// Compute the signature digest for this holder authorization statement.
+    pub fn digest(&self) -> Result<Output<Sha256>, CredentialsError> {
+        let canonical = canonicalize_holder_authorization(self)?;
+        Ok(Sha256::new()
+            .chain_update(HOLDER_AUTHORIZATION_SIGNATURE_DOMAIN_SEPARATOR)
+            .chain_update(canonical)
+            .finalize())
+    }
+}
+
 /// Holder-signed authorization.
 ///
 /// This intentionally stays close to upstream `SignedCredential { version,
@@ -127,4 +218,11 @@ pub struct HolderAuthorization {
     /// Holder signature over canonical `authorization` with a versioned domain
     /// separator such as `fedi-credential/holder-authorization-signature/v1\0`.
     pub proof: SchnorrSignatureProof,
+}
+
+impl HolderAuthorization {
+    /// Compute the signature digest for this holder authorization payload.
+    pub fn digest(&self) -> Result<Output<Sha256>, CredentialsError> {
+        self.authorization.digest()
+    }
 }

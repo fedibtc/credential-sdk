@@ -19,11 +19,11 @@ assuming its referenced credential remains valid.
 - [x] Add initial holder authorization wire types in
       `crates/protocol/src/authorization.rs`.
 - [x] Re-export `authorization.rs` from `crates/protocol/src/lib.rs`.
-- [ ] Keep holder authorization types in `authorization.rs` unless later code
+- [x] Keep holder authorization types in `authorization.rs` unless later code
       shows they belong in `types.rs`.
-- [ ] Add holder authorization canonicalization and domain separator to
+- [x] Add holder authorization canonicalization and domain separator to
       `crates/protocol/src/canonical.rs`.
-- [ ] Add holder-side signing to `crates/protocol/src/holder.rs` on
+- [x] Add holder-side signing to `crates/protocol/src/holder.rs` on
       `HolderContext`.
 - [ ] Add verifier-side holder authorization checks to
       `crates/protocol/src/verifier.rs`.
@@ -31,8 +31,8 @@ assuming its referenced credential remains valid.
       shared identity-signature helper needs to move.
 - [ ] Add serialization helpers only if existing `crates/protocol/src/serde.rs`
       encodings are insufficient.
-- [ ] Add WASM and TypeScript bindings in `crates/wasm/src/lib.rs`.
-- [ ] Add Rust protocol tests near existing protocol tests and TypeScript flow
+- [x] Add WASM and TypeScript bindings in `crates/wasm/src/lib.rs`.
+- [x] Add Rust protocol tests near existing protocol tests and TypeScript flow
       tests under `test/`.
 - [ ] Do not add SDK modules for QR codes, Nostr relay queries, HTTP endpoints,
       browser storage, app pairing, UI consent, or subject-key custody.
@@ -64,13 +64,12 @@ assuming its referenced credential remains valid.
 
 ### 2. Canonicalization And Digests
 
-- [ ] Add a canonical type string for holder authorization.
-- [ ] Add `fedi-credential/holder-authorization-signature/v1\0`.
-- [ ] Add `canonicalize_holder_authorization`.
-- [ ] Add a digest method on `HolderAuthorizationStatement`.
-- [ ] Expose credential digest calculation to WASM/TypeScript so applications
-      can build `CredentialRef` values without reimplementing SDK
-      canonicalization.
+- [x] Add a canonical type string for holder authorization.
+- [x] Add `fedi-credential/holder-authorization-signature/v1\0`.
+- [x] Add `canonicalize_holder_authorization`.
+- [x] Add a digest method on `HolderAuthorizationStatement`.
+- [x] Keep credential digest calculation inside holder authorization creation
+      instead of exposing standalone WASM/TypeScript digest plumbing.
 - [ ] Do not add authorized-presentation digesting in the MVP.
 - [ ] Do not add holder authorization revocation digesting in the MVP.
 
@@ -90,11 +89,13 @@ assuming its referenced credential remains valid.
 
 ### 4. Holder-Side Signing
 
-- [ ] Add `HolderContext::authorize_credential_use`.
-- [ ] Reject holder authorization statements whose `holder_id_pubkey` does not
-      equal `HolderContext.publicKey`.
-- [ ] Keep external subject key custody out of `HolderContext`.
-- [ ] Do not add wallet consent, storage, pairing, or transport logic to
+- [x] Add `HolderContext::authorize_credential_use`.
+- [x] Derive signed `holder_id_pubkey` from `HolderContext.publicKey` instead
+      of accepting a caller-provided holder id.
+- [x] Derive signed `CredentialRef` values from supplied `SignedCredential`
+      values instead of accepting caller-provided credential digests.
+- [x] Keep external subject key custody out of `HolderContext`.
+- [x] Do not add wallet consent, storage, pairing, or transport logic to
       `holder.rs`.
 
 Proposed Rust shape:
@@ -103,7 +104,7 @@ Proposed Rust shape:
 impl HolderContext {
     pub fn authorize_credential_use(
         &self,
-        authorization: HolderAuthorizationStatement,
+        request: HolderAuthorizationRequest,
     ) -> Result<HolderAuthorization, CredentialsError>;
 }
 ```
@@ -113,7 +114,7 @@ Proposed WASM shape:
 ```ts
 class HolderContext {
   authorizeCredentialUse(
-    authorization: HolderAuthorizationStatement,
+    request: HolderAuthorizationRequest,
   ): HolderAuthorization;
 }
 ```
@@ -168,22 +169,26 @@ impl VerificationContext {
 
 ### 7. WASM And TypeScript Surface
 
-- [ ] Add TypeScript interfaces for `HolderAuthorization`.
-- [ ] Add TypeScript interfaces for `HolderAuthorizationStatement`.
-- [ ] Add TypeScript interfaces for `CredentialRef`.
-- [ ] Add TypeScript interface or alias for `TrustBadgeId`.
-- [ ] Add TypeScript interface or alias for `HolderAuthorizationScope`.
-- [ ] Expose holder authorization signing on `HolderContext`.
-- [ ] Expose credential digest calculation.
+- [x] Add TypeScript interfaces for `HolderAuthorization`.
+- [x] Add TypeScript interfaces for `HolderAuthorizationRequest`.
+- [x] Add TypeScript interfaces for `HolderAuthorizationStatement`.
+- [x] Add TypeScript interfaces for `CredentialRef`.
+- [x] Add TypeScript interface or alias for `TrustBadgeId`.
+- [x] Add TypeScript interface or alias for `HolderAuthorizationScope`.
+- [x] Expose holder authorization signing on `HolderContext`.
+- [x] Do not expose standalone credential digest calculation for authorization
+      creation; `HolderContext.authorizeCredentialUse` derives credential refs.
 - [ ] Expose holder authorization verification.
 - [ ] Expose credential-bound authorization verification on
       `VerificationContext`.
 
 ### 8. Tests
 
-- [ ] Add deterministic canonical JSON tests for holder authorization.
-- [ ] Add valid holder authorization signing and verification tests.
-- [ ] Add rejection tests for wrong holder key.
+- [x] Add deterministic canonical JSON tests for holder authorization.
+- [x] Add valid holder authorization signing and verification tests.
+- [x] Add tests that holder authorization signing derives holder id and
+      credential refs from the high-level request.
+- [ ] Add verifier rejection tests for wrong holder key.
 - [ ] Add rejection tests for wrong subject key.
 - [ ] Add rejection tests for wrong audience.
 - [ ] Add rejection tests for expired authorization.
@@ -218,7 +223,8 @@ impl VerificationContext {
 - [ ] Let the user choose which credential an external app may use.
 - [ ] Decide `audience` and expiration.
 - [ ] Obtain or verify the external app's `subject_pubkey`.
-- [ ] Build `CredentialRef` values from SDK credential digests.
+- [ ] Select the `SignedCredential` values to authorize; SDK code derives
+      `CredentialRef` values.
 - [ ] Show consent UI.
 - [ ] Call `HolderContext.authorizeCredentialUse`.
 - [ ] Store or deliver `HolderAuthorization`.
@@ -264,13 +270,14 @@ These remain outside the SDK:
 ## Suggested Implementation Order
 
 - [x] Add initial holder authorization protocol type stubs and serde encodings.
-- [ ] Add holder authorization canonicalization, domain separator, digest
+- [x] Add holder authorization canonicalization, domain separator, digest
       method, and test vector.
 - [ ] Refactor identity signature verification to support non-issuer public
       keys.
-- [ ] Add holder authorization signing in `holder.rs`.
+- [x] Add holder authorization signing in `holder.rs`.
 - [ ] Add holder authorization verification in `verifier.rs`.
-- [ ] Expose credential digest and holder authorization APIs through WASM.
+- [x] Expose high-level holder authorization creation through WASM without
+      standalone credential digest plumbing.
 - [ ] Add the credential-bound `VerificationContext` helper.
 - [ ] Add TypeScript tests for the complete wallet-to-app-to-verifier flow.
 - [ ] Add user-facing guides.

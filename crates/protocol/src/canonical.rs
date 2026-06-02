@@ -7,7 +7,10 @@
 
 use serde_json::{json, Value};
 
-use crate::{Credential, Issuer, IssuerId, ProtocolV1, Revocation};
+use crate::{
+    authorization::HolderAuthorizationStatement, Credential, Issuer, IssuerId, ProtocolV1,
+    Revocation,
+};
 
 /// Canonicalize a JSON value using RFC 8785 / JCS and return UTF-8 bytes.
 ///
@@ -33,6 +36,9 @@ pub const ISSUER_AUTHORITY_CANONICAL_TYPE: &str = "fedibtc.credentials.issuer-au
 
 /// Canonicalized payload type string for signed revocations.
 pub const REVOCATION_CANONICAL_TYPE: &str = "fedibtc.credentials.revocation";
+
+/// Canonicalized payload type string for holder authorization signatures.
+pub const HOLDER_AUTHORIZATION_CANONICAL_TYPE: &str = "fedibtc.credentials.holder-authorization";
 
 /// Build JCS canonical bytes for the PBRSA public credential info.
 ///
@@ -90,6 +96,19 @@ pub fn canonicalize_revocation(revocation: &Revocation) -> serde_json::Result<Ve
     canonicalize_json_value(&payload)
 }
 
+/// Build JCS canonical bytes for a holder authorization statement.
+pub fn canonicalize_holder_authorization(
+    authorization: &HolderAuthorizationStatement,
+) -> serde_json::Result<Vec<u8>> {
+    let payload = json!({
+        "type": HOLDER_AUTHORIZATION_CANONICAL_TYPE,
+        "version": ProtocolV1,
+        "authorization": authorization,
+    });
+
+    canonicalize_json_value(&payload)
+}
+
 /// Build JCS canonical bytes for a credential payload.
 pub fn canonicalize_credential(credential: &Credential) -> serde_json::Result<Vec<u8>> {
     let value = serde_json::to_value(credential)?;
@@ -101,7 +120,10 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    use crate::{IssuerId, ProtocolV1};
+    use crate::{
+        CredentialRef, HolderAuthorizationScope, HolderAuthorizationStatement, HolderId, IssuerId,
+        ProtocolV1, SubjectPubkey, TrustBadgeId,
+    };
 
     #[test]
     fn canonicalizes_object_keys_recursively() {
@@ -166,5 +188,33 @@ mod tests {
             )
             .as_bytes()
         );
+    }
+
+    #[test]
+    fn holder_authorization_payload_is_jcs_canonical() {
+        let issuer_id = IssuerId(nostr::PublicKey::from_byte_array([1u8; 32]));
+        let holder_id = HolderId(nostr::PublicKey::from_byte_array([4u8; 32]));
+        let subject_pubkey = SubjectPubkey(nostr::PublicKey::from_byte_array([2u8; 32]));
+        let authorization = HolderAuthorizationStatement {
+            holder_id_pubkey: holder_id.clone(),
+            subject_pubkey: subject_pubkey.clone(),
+            audience: "https://verifier.example".to_owned(),
+            credential_refs: vec![CredentialRef {
+                issuer_id_pubkey: issuer_id.clone(),
+                trust_badge_id: TrustBadgeId([3u8; 32].into()),
+            }],
+            scope: vec![HolderAuthorizationScope::Present],
+            issued_at: 1000,
+            expires_at: 2000,
+            authorization_id: "auth-1".to_owned(),
+        };
+
+        let canonicalized = canonicalize_holder_authorization(&authorization).unwrap();
+        let expected = format!(
+            r#"{{"authorization":{{"audience":"https://verifier.example","authorization_id":"auth-1","credential_refs":[{{"issuer_id_pubkey":"{}","trust_badge_id":"AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"}}],"expires_at":2000,"holder_id_pubkey":"{}","issued_at":1000,"scope":["present"],"subject_pubkey":"{}"}},"type":"{}","version":1}}"#,
+            issuer_id.0, holder_id.0, subject_pubkey.0, HOLDER_AUTHORIZATION_CANONICAL_TYPE,
+        );
+
+        assert_eq!(canonicalized, expected.as_bytes());
     }
 }

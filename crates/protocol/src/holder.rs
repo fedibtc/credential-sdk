@@ -17,8 +17,9 @@ use serde_with::serde_as;
 use crate::serde::Base64UrlUnpadded;
 use crate::{
     canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, verifier::verify_credential_with_key,
-    Credential, CredentialProof, CredentialsError, IssuanceRequest, IssuanceResponse, IssuerId,
-    PbrsaPublicKey, ProtocolV1, SignedCredential,
+    Credential, CredentialProof, CredentialsError, HolderAuthorization, HolderAuthorizationRequest,
+    HolderId, IssuanceRequest, IssuanceResponse, IssuerId, PbrsaPublicKey, ProtocolV1,
+    SchnorrSignatureProof, SignedCredential,
 };
 
 fn default_pbrsa_rng() -> impl TryCryptoRng<Error = Infallible> {
@@ -74,6 +75,51 @@ impl HolderContext {
     /// Return this holder's Nostr public key.
     pub fn public_key(&self) -> nostr::PublicKey {
         self.identity_keys.public_key()
+    }
+
+    /// Return this holder's protocol holder id.
+    pub fn holder_id(&self) -> HolderId {
+        HolderId(self.identity_keys.public_key())
+    }
+
+    /// Create a signed authorization allowing an auxiliary subject key to use credentials.
+    ///
+    /// The SDK derives this holder's id and credential refs from the supplied
+    /// credentials before signing the canonical authorization statement. Consent
+    /// UI, storage, transport, and subject-key custody remain application
+    /// concerns.
+    pub fn authorize_credential_use(
+        &self,
+        request: HolderAuthorizationRequest,
+    ) -> Result<HolderAuthorization, CredentialsError> {
+        self.authorize_credential_use_with_rng(request, &mut nostr::secp256k1::rand::rngs::OsRng)
+    }
+
+    pub(crate) fn authorize_credential_use_with_rng(
+        &self,
+        request: HolderAuthorizationRequest,
+        rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
+    ) -> Result<HolderAuthorization, CredentialsError> {
+        let authorization = request.into_statement(self.holder_id())?;
+        let signature = self.sign_identity_digest_with_rng(authorization.digest()?, rng);
+
+        Ok(HolderAuthorization {
+            version: ProtocolV1,
+            authorization,
+            proof: SchnorrSignatureProof { signature },
+        })
+    }
+
+    fn sign_identity_digest_with_rng(
+        &self,
+        digest: sha2::digest::Output<sha2::Sha256>,
+        rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
+    ) -> nostr::secp256k1::schnorr::Signature {
+        self.identity_keys.sign_schnorr_with_ctx(
+            nostr::SECP256K1,
+            &nostr::secp256k1::Message::from_digest(digest.into()),
+            rng,
+        )
     }
 }
 

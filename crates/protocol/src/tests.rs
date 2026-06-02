@@ -1,9 +1,12 @@
+use blind_rsa_signatures::Signature as PbrsaSignature;
 use serde_json::json;
 use std::time::{Duration, Instant};
 
 use crate::{
-    HolderContext, IssuerContext, IssuerSecretKeys, PendingIssuance, ProtocolV1, Revocation,
-    RevocationLocation, RevocationProof, SignedCredential, SignedRevocation, VerificationContext,
+    Credential, CredentialProof, CredentialRef, HolderAuthorizationRequest,
+    HolderAuthorizationScope, HolderContext, HolderId, IssuerContext, IssuerId, IssuerSecretKeys,
+    PendingIssuance, ProtocolV1, Revocation, RevocationLocation, RevocationProof, SignedCredential,
+    SignedRevocation, SubjectPubkey, TrustBadgeId, VerificationContext,
 };
 
 const TEST_RNG_SEED: u64 = 0x5eed_f00d_cafe_babe;
@@ -55,6 +58,41 @@ fn revocation_signed_by(
             signature,
         },
     }
+}
+
+fn credential_for_authorization(issuer_id_pubkey: IssuerId) -> SignedCredential {
+    SignedCredential {
+        version: ProtocolV1,
+        credential: Credential {
+            issuer_id_pubkey,
+            info: json!({
+                "schema": "fedi-trust-score-v1.0",
+                "trust_level": 7,
+            }),
+            blind_msg: json!("holder-public-key"),
+        },
+        proof: CredentialProof {
+            signature: PbrsaSignature(vec![1, 2, 3, 4]),
+        },
+    }
+}
+
+fn holder_authorization_request(
+    subject_public_key: nostr::PublicKey,
+) -> (HolderAuthorizationRequest, SignedCredential) {
+    let credential =
+        credential_for_authorization(IssuerId(nostr::PublicKey::from_byte_array([7u8; 32])));
+    let request = HolderAuthorizationRequest {
+        subject_pubkey: SubjectPubkey(subject_public_key),
+        audience: "https://verifier.example".to_owned(),
+        credentials: vec![credential.clone()],
+        scope: vec![HolderAuthorizationScope::Present],
+        issued_at: 1_717_000_000,
+        expires_at: 1_717_003_600,
+        authorization_id: "auth-1".to_owned(),
+    };
+
+    (request, credential)
 }
 
 #[derive(Clone, Debug)]
@@ -365,6 +403,54 @@ fn protocol_snapshots() {
       "wrong_issuer_revoke": "issuer_id does not match"
     }
     "###);
+}
+
+#[test]
+fn holder_context_authorizes_credential_use() {
+    let mut rng = <NostrRng as nostr::secp256k1::rand::SeedableRng>::seed_from_u64(TEST_RNG_SEED);
+    let holder = HolderContext::generate_with_rng(&mut rng);
+    let subject = nostr::Keys::generate_with_rng(&mut rng);
+    let (request, credential) = holder_authorization_request(subject.public_key());
+    let expected_credential_ref = CredentialRef {
+        issuer_id_pubkey: credential.credential.issuer_id_pubkey.clone(),
+        trust_badge_id: TrustBadgeId(credential.credential.digest().unwrap()),
+    };
+
+    let authorization = holder
+        .authorize_credential_use_with_rng(request, &mut rng)
+        .unwrap();
+
+    assert_eq!(authorization.version, ProtocolV1);
+    assert_eq!(
+        authorization.authorization.holder_id_pubkey,
+        HolderId(holder.public_key())
+    );
+    assert_eq!(
+        authorization.authorization.subject_pubkey,
+        SubjectPubkey(subject.public_key())
+    );
+    assert_eq!(
+        authorization.authorization.credential_refs,
+        vec![expected_credential_ref]
+    );
+    assert_eq!(
+        authorization.digest().unwrap(),
+        authorization.authorization.digest().unwrap()
+    );
+
+    let holder_public_key = authorization
+        .authorization
+        .holder_id_pubkey
+        .0
+        .xonly()
+        .unwrap();
+    nostr::SECP256K1
+        .verify_schnorr(
+            &authorization.proof.signature,
+            &nostr::secp256k1::Message::from_digest(authorization.digest().unwrap().into()),
+            &holder_public_key,
+        )
+        .unwrap();
 }
 
 #[test]

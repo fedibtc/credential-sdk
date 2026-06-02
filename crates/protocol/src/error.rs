@@ -14,6 +14,8 @@ pub enum CredentialsError {
     NostrKey(#[from] nostr::key::Error),
     #[error("issuer_id does not match")]
     IssuerIdMismatch,
+    #[error("holder_id does not match")]
+    HolderIdMismatch,
     #[error("issuance response info does not match")]
     InfoMismatch,
     #[error("invalid pending issuance state: {0}")]
