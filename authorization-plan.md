@@ -1,107 +1,98 @@
-# Holder Authorization Implementation Plan
+# Holder Authorization MVP Plan
 
 ## Status
 
-Draft implementation checklist for the design in `authorization-design.md`.
+Draft MVP checklist for the design in `authorization-design.md`.
 
-The plan keeps the same boundary used by issuance: protocol-sensitive signed
+The MVP keeps the same boundary used by issuance: protocol-sensitive signed
 objects, canonicalization, signing, and verification live in the library;
-storage, transport, QR codes, Nostr relay I/O, UI, and verifier policy live in
-consuming applications.
+storage, transport, QR codes, Nostr relay I/O, UI, subject authentication, and
+verifier policy live in consuming applications.
+
+Authorization revocation and SDK-owned presentation signatures are intentionally
+out of scope for the MVP. A holder authorization is valid until `expires_at`,
+assuming its referenced credential remains valid.
 
 ## Architecture Placement
 
 - [ ] Keep the existing issuer/holder/verifier role split.
-- [x] Add initial holder authorization wire types in dedicated
+- [x] Add initial holder authorization wire types in
       `crates/protocol/src/authorization.rs`.
 - [x] Re-export `authorization.rs` from `crates/protocol/src/lib.rs`.
-- [ ] Move final shared pieces into `types.rs` only if the dedicated module
-      proves unnecessary.
-- [ ] Add holder authorization canonicalization and domain separators to
+- [ ] Keep holder authorization types in `authorization.rs` unless later code
+      shows they belong in `types.rs`.
+- [ ] Add holder authorization canonicalization and domain separator to
       `crates/protocol/src/canonical.rs`.
-- [ ] Add holder-side signing methods to `crates/protocol/src/holder.rs` on
+- [ ] Add holder-side signing to `crates/protocol/src/holder.rs` on
       `HolderContext`.
-- [ ] Add verifier-side signature checks, authorization checks, and revocation
-      ingestion to `crates/protocol/src/verifier.rs`.
-- [ ] Keep issuer code in `crates/protocol/src/issuer.rs` unchanged unless
-      shared identity-signing helpers need to move out of issuer-specific code.
+- [ ] Add verifier-side holder authorization checks to
+      `crates/protocol/src/verifier.rs`.
+- [ ] Keep issuer code in `crates/protocol/src/issuer.rs` unchanged unless a
+      shared identity-signature helper needs to move.
 - [ ] Add serialization helpers only if existing `crates/protocol/src/serde.rs`
       encodings are insufficient.
 - [ ] Add WASM and TypeScript bindings in `crates/wasm/src/lib.rs`.
 - [ ] Add Rust protocol tests near existing protocol tests and TypeScript flow
       tests under `test/`.
 - [ ] Do not add SDK modules for QR codes, Nostr relay queries, HTTP endpoints,
-      browser storage, app pairing, or UI consent.
+      browser storage, app pairing, UI consent, or subject-key custody.
 
 ## Library-Owned Components
 
 ### 1. Protocol Types
 
-- [x] Add `HolderId` as a transparent wrapper around `nostr::PublicKey`,
-      matching the current `IssuerId` pattern.
+- [x] Add `HolderId` as a transparent wrapper around `nostr::PublicKey`.
 - [x] Add `SubjectPubkey` as a transparent wrapper around `nostr::PublicKey`.
 - [x] Add `TrustBadgeId` as a transparent wrapper around
       `sha2::digest::Output<Sha256>`, serialized with the same
       `Sha256DigestBase64UrlUnpadded` encoding used by
       `Revocation.credential_digest`.
 - [x] Add `CredentialRef` containing issuer id and `TrustBadgeId`.
-- [x] Add `HolderAuthorizationScope` with v1 value `Present`.
-- [ ] Decide whether `authorization_id` stays a `String` or becomes a typed
-      `AuthorizationId` wrapper for ordering, equality, and revocation maps.
+- [x] Add `HolderAuthorizationScope` with MVP value `Present`.
 - [x] Add `HolderAuthorizationStatement`.
 - [x] Add `HolderAuthorization`.
-- [ ] Add `AuthorizedPresentationStatement`.
-- [ ] Add `AuthorizedPresentation`.
-- [ ] Add `HolderAuthorizationRevocationStatement`.
-- [ ] Add `HolderAuthorizationRevocation`.
 - [x] Reuse `ProtocolV1` for `HolderAuthorization.version`.
 - [x] Reuse `SchnorrSignatureProof` for `HolderAuthorization.proof`.
-- [x] Reuse base64url-unpadded digest encoding for `TrustBadgeId`.
-- [ ] Reuse `ProtocolV1`, `SchnorrSignatureProof`, and existing digest encoding
-      for the remaining presentation and revocation types.
 - [x] Preserve existing `SignedCredential`, `Credential`, `IssuerAuthority`,
       and `SignedRevocation` shapes.
+- [x] Include `authorization_id` as a signed future-proof field.
+- [x] Include authorization `scope` as a signed future-proof field.
+- [ ] Defer any verifier semantics for `authorization_id`.
+- [ ] Defer any scope-specific verifier policy.
+- [x] Omit `AuthorizedPresentation` types from the MVP.
+- [x] Omit holder authorization revocation types from the MVP.
 
 ### 2. Canonicalization And Digests
 
-- [ ] Add canonical type strings for holder authorization, authorized
-      presentation, and holder authorization revocation.
-- [ ] Add
-      `fedi-credential/holder-authorization-signature/v1\0`.
-- [ ] Add
-      `fedi-credential/authorized-presentation-signature/v1\0`.
-- [ ] Add
-      `fedi-credential/holder-authorization-revocation-signature/v1\0`.
+- [ ] Add a canonical type string for holder authorization.
+- [ ] Add `fedi-credential/holder-authorization-signature/v1\0`.
 - [ ] Add `canonicalize_holder_authorization`.
-- [ ] Add `canonicalize_authorized_presentation`.
-- [ ] Add `canonicalize_holder_authorization_revocation`.
-- [ ] Add digest methods on `HolderAuthorizationStatement`.
-- [ ] Add digest methods on `AuthorizedPresentationStatement`.
-- [ ] Add digest methods on `HolderAuthorizationRevocationStatement`.
+- [ ] Add a digest method on `HolderAuthorizationStatement`.
 - [ ] Expose credential digest calculation to WASM/TypeScript so applications
-      can build `CredentialRef` without reimplementing SDK canonicalization.
+      can build `CredentialRef` values without reimplementing SDK
+      canonicalization.
+- [ ] Do not add authorized-presentation digesting in the MVP.
+- [ ] Do not add holder authorization revocation digesting in the MVP.
 
 ### 3. Identity Signature Helpers
 
-- [ ] Refactor Schnorr verification so it is not tied only to `IssuerId`.
+- [ ] Refactor Schnorr verification so it can verify holder signatures as well
+      as issuer signatures.
 - [ ] Keep public APIs strongly typed instead of accepting raw key strings for
       internal protocol verification.
-- [ ] Update issuer authority verification to use the shared helper.
-- [ ] Update issuer revocation verification to use the shared helper.
+- [ ] Update issuer authority verification to use the shared helper, if the
+      refactor touches that code.
+- [ ] Update issuer revocation verification to use the shared helper, if the
+      refactor touches that code.
 - [ ] Use the shared helper for holder authorization verification.
-- [ ] Use the shared helper for authorized presentation verification.
-- [ ] Use the shared helper for holder authorization revocation verification.
 - [ ] Add tests proving issuer authority and issuer revocation behavior remains
       unchanged after the helper refactor.
 
 ### 4. Holder-Side Signing
 
 - [ ] Add `HolderContext::authorize_credential_use`.
-- [ ] Add `HolderContext::revoke_holder_authorization`.
 - [ ] Reject holder authorization statements whose `holder_id_pubkey` does not
       equal `HolderContext.publicKey`.
-- [ ] Reject holder authorization revocation statements whose
-      `holder_id_pubkey` does not equal `HolderContext.publicKey`.
 - [ ] Keep external subject key custody out of `HolderContext`.
 - [ ] Do not add wallet consent, storage, pairing, or transport logic to
       `holder.rs`.
@@ -114,11 +105,6 @@ impl HolderContext {
         &self,
         authorization: HolderAuthorizationStatement,
     ) -> Result<HolderAuthorization, CredentialsError>;
-
-    pub fn revoke_holder_authorization(
-        &self,
-        revocation: HolderAuthorizationRevocationStatement,
-    ) -> Result<HolderAuthorizationRevocation, CredentialsError>;
 }
 ```
 
@@ -129,111 +115,73 @@ class HolderContext {
   authorizeCredentialUse(
     authorization: HolderAuthorizationStatement,
   ): HolderAuthorization;
-
-  revokeHolderAuthorization(
-    revocation: HolderAuthorizationRevocationStatement,
-  ): HolderAuthorizationRevocation;
 }
 ```
 
-### 5. Subject Presentation Support
-
-- [ ] Define `AuthorizedPresentationStatement` and `AuthorizedPresentation` in
-      `authorization.rs`.
-- [ ] Add digest and verification helpers for `AuthorizedPresentation`.
-- [ ] Do not add external application key storage to the SDK.
-- [ ] Prefer not to add a `SubjectContext` in v1.
-- [ ] Let consuming applications sign presentation digests with their own
-      Nostr/key-management stack.
-- [ ] Revisit SDK-owned subject signing only if consuming apps cannot reliably
-      produce `SchnorrSignatureProof` objects.
-
-### 6. Verifier-Side Checks
+### 5. Verifier-Side Checks
 
 - [ ] Add pure verification helper for `HolderAuthorization`.
-- [ ] Add pure verification helper for `AuthorizedPresentation`.
-- [ ] Add pure verification helper for `HolderAuthorizationRevocation`.
-- [ ] Add holder authorization revocation storage to `VerificationContext`,
-      mirroring existing credential revocation ingestion.
-- [ ] Add `VerificationContext::add_holder_authorization_revocation`.
-- [ ] Add `VerificationContext::verify_credential_authorization` for the
-      checks the SDK can perform generically.
+- [ ] Add `VerificationContext::verify_credential_authorization` for checks
+      the SDK can perform generically.
 - [ ] Require the consuming application to pass the holder id extracted from
       `credential.credential.blind_msg`.
+- [ ] Require the consuming application to pass the expected subject key from
+      its app-owned authentication or transport flow.
 - [ ] Verify the credential with existing `VerificationContext` issuer and
       credential revocation state.
 - [ ] Compute the credential digest with SDK canonicalization.
 - [ ] Match credential digest and issuer id to a `CredentialRef`.
 - [ ] Verify the extracted credential holder id equals
       `authorization.holder_id_pubkey`.
-- [ ] Verify the subject presentation proof.
-- [ ] Check subject, authorization id, credential digest, audience, challenge,
-      time bounds, and scope.
-- [ ] Reject holder authorizations that match an ingested holder authorization
-      revocation.
-- [ ] Leave schema interpretation, trust decisions, and display behavior to the
-      consuming verifier application.
+- [ ] Verify the expected subject key equals `authorization.subject_pubkey`.
+- [ ] Check authorization `issued_at`, `expires_at`, and expected audience.
+- [ ] Preserve but do not interpret `authorization_id` in MVP verification.
+- [ ] Preserve but do not apply scope-specific policy in MVP verification.
+- [ ] Leave schema interpretation, trust decisions, subject proof-of-possession,
+      and display behavior to the consuming verifier application.
 
 Proposed Rust shape:
 
 ```rust
 impl VerificationContext {
-    pub fn add_holder_authorization_revocation(
-        &mut self,
-        revocation: &HolderAuthorizationRevocation,
-    ) -> Result<(), CredentialsError>;
-
     pub fn verify_credential_authorization(
         &self,
         credential: &SignedCredential,
         credential_holder_id: &HolderId,
+        expected_subject_pubkey: &SubjectPubkey,
         authorization: &HolderAuthorization,
-        presentation: &AuthorizedPresentation,
         expected_audience: &str,
-        expected_challenge: &str,
         now: u64,
     ) -> Result<(), CredentialsError>;
 }
 ```
 
-### 7. Error Handling
+### 6. Error Handling
 
 - [ ] Add specific Rust error variants only where existing variants are too
       ambiguous.
 - [ ] Cover at least wrong holder, wrong subject, expired authorization, future
-      issued-at, wrong audience, wrong challenge, missing credential ref, and
-      revoked holder authorization.
+      issued-at, wrong audience, and missing credential ref.
 - [ ] Preserve current thrown-JavaScript-error behavior at the WASM boundary.
 - [ ] Avoid broad result-shape changes until the existing machine-readable
       error-code TODO is addressed.
 
-### 8. WASM And TypeScript Surface
+### 7. WASM And TypeScript Surface
 
 - [ ] Add TypeScript interfaces for `HolderAuthorization`.
 - [ ] Add TypeScript interfaces for `HolderAuthorizationStatement`.
 - [ ] Add TypeScript interfaces for `CredentialRef`.
 - [ ] Add TypeScript interface or alias for `TrustBadgeId`.
-- [ ] Add TypeScript interfaces for `HolderAuthorizationScope`.
-- [ ] Add TypeScript interfaces for `AuthorizedPresentation`.
-- [ ] Add TypeScript interfaces for `AuthorizedPresentationStatement`.
-- [ ] Add TypeScript interfaces for `HolderAuthorizationRevocation`.
-- [ ] Add TypeScript interfaces for
-      `HolderAuthorizationRevocationStatement`.
+- [ ] Add TypeScript interface or alias for `HolderAuthorizationScope`.
 - [ ] Expose holder authorization signing on `HolderContext`.
-- [ ] Expose holder authorization revocation signing on `HolderContext`.
 - [ ] Expose credential digest calculation.
 - [ ] Expose holder authorization verification.
-- [ ] Expose authorized presentation verification.
-- [ ] Expose holder authorization revocation verification.
 - [ ] Expose credential-bound authorization verification on
       `VerificationContext`.
 
-### 9. Tests
+### 8. Tests
 
 - [ ] Add deterministic canonical JSON tests for holder authorization.
-- [ ] Add deterministic canonical JSON tests for authorized presentation.
-- [ ] Add deterministic canonical JSON tests for holder authorization
-      revocation.
 - [ ] Add valid holder authorization signing and verification tests.
 - [ ] Add rejection tests for wrong holder key.
 - [ ] Add rejection tests for wrong subject key.
@@ -246,19 +194,17 @@ impl VerificationContext {
       `CredentialRef`.
 - [ ] Add rejection tests when extracted credential holder key does not match
       `authorization.holder_id_pubkey`.
-- [ ] Add subject presentation challenge mismatch tests.
-- [ ] Add subject presentation replay-across-audience tests.
-- [ ] Add holder authorization revocation acceptance and rejection tests.
 - [ ] Add WASM serialization shape tests.
 - [ ] Add thrown JavaScript error tests for representative failures.
 - [ ] Add complete wallet-to-app-to-verifier TypeScript flow test.
 
-### 10. Documentation
+### 9. Documentation
 
 - [ ] Add guide: wallet grants credential use to an external app.
-- [ ] Add guide: external app presents an authorized credential.
-- [ ] Add guide: verifier checks an authorized credential presentation.
-- [ ] Add guide: holder authorization revocation.
+- [ ] Add guide: external app presents an authorized credential using its own
+      app-level subject authentication.
+- [ ] Add guide: verifier checks an authorized credential.
+- [ ] Add guide: choosing authorization lifetimes.
 - [ ] Add guide: choosing a holder key representation inside
       `credential.blind_msg`.
 - [ ] Update architecture docs to include the auxiliary subject authorization
@@ -270,36 +216,37 @@ impl VerificationContext {
 ### Wallet Application
 
 - [ ] Let the user choose which credential an external app may use.
-- [ ] Decide `audience`, `scope`, and expiration.
+- [ ] Decide `audience` and expiration.
 - [ ] Obtain or verify the external app's `subject_pubkey`.
 - [ ] Build `CredentialRef` values from SDK credential digests.
 - [ ] Show consent UI.
 - [ ] Call `HolderContext.authorizeCredentialUse`.
 - [ ] Store or deliver `HolderAuthorization`.
-- [ ] Decide whether to create and publish holder authorization revocations.
+- [ ] Reissue a short-lived authorization if the external app still needs
+      access after expiry.
 
 ### External Application
 
 - [ ] Generate and store its subject key.
 - [ ] Request authorization from the wallet.
 - [ ] Store received holder authorizations.
-- [ ] Receive verifier challenges.
-- [ ] Sign `AuthorizedPresentationStatement` with the subject key.
-- [ ] Build the application-specific envelope carrying credential,
-      authorization, and presentation proof.
+- [ ] Authenticate to verifiers as `subject_pubkey` using app-owned protocol
+      mechanics when a verifier requires live subject possession.
+- [ ] Build the application-specific envelope carrying the credential and holder
+      authorization.
 - [ ] Transport that envelope to verifiers.
 
 ### Verifier Application
 
 - [ ] Choose trusted issuer authorities.
 - [ ] Fetch and refresh issuer credential revocations.
-- [ ] Fetch and refresh holder authorization revocations, if used.
-- [ ] Generate challenges.
 - [ ] Define acceptable audience strings.
+- [ ] Authenticate or otherwise identify the external application's subject key
+      when live subject possession matters.
 - [ ] Parse credential schemas.
 - [ ] Extract the holder key from `credential.blind_msg`.
-- [ ] Apply policy to credential `info`, issuer, holder, subject, scope,
-      audience, and freshness.
+- [ ] Apply policy to credential `info`, issuer, holder, subject, audience, and
+      freshness.
 - [ ] Decide how errors are presented to users.
 
 ### Transport And Discovery
@@ -312,34 +259,33 @@ These remain outside the SDK:
 - [ ] Nostr relay queries and publication.
 - [ ] Encrypted setup channels.
 - [ ] App-to-wallet pairing flows.
-- [ ] Verifier challenge transport.
+- [ ] Verifier challenge transport or request authentication.
 
 ## Suggested Implementation Order
 
 - [x] Add initial holder authorization protocol type stubs and serde encodings.
-- [ ] Finish protocol types and serde encodings for authorized presentation and
-      holder authorization revocation.
-- [ ] Add canonicalization, domain separators, digest methods, and test
-      vectors.
+- [ ] Add holder authorization canonicalization, domain separator, digest
+      method, and test vector.
 - [ ] Refactor identity signature verification to support non-issuer public
       keys.
 - [ ] Add holder authorization signing in `holder.rs`.
 - [ ] Add holder authorization verification in `verifier.rs`.
 - [ ] Expose credential digest and holder authorization APIs through WASM.
-- [ ] Add holder authorization revocation types, signing, ingestion, and
-      verification.
-- [ ] Add authorized presentation digest and verification.
 - [ ] Add the credential-bound `VerificationContext` helper.
 - [ ] Add TypeScript tests for the complete wallet-to-app-to-verifier flow.
 - [ ] Add user-facing guides.
 
-## Open Implementation Decisions
+## Deferred Past MVP
+
+- [ ] Holder authorization revocation.
+- [ ] SDK-owned authorized presentation/challenge signatures.
+- [ ] Scope-specific verifier policy beyond carrying the signed field.
+- [ ] Typed `AuthorizationId` and semantics beyond carrying the signed string.
+- [ ] SDK-managed subject key contexts.
+
+## Open MVP Decisions
 
 - [ ] Decide whether `CredentialRef` supports multiple credentials in v1 or
       forces one credential per authorization.
-- [ ] Decide whether holder authorization revocations are required in the first
-      release or whether short expirations are enough initially.
 - [ ] Decide whether to add a conventional holder-key helper for common
       `blind_msg` shapes while keeping arbitrary schema parsing app-owned.
-- [ ] Decide whether presentation signing remains app-owned permanently or gets
-      a future generic identity-signing context.

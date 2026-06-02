@@ -24,9 +24,11 @@ The core pattern is auxiliary identity authorization:
 ```
 
 The external application controls its own key. The holder wallet signs an
-authorization that links that external key to specific credential use. During
-verification, the external application must prove possession of its key, so a
-copied holder authorization alone is not sufficient.
+authorization that links that external key to specific credential use. In the
+MVP, the SDK verifies that signed authorization, its expiry, and its binding to
+the credential. Any live proof that the external application currently controls
+the subject key remains part of the consuming application's authentication or
+transport protocol.
 
 ## Existing SDK Boundary
 
@@ -108,7 +110,6 @@ new fields on existing credential types.
 - Avoid sharing the holder wallet's secret key with external applications.
 - Bind a holder authorization to concrete credential digests.
 - Bind a holder authorization to a concrete external subject key.
-- Require proof that the external subject key is live in the presentation.
 - Include audience and time bounds in v1.
 - Keep holder authorization close to existing signed SDK object shapes:
   `{ version, authorization, proof }`.
@@ -124,6 +125,10 @@ new fields on existing credential types.
 - Holder authorizations do not make Nostr publication mandatory.
 - Holder authorizations do not require the SDK to manage external application
   key storage.
+- Holder authorizations do not define a separate SDK presentation signature in
+  the MVP.
+- Holder authorization revocation is not in the MVP. An authorization is valid
+  until `expires_at`, assuming the credential itself remains valid.
 
 ## Holder Authorization Wire Shape
 
@@ -172,11 +177,13 @@ Field notes:
   base64url-unpadded SHA-256 digest produced from `Credential::digest()`, which
   is the same canonical credential id already used by
   `Revocation.credential_digest`.
-- `scope` starts with only `present`. Future scopes should be versioned protocol
-  extensions.
+- `scope` is a future-proof field. The only defined MVP value is `present`; MVP
+  verification signs and preserves this field but does not apply scope-specific
+  policy.
 - `issued_at` and `expires_at` are Unix timestamps in seconds.
-- `authorization_id` is a random or deterministic application-chosen identifier
-  used for replacement and revocation.
+- `authorization_id` is a future-proof application-chosen identifier. The MVP
+  signs and preserves this field but does not use it for replacement, replay
+  tracking, or revocation.
 
 The earlier free-form `trust_badge` concept should not be a v1 SDK protocol
 field. A verifier can derive badge or schema meaning from the verified
@@ -197,8 +204,7 @@ Verification must prove:
   `authorization.credential_refs[].trust_badge_id`.
 - The credential issuer matches that credential ref's `issuer_id_pubkey`.
 - The holder key in the authorization is bound to the credential holder.
-- The subject key in the authorization proves possession for the current
-  presentation.
+- The expected external application key equals `authorization.subject_pubkey`.
 
 The only unresolved generic piece is holder binding. Because `Credential.blind_msg`
 is arbitrary JSON, the SDK cannot always extract the holder key itself. V1 should
@@ -214,35 +220,18 @@ use this boundary:
 This keeps schema parsing and policy outside the SDK while still letting the SDK
 verify the cryptographic binding once the holder key is supplied.
 
-## Subject Presentation Proof
+## Subject Possession
 
-The holder authorization says that a subject key may present a credential. It
-does not by itself prove that the external application currently controls that
-subject key.
+The holder authorization says that `subject_pubkey` is allowed to present the
+referenced credential. It does not by itself prove that the current caller
+controls that subject key.
 
-A verifier should issue or provide a challenge. The external application should
-sign a presentation statement with its subject key:
-
-```ts
-interface AuthorizedPresentation {
-  readonly version: 1;
-  readonly presentation: AuthorizedPresentationStatement;
-  readonly proof: SchnorrSignatureProof;
-}
-
-interface AuthorizedPresentationStatement {
-  readonly subject_pubkey: string;
-  readonly authorization_id: string;
-  readonly trust_badge_id: TrustBadgeId;
-  readonly audience: string;
-  readonly challenge: string;
-  readonly issued_at: number;
-}
-```
-
-Applications may carry the credential, holder authorization, and subject
-presentation in whatever envelope or transport they need. The signed
-presentation statement is the protocol-sensitive part.
+For MVP, the SDK does not define a separate authorized-presentation object or
+challenge signature. Consuming applications should use their existing
+authentication, Nostr event signature, request signature, session binding, or
+transport-level proof to establish the external application's subject key. The
+SDK can then compare that expected subject key to
+`authorization.subject_pubkey`.
 
 ## Verifier Algorithm
 
@@ -251,9 +240,8 @@ Given:
 - `SignedCredential`
 - holder public key extracted by the application from `credential.blind_msg`
 - `HolderAuthorization`
-- `AuthorizedPresentation`
+- expected external application subject public key
 - trusted issuer authorities and credential revocations
-- optional holder authorization revocations
 - local verifier policy
 
 The verifier should:
@@ -262,43 +250,28 @@ The verifier should:
 2. Compute `Credential::digest()`.
 3. Verify the holder authorization Schnorr proof with
    `authorization.holder_id_pubkey`.
-4. Check authorization `issued_at`, `expires_at`, `audience`, and `scope`.
+4. Check authorization `issued_at`, `expires_at`, and `audience`.
 5. Check the computed credential digest and issuer id match a credential ref.
 6. Check the extracted holder public key equals `authorization.holder_id_pubkey`.
-7. Verify the subject presentation proof with `presentation.subject_pubkey`.
-8. Check `presentation.subject_pubkey == authorization.subject_pubkey`.
-9. Check `presentation.authorization_id == authorization.authorization_id`.
-10. Check `presentation.trust_badge_id` equals the computed credential digest.
-11. Check `presentation.audience`, `challenge`, and `issued_at`.
-12. Reject if a valid holder authorization revocation applies.
-13. Apply local policy to issuer, credential `info`, holder, subject, audience,
-    and freshness.
+7. Check the expected external application subject key equals
+   `authorization.subject_pubkey`.
+8. Preserve `scope` and `authorization_id` but do not apply MVP verifier policy
+   to them.
+9. Apply local policy to issuer, credential `info`, holder, subject, audience,
+   and freshness.
 
-## Holder Authorization Revocation
+## Authorization Lifetime
 
-Credential revocation is already a signed SDK object whose transport is
-application-owned. Holder authorization revocation should follow the same
-boundary.
+Holder authorization revocation is intentionally out of scope for the MVP. A
+holder authorization is accepted while:
 
-Recommended wire shape:
+- Its holder signature verifies.
+- Its `issued_at` and `expires_at` are accepted by verifier policy.
+- The referenced credential is still valid and not revoked by its issuer.
 
-```ts
-interface HolderAuthorizationRevocation {
-  readonly version: 1;
-  readonly revocation: HolderAuthorizationRevocationStatement;
-  readonly proof: SchnorrSignatureProof;
-}
-
-interface HolderAuthorizationRevocationStatement {
-  readonly holder_id_pubkey: string;
-  readonly authorization_id: string;
-  readonly revoked_at: number;
-}
-```
-
-The SDK should define, sign, and verify this object. Applications decide where
-revocations are published, how often to refresh them, and whether short
-authorization lifetimes are enough for their deployment.
+Wallets should issue short-lived authorizations when fast permission rollback is
+important. A future protocol version can add holder-signed authorization
+revocations if expiration alone is not enough.
 
 ## Canonicalization And Signatures
 
@@ -315,32 +288,6 @@ SHA256(
     "type": "fedibtc.credentials.holder-authorization",
     "version": 1,
     "authorization": <HolderAuthorizationStatement>
-  })
-)
-```
-
-Recommended subject presentation digest:
-
-```text
-SHA256(
-  "fedi-credential/authorized-presentation-signature/v1\0" ||
-  JCS({
-    "type": "fedibtc.credentials.authorized-presentation",
-    "version": 1,
-    "presentation": <AuthorizedPresentationStatement>
-  })
-)
-```
-
-Recommended holder authorization revocation digest:
-
-```text
-SHA256(
-  "fedi-credential/holder-authorization-revocation-signature/v1\0" ||
-  JCS({
-    "type": "fedibtc.credentials.holder-authorization-revocation",
-    "version": 1,
-    "revocation": <HolderAuthorizationRevocationStatement>
   })
 )
 ```
@@ -372,8 +319,7 @@ The FMan flow is one instance of the general pattern:
 - FMan generates its own service identity key.
 - Holder wallet authorizes that FMan subject key to present selected
   credentials.
-- FMan advertisements or credential bundles carry a holder authorization and
-  subject presentation proof.
+- FMan advertisements or credential bundles carry a holder authorization.
 - FI verification checks FMan subject key possession, holder authorization,
   credential validity, and local policy together.
 
@@ -383,11 +329,6 @@ direct credential holder must be updated.
 ## Open Questions
 
 - Exact `audience` string format.
-- Whether `scope` needs values beyond `present` in v1.
 - Whether one holder authorization can reference multiple credentials.
-- Whether holder authorization revocation is required in the first SDK release
-  or can be deferred in favor of short expirations.
-- Whether the SDK should expose subject presentation signing helpers or only
-  digest and verification helpers.
 - Whether any SDK guide should recommend a conventional holder key path inside
   `credential.blind_msg`.

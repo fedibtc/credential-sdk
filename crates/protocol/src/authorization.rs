@@ -65,6 +65,11 @@ pub struct CredentialRef {
 }
 
 /// Holder authorization scope.
+///
+/// Present is the only defined MVP value. Scope-specific verifier policy is
+/// reserved for future protocol work; MVP verification only checks that the
+/// authorization is valid for the credential, holder, subject, audience, and
+/// time window.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HolderAuthorizationScope {
@@ -86,7 +91,10 @@ pub struct HolderAuthorizationStatement {
     /// Credentials this authorization grants the subject permission to present.
     pub credential_refs: Vec<CredentialRef>,
 
-    /// Allowed operations. V1 currently supports presentation only.
+    /// Future-proof scope field.
+    ///
+    /// MVP code signs and preserves this field but does not implement
+    /// scope-specific verifier policy.
     pub scope: Vec<HolderAuthorizationScope>,
 
     /// Unix timestamp in seconds.
@@ -95,7 +103,10 @@ pub struct HolderAuthorizationStatement {
     /// Unix timestamp in seconds.
     pub expires_at: u64,
 
-    /// Stable application-chosen id used for replacement and revocation.
+    /// Future-proof application-chosen id.
+    ///
+    /// MVP code signs and preserves this field, but does not use it for
+    /// replacement, replay tracking, or revocation.
     pub authorization_id: String,
 }
 
