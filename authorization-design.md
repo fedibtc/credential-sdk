@@ -280,6 +280,23 @@ The verifier should:
 9. Apply local policy to issuer, credential `info`, holder, subject, audience,
    and freshness.
 
+SDK verifier API shape:
+
+```rust
+VerificationContext::verify_credential_authorization(
+    credential,
+    credential_holder_id,
+    expected_subject_pubkey,
+    authorization,
+    expected_audience,
+    now,
+)
+```
+
+The WASM binding exposes the same check as `verifyCredentialAuthorization`.
+`credential_holder_id` and `expected_subject_pubkey` are strings at the WASM
+boundary, then parsed into the SDK's holder and subject key wrapper types.
+
 ## Authorization Lifetime
 
 Holder authorization revocation is intentionally out of scope for the MVP. A

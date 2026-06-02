@@ -141,6 +141,21 @@ describe("full credential issuance flow", () => {
     });
     expect(holderAuthorization.proof.signature.length).toBeGreaterThan(0);
 
+    const authorizationVerifier = new VerificationContext();
+    expect(
+      authorizationVerifier.addIssuerAuthority(issuerAuthority),
+    ).toBeUndefined();
+    expect(
+      authorizationVerifier.verifyCredentialAuthorization(
+        credential,
+        holder.publicKey,
+        subjectPubkey,
+        holderAuthorization,
+        holderAuthorizationRequest.audience,
+        holderAuthorizationRequest.issued_at + 1,
+      ),
+    ).toBe(true);
+
     const revocationVerifier = new VerificationContext();
     expect(
       revocationVerifier.addIssuerAuthority(issuerAuthority),

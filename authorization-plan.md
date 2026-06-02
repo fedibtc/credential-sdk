@@ -75,16 +75,16 @@ assuming its referenced credential remains valid.
 
 ### 3. Identity Signature Helpers
 
-- [ ] Refactor Schnorr verification so it can verify holder signatures as well
+- [x] Refactor Schnorr verification so it can verify holder signatures as well
       as issuer signatures.
-- [ ] Keep public APIs strongly typed instead of accepting raw key strings for
+- [x] Keep public APIs strongly typed instead of accepting raw key strings for
       internal protocol verification.
-- [ ] Update issuer authority verification to use the shared helper, if the
+- [x] Update issuer authority verification to use the shared helper, if the
       refactor touches that code.
-- [ ] Update issuer revocation verification to use the shared helper, if the
+- [x] Update issuer revocation verification to use the shared helper, if the
       refactor touches that code.
-- [ ] Use the shared helper for holder authorization verification.
-- [ ] Add tests proving issuer authority and issuer revocation behavior remains
+- [x] Use the shared helper for holder authorization verification.
+- [x] Add tests proving issuer authority and issuer revocation behavior remains
       unchanged after the helper refactor.
 
 ### 4. Holder-Side Signing
@@ -121,24 +121,24 @@ class HolderContext {
 
 ### 5. Verifier-Side Checks
 
-- [ ] Add pure verification helper for `HolderAuthorization`.
-- [ ] Add `VerificationContext::verify_credential_authorization` for checks
+- [x] Add pure verification helper for `HolderAuthorization`.
+- [x] Add `VerificationContext::verify_credential_authorization` for checks
       the SDK can perform generically.
-- [ ] Require the consuming application to pass the holder id extracted from
+- [x] Require the consuming application to pass the holder id extracted from
       `credential.credential.blind_msg`.
-- [ ] Require the consuming application to pass the expected subject key from
+- [x] Require the consuming application to pass the expected subject key from
       its app-owned authentication or transport flow.
-- [ ] Verify the credential with existing `VerificationContext` issuer and
+- [x] Verify the credential with existing `VerificationContext` issuer and
       credential revocation state.
-- [ ] Compute the credential digest with SDK canonicalization.
-- [ ] Match credential digest and issuer id to a `CredentialRef`.
-- [ ] Verify the extracted credential holder id equals
+- [x] Compute the credential digest with SDK canonicalization.
+- [x] Match credential digest and issuer id to a `CredentialRef`.
+- [x] Verify the extracted credential holder id equals
       `authorization.holder_id_pubkey`.
-- [ ] Verify the expected subject key equals `authorization.subject_pubkey`.
-- [ ] Check authorization `issued_at`, `expires_at`, and expected audience.
-- [ ] Preserve but do not interpret `authorization_id` in MVP verification.
-- [ ] Preserve but do not apply scope-specific policy in MVP verification.
-- [ ] Leave schema interpretation, trust decisions, subject proof-of-possession,
+- [x] Verify the expected subject key equals `authorization.subject_pubkey`.
+- [x] Check authorization `issued_at`, `expires_at`, and expected audience.
+- [x] Preserve but do not interpret `authorization_id` in MVP verification.
+- [x] Preserve but do not apply scope-specific policy in MVP verification.
+- [x] Leave schema interpretation, trust decisions, subject proof-of-possession,
       and display behavior to the consuming verifier application.
 
 Proposed Rust shape:
@@ -159,9 +159,9 @@ impl VerificationContext {
 
 ### 6. Error Handling
 
-- [ ] Add specific Rust error variants only where existing variants are too
+- [x] Add specific Rust error variants only where existing variants are too
       ambiguous.
-- [ ] Cover at least wrong holder, wrong subject, expired authorization, future
+- [x] Cover at least wrong holder, wrong subject, expired authorization, future
       issued-at, wrong audience, and missing credential ref.
 - [ ] Preserve current thrown-JavaScript-error behavior at the WASM boundary.
 - [ ] Avoid broad result-shape changes until the existing machine-readable
@@ -178,8 +178,8 @@ impl VerificationContext {
 - [x] Expose holder authorization signing on `HolderContext`.
 - [x] Do not expose standalone credential digest calculation for authorization
       creation; `HolderContext.authorizeCredentialUse` derives credential refs.
-- [ ] Expose holder authorization verification.
-- [ ] Expose credential-bound authorization verification on
+- [x] Expose holder authorization verification.
+- [x] Expose credential-bound authorization verification on
       `VerificationContext`.
 
 ### 8. Tests
@@ -188,20 +188,20 @@ impl VerificationContext {
 - [x] Add valid holder authorization signing and verification tests.
 - [x] Add tests that holder authorization signing derives holder id and
       credential refs from the high-level request.
-- [ ] Add verifier rejection tests for wrong holder key.
-- [ ] Add rejection tests for wrong subject key.
-- [ ] Add rejection tests for wrong audience.
-- [ ] Add rejection tests for expired authorization.
-- [ ] Add rejection tests for future `issued_at`.
-- [ ] Add rejection tests when credential digest does not match any
+- [x] Add verifier rejection tests for wrong holder key.
+- [x] Add rejection tests for wrong subject key.
+- [x] Add rejection tests for wrong audience.
+- [x] Add rejection tests for expired authorization.
+- [x] Add rejection tests for future `issued_at`.
+- [x] Add rejection tests when credential digest does not match any
       `CredentialRef`.
-- [ ] Add rejection tests when credential issuer does not match the selected
+- [x] Add rejection tests when credential issuer does not match the selected
       `CredentialRef`.
-- [ ] Add rejection tests when extracted credential holder key does not match
+- [x] Add rejection tests when extracted credential holder key does not match
       `authorization.holder_id_pubkey`.
 - [ ] Add WASM serialization shape tests.
 - [ ] Add thrown JavaScript error tests for representative failures.
-- [ ] Add complete wallet-to-app-to-verifier TypeScript flow test.
+- [x] Add complete wallet-to-app-to-verifier TypeScript flow test.
 
 ### 9. Documentation
 
@@ -272,14 +272,14 @@ These remain outside the SDK:
 - [x] Add initial holder authorization protocol type stubs and serde encodings.
 - [x] Add holder authorization canonicalization, domain separator, digest
       method, and test vector.
-- [ ] Refactor identity signature verification to support non-issuer public
+- [x] Refactor identity signature verification to support non-issuer public
       keys.
 - [x] Add holder authorization signing in `holder.rs`.
-- [ ] Add holder authorization verification in `verifier.rs`.
+- [x] Add holder authorization verification in `verifier.rs`.
 - [x] Expose high-level holder authorization creation through WASM without
       standalone credential digest plumbing.
-- [ ] Add the credential-bound `VerificationContext` helper.
-- [ ] Add TypeScript tests for the complete wallet-to-app-to-verifier flow.
+- [x] Add the credential-bound `VerificationContext` helper.
+- [x] Add TypeScript tests for the complete wallet-to-app-to-verifier flow.
 - [ ] Add user-facing guides.
 
 ## Deferred Past MVP

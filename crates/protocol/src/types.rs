@@ -225,8 +225,15 @@ fn verify_identity_signature(
     signature: &Signature,
     message: Message,
 ) -> Result<(), CredentialsError> {
-    let public_key = issuer_id
-        .0
+    verify_identity_signature_with_key(&issuer_id.0, signature, message)
+}
+
+pub(crate) fn verify_identity_signature_with_key(
+    identity_public_key: &nostr::PublicKey,
+    signature: &Signature,
+    message: Message,
+) -> Result<(), CredentialsError> {
+    let public_key = identity_public_key
         .xonly()
         .map_err(|_| CredentialsError::VerificationFailed)?;
 

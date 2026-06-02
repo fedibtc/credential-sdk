@@ -199,6 +199,18 @@ fn reflect_error(error: JsValue) -> JsError {
     )
 }
 
+fn u64_from_js_number(value: f64, name: &str) -> Result<u64, JsError> {
+    const MAX_SAFE_JS_INTEGER: f64 = 9_007_199_254_740_991.0;
+
+    if !value.is_finite() || value < 0.0 || value.fract() != 0.0 || value > MAX_SAFE_JS_INTEGER {
+        return Err(JsError::new(&format!(
+            "{name} must be a non-negative safe integer"
+        )));
+    }
+
+    Ok(value as u64)
+}
+
 /// Install a tracing subscriber that forwards Rust tracing events to the JavaScript console.
 ///
 /// Returns `true` when this call installs the subscriber. Returns `false` when another global
@@ -454,6 +466,38 @@ impl VerificationContext {
     ) -> Result<bool, JsError> {
         let credential: protocol::SignedCredential = from_js(credential)?;
         self.inner.verify_credential(&credential)?;
+        Ok(true)
+    }
+
+    /// Verify a credential and holder authorization for a concrete subject.
+    #[wasm_bindgen(js_name = verifyCredentialAuthorization)]
+    pub fn verify_credential_authorization(
+        &self,
+        #[wasm_bindgen(unchecked_param_type = "SignedCredential")] credential: JsValue,
+        credential_holder_id: String,
+        expected_subject_pubkey: String,
+        #[wasm_bindgen(unchecked_param_type = "HolderAuthorization")] authorization: JsValue,
+        expected_audience: String,
+        now: f64,
+    ) -> Result<bool, JsError> {
+        let credential: protocol::SignedCredential = from_js(credential)?;
+        let credential_holder_id = credential_holder_id
+            .parse::<protocol::HolderId>()
+            .map_err(protocol::CredentialsError::from)?;
+        let expected_subject_pubkey = expected_subject_pubkey
+            .parse::<protocol::SubjectPubkey>()
+            .map_err(protocol::CredentialsError::from)?;
+        let authorization: protocol::HolderAuthorization = from_js(authorization)?;
+        let now = u64_from_js_number(now, "now")?;
+
+        self.inner.verify_credential_authorization(
+            &credential,
+            &credential_holder_id,
+            &expected_subject_pubkey,
+            &authorization,
+            &expected_audience,
+            now,
+        )?;
         Ok(true)
     }
 }

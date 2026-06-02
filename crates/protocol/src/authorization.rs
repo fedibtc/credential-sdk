@@ -11,7 +11,10 @@ use std::str::FromStr;
 use crate::{
     canonical::canonicalize_holder_authorization,
     serde::Sha256DigestBase64UrlUnpadded,
-    types::{IssuerId, ProtocolV1, SchnorrSignatureProof, SignedCredential},
+    types::{
+        verify_identity_signature_with_key, IssuerId, ProtocolV1, SchnorrSignatureProof,
+        SignedCredential,
+    },
     CredentialsError,
 };
 
@@ -224,5 +227,16 @@ impl HolderAuthorization {
     /// Compute the signature digest for this holder authorization payload.
     pub fn digest(&self) -> Result<Output<Sha256>, CredentialsError> {
         self.authorization.digest()
+    }
+
+    /// Verify this authorization's holder signature and return the statement.
+    pub fn verify(&self) -> Result<HolderAuthorizationStatement, CredentialsError> {
+        verify_identity_signature_with_key(
+            &self.authorization.holder_id_pubkey.0,
+            &self.proof.signature,
+            nostr::secp256k1::Message::from_digest(self.digest()?.into()),
+        )?;
+
+        Ok(self.authorization.clone())
     }
 }

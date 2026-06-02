@@ -16,6 +16,8 @@ pub enum CredentialsError {
     IssuerIdMismatch,
     #[error("holder_id does not match")]
     HolderIdMismatch,
+    #[error("subject_pubkey does not match")]
+    SubjectPubkeyMismatch,
     #[error("issuance response info does not match")]
     InfoMismatch,
     #[error("invalid pending issuance state: {0}")]
@@ -24,6 +26,14 @@ pub enum CredentialsError {
     UnknownIssuer,
     #[error("credential has been revoked")]
     CredentialRevoked,
+    #[error("credential is not referenced by authorization")]
+    AuthorizationCredentialRefMissing,
+    #[error("authorization audience does not match")]
+    AuthorizationAudienceMismatch,
+    #[error("authorization is not yet valid")]
+    AuthorizationNotYetValid,
+    #[error("authorization has expired")]
+    AuthorizationExpired,
     #[error("verification failed")]
     VerificationFailed,
 }

@@ -3,8 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, CredentialsError, IssuerAuthority,
-    IssuerId, PbrsaPublicKey, ProtocolV1, Revocation, SignedCredential, SignedRevocation,
+    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, CredentialRef, CredentialsError,
+    HolderAuthorization, HolderId, IssuerAuthority, IssuerId, PbrsaPublicKey, ProtocolV1,
+    Revocation, SignedCredential, SignedRevocation, SubjectPubkey, TrustBadgeId,
 };
 
 /// Stateful verifier for trusted issuers, revocations, and credentials.
@@ -68,6 +69,58 @@ impl VerificationContext {
             .contains(&(credential.credential.issuer_id_pubkey.clone(), revocation))
         {
             return Err(CredentialsError::CredentialRevoked);
+        }
+
+        Ok(())
+    }
+
+    /// Verify a credential and a holder authorization for a concrete subject.
+    ///
+    /// The consuming application must pass the holder id it extracted from its
+    /// credential schema, plus the expected subject key established by its own
+    /// authentication or transport flow. The SDK verifies signatures, issuer
+    /// trust, credential revocation state, credential binding, audience, and the
+    /// authorization time window.
+    pub fn verify_credential_authorization(
+        &self,
+        credential: &SignedCredential,
+        credential_holder_id: &HolderId,
+        expected_subject_pubkey: &SubjectPubkey,
+        authorization: &HolderAuthorization,
+        expected_audience: &str,
+        now: u64,
+    ) -> Result<(), CredentialsError> {
+        self.verify_credential(credential)?;
+
+        let authorization = authorization.verify()?;
+
+        if credential_holder_id != &authorization.holder_id_pubkey {
+            return Err(CredentialsError::HolderIdMismatch);
+        }
+
+        if expected_subject_pubkey != &authorization.subject_pubkey {
+            return Err(CredentialsError::SubjectPubkeyMismatch);
+        }
+
+        if expected_audience != authorization.audience {
+            return Err(CredentialsError::AuthorizationAudienceMismatch);
+        }
+
+        if now < authorization.issued_at {
+            return Err(CredentialsError::AuthorizationNotYetValid);
+        }
+
+        if now >= authorization.expires_at {
+            return Err(CredentialsError::AuthorizationExpired);
+        }
+
+        let expected_ref = CredentialRef {
+            issuer_id_pubkey: credential.credential.issuer_id_pubkey.clone(),
+            trust_badge_id: TrustBadgeId(credential.credential.digest()?),
+        };
+
+        if !authorization.credential_refs.contains(&expected_ref) {
+            return Err(CredentialsError::AuthorizationCredentialRefMissing);
         }
 
         Ok(())
