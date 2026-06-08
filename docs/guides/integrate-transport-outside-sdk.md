@@ -47,14 +47,14 @@ const credential = pending.finalize(issuerAuthority, response);
 
 ## Holder Authorization Transport
 
-A holder wallet can authorize an external application subject key to use
-selected credentials. The authorization is a transportable JSON object like the
+A holder wallet can authorize an external application subject key to use a
+selected credential. The authorization is a transportable JSON object like the
 other protocol objects.
 
 ```ts
 const holderAuthorization = holder.authorizeCredentialUse({
   subject_pubkey: subjectPubkey,
-  credentials: [credential],
+  credential,
   expires_at: Math.floor(Date.now() / 1000) + 3_600,
 });
 

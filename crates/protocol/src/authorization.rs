@@ -12,8 +12,7 @@ use crate::{
     canonical::canonicalize_holder_authorization,
     serde::Sha256DigestBase64UrlUnpadded,
     types::{
-        verify_identity_signature_with_key, IssuerId, ProtocolV1, SchnorrSignatureProof,
-        SignedCredential,
+        verify_identity_signature_with_key, ProtocolV1, SchnorrSignatureProof, SignedCredential,
     },
     CredentialsError,
 };
@@ -63,46 +62,50 @@ impl FromStr for SubjectPubkey {
 #[serde(transparent)]
 pub struct TrustBadgeId(#[serde_as(as = "Sha256DigestBase64UrlUnpadded")] pub Output<Sha256>);
 
-/// A credential selected for holder-authorized presentation.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct CredentialRef {
-    /// Issuer id from `SignedCredential.credential.issuer_id_pubkey`.
-    pub issuer_id_pubkey: IssuerId,
-
-    /// Credential digest, also used as the trust badge id.
-    pub trust_badge_id: TrustBadgeId,
-}
-
-/// Holder authorization scope.
+/// Unix timestamp in seconds.
 ///
-/// Present is the only defined MVP value. Scope-specific verifier policy is
-/// reserved for future protocol work; MVP verification only checks that the
-/// authorization is valid for the credential, holder, subject, and time window.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum HolderAuthorizationScope {
-    Present,
+/// Serializes as a JSON number while keeping protocol timestamp fields strongly
+/// typed in Rust.
+#[derive(
+    Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize,
+)]
+#[serde(transparent)]
+pub struct Timestamp(pub u64);
+
+impl Timestamp {
+    /// Return the timestamp as seconds since the Unix epoch.
+    pub const fn as_secs(self) -> u64 {
+        self.0
+    }
 }
 
-fn default_holder_authorization_scope() -> Vec<HolderAuthorizationScope> {
-    vec![HolderAuthorizationScope::Present]
+impl From<u64> for Timestamp {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Timestamp> for u64 {
+    fn from(value: Timestamp) -> Self {
+        value.0
+    }
 }
 
 /// Application input used by a holder context to create a signed authorization.
 ///
 /// The caller supplies the credentials being delegated. The SDK derives
-/// `holder_id_pubkey` from `HolderContext` and derives `credential_refs` from
-/// the supplied credentials using `Credential::digest()`.
+/// `holder_id_pubkey` from `HolderContext` and derives `trust_badge_id` from
+/// the supplied credential using `Credential::digest()`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HolderAuthorizationRequest {
     /// The auxiliary key or actor that the holder authorizes.
     pub subject_pubkey: SubjectPubkey,
 
-    /// Credentials this authorization grants the subject permission to present.
-    pub credentials: Vec<SignedCredential>,
+    /// Credential this authorization grants the subject permission to present.
+    pub credential: SignedCredential,
 
     /// Unix timestamp in seconds.
-    pub expires_at: u64,
+    pub expires_at: Timestamp,
 }
 
 impl HolderAuthorizationRequest {
@@ -110,25 +113,14 @@ impl HolderAuthorizationRequest {
     pub fn into_statement(
         self,
         holder_id_pubkey: HolderId,
-        issued_at: u64,
+        issued_at: Timestamp,
     ) -> Result<HolderAuthorizationStatement, CredentialsError> {
-        let credential_refs = self
-            .credentials
-            .into_iter()
-            .map(|credential| {
-                let trust_badge_id = TrustBadgeId(credential.credential.digest()?);
-                Ok(CredentialRef {
-                    issuer_id_pubkey: credential.credential.issuer_id_pubkey,
-                    trust_badge_id,
-                })
-            })
-            .collect::<Result<Vec<_>, CredentialsError>>()?;
+        let trust_badge_id = TrustBadgeId(self.credential.credential.digest()?);
 
         Ok(HolderAuthorizationStatement {
             holder_id_pubkey,
             subject_pubkey: self.subject_pubkey,
-            credential_refs,
-            scope: default_holder_authorization_scope(),
+            trust_badge_id,
             issued_at,
             expires_at: self.expires_at,
             authorization_id: String::new(),
@@ -145,20 +137,14 @@ pub struct HolderAuthorizationStatement {
     /// The auxiliary key or actor that the holder authorizes.
     pub subject_pubkey: SubjectPubkey,
 
-    /// Credentials this authorization grants the subject permission to present.
-    pub credential_refs: Vec<CredentialRef>,
-
-    /// Future-proof scope field.
-    ///
-    /// MVP code signs and preserves this field but does not implement
-    /// scope-specific verifier policy.
-    pub scope: Vec<HolderAuthorizationScope>,
+    /// Credential digest this authorization grants the subject permission to present.
+    pub trust_badge_id: TrustBadgeId,
 
     /// Unix timestamp in seconds.
-    pub issued_at: u64,
+    pub issued_at: Timestamp,
 
     /// Unix timestamp in seconds.
-    pub expires_at: u64,
+    pub expires_at: Timestamp,
 
     /// Future-proof application-chosen id.
     ///

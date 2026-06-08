@@ -49,7 +49,7 @@ verifier.verifyCredential(credential); // true
 
 Verification checks that:
 
-- The credential references a trusted issuer.
+- The credential issuer is trusted.
 - The credential proof verifies against that issuer's issuance public key.
 - The credential does not match any ingested revocation.
 
@@ -64,7 +64,7 @@ verifier.verifyCredentialAuthorization(credential, holderAuthorization); // true
 ```
 
 This checks the credential, holder authorization signature, holder binding,
-credential reference, and authorization time window. Your application still
+authorized trust badge id, and authorization time window. Your application still
 checks that the current caller controls
 `holderAuthorization.authorization.subject_pubkey` and that the credential
 schema is appropriate for the verifier's policy.

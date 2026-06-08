@@ -66,7 +66,7 @@ verifier.verifyCredential(credential); // true
 const subjectPubkey = "33".repeat(32);
 const holderAuthorizationRequest = {
   subject_pubkey: subjectPubkey,
-  credentials: [credential],
+  credential,
   expires_at: Math.floor(Date.now() / 1000) + 3_600,
 } satisfies HolderAuthorizationRequest;
 const holderAuthorization = holder.authorizeCredentialUse(
@@ -103,15 +103,15 @@ The finalized credential has this shape:
 During issuance, `credential.info` is public and `credential.blind_msg` is blinded. The holder creates an `IssuanceRequest` plus local pending state, the issuer returns an `IssuanceResponse`, and the holder finalizes that response into the credential shape above. The issuer partially blind-signs both pieces together: `blind_msg` is the hidden payload, and `info` is the visible credential data.
 
 Holder authorization lets a wallet grant an external application key permission
-to use selected credentials without sharing the holder secret key. For the
+to use a selected credential without sharing the holder secret key. For the
 current authorization verifier, the finalized credential's `blind_msg` must be
 the holder public key string used by `HolderContext.publicKey`.
 
 ```ts
 interface HolderAuthorizationRequest {
   readonly subject_pubkey: string;
-  readonly credentials: readonly SignedCredential[];
-  readonly expires_at: number;
+  readonly credential: SignedCredential;
+  readonly expires_at: Timestamp;
 }
 
 interface HolderAuthorization {
@@ -123,26 +123,20 @@ interface HolderAuthorization {
 interface HolderAuthorizationStatement {
   readonly holder_id_pubkey: string;
   readonly subject_pubkey: string;
-  readonly credential_refs: readonly CredentialRef[];
-  readonly scope: readonly HolderAuthorizationScope[];
-  readonly issued_at: number;
-  readonly expires_at: number;
+  readonly trust_badge_id: TrustBadgeId;
+  readonly issued_at: Timestamp;
+  readonly expires_at: Timestamp;
   readonly authorization_id: string;
 }
 
-interface CredentialRef {
-  readonly issuer_id_pubkey: string;
-  readonly trust_badge_id: TrustBadgeId;
-}
-
 type TrustBadgeId = string;
-type HolderAuthorizationScope = "present";
+type Timestamp = number;
 ```
 
 `HolderContext.authorizeCredentialUse` derives `holder_id_pubkey`,
-`credential_refs`, `issued_at`, `scope`, and `authorization_id`. Verifiers call
+`trust_badge_id`, `issued_at`, and `authorization_id`. Verifiers call
 `VerificationContext.verifyCredentialAuthorization` to check the credential,
-holder authorization signature, holder binding, credential reference, and time
+holder authorization signature, holder binding, authorized trust badge id, and time
 window. Applications still check that the current caller controls
 `authorization.subject_pubkey`, and they apply schema-specific policy to the
 credential.

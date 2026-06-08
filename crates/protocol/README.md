@@ -59,8 +59,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         + 3_600;
     let authorization = holder.authorize_credential_use(HolderAuthorizationRequest {
         subject_pubkey,
-        credentials: vec![credential.clone()],
-        expires_at,
+        credential: credential.clone(),
+        expires_at: expires_at.into(),
     })?;
     verifier.verify_credential_authorization(&credential, &authorization)?;
 
@@ -83,7 +83,7 @@ The high-level API is organized around runtime contexts and wire structs:
 - `VerificationContext`: trust signed issuer authorities, verify signed revocations, verify finalized credentials, and verify holder authorizations
 - `IssuerAuthority`, `IssuanceRequest`, `IssuanceResponse`, `SignedCredential`, `HolderAuthorization`, and `SignedRevocation`: serde-compatible protocol wire objects
 
-All fallible operations return `Result<_, CredentialsError>`. Important verification failures include `UnknownIssuer`, `CredentialRevoked`, `IssuerIdMismatch`, `InfoMismatch`, `HolderIdMismatch`, `AuthorizationCredentialRefMissing`, `AuthorizationNotYetValid`, `AuthorizationExpired`, and `VerificationFailed`.
+All fallible operations return `Result<_, CredentialsError>`. Important verification failures include `UnknownIssuer`, `CredentialRevoked`, `IssuerIdMismatch`, `InfoMismatch`, `HolderIdMismatch`, `AuthorizationTrustBadgeIdMissing`, `AuthorizationNotYetValid`, `AuthorizationExpired`, and `VerificationFailed`.
 
 ## Credential Flow
 

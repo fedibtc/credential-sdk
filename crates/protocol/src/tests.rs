@@ -3,7 +3,7 @@ use serde_json::json;
 use std::time::{Duration, Instant};
 
 use crate::{
-    Credential, CredentialProof, CredentialRef, HolderAuthorization, HolderAuthorizationRequest,
+    Credential, CredentialProof, HolderAuthorization, HolderAuthorizationRequest,
     HolderAuthorizationStatement, HolderContext, HolderId, IssuerAuthority, IssuerContext,
     IssuerId, IssuerSecretKeys, PendingIssuance, ProtocolV1, Revocation, RevocationLocation,
     RevocationProof, SchnorrSignatureProof, SignedCredential, SignedRevocation, SubjectPubkey,
@@ -85,8 +85,8 @@ fn holder_authorization_request(
         credential_for_authorization(IssuerId(nostr::PublicKey::from_byte_array([7u8; 32])));
     let request = HolderAuthorizationRequest {
         subject_pubkey: SubjectPubkey(subject_public_key),
-        credentials: vec![credential.clone()],
-        expires_at: 1_717_003_600,
+        credential: credential.clone(),
+        expires_at: 1_717_003_600.into(),
     };
 
     (request, credential)
@@ -149,8 +149,8 @@ fn credential_authorization_fixture() -> CredentialAuthorizationFixture {
         .authorize_credential_use_with_rng_at_time(
             HolderAuthorizationRequest {
                 subject_pubkey: subject_pubkey.clone(),
-                credentials: vec![credential.clone()],
-                expires_at,
+                credential: credential.clone(),
+                expires_at: expires_at.into(),
             },
             issued_at,
             &mut nostr_rng,
@@ -504,10 +504,7 @@ fn holder_context_authorizes_credential_use() {
     let holder = HolderContext::generate_with_rng(&mut rng);
     let subject = nostr::Keys::generate_with_rng(&mut rng);
     let (request, credential) = holder_authorization_request(subject.public_key());
-    let expected_credential_ref = CredentialRef {
-        issuer_id_pubkey: credential.credential.issuer_id_pubkey.clone(),
-        trust_badge_id: TrustBadgeId(credential.credential.digest().unwrap()),
-    };
+    let expected_trust_badge_id = TrustBadgeId(credential.credential.digest().unwrap());
 
     let authorization = holder
         .authorize_credential_use_with_rng_at_time(request, 1_717_000_000, &mut rng)
@@ -523,8 +520,8 @@ fn holder_context_authorizes_credential_use() {
         SubjectPubkey(subject.public_key())
     );
     assert_eq!(
-        authorization.authorization.credential_refs,
-        vec![expected_credential_ref]
+        authorization.authorization.trust_badge_id,
+        expected_trust_badge_id
     );
     assert_eq!(
         authorization.digest().unwrap(),
@@ -578,8 +575,8 @@ fn verification_context_rejects_invalid_credential_authorizations() {
         .authorize_credential_use_with_rng_at_time(
             HolderAuthorizationRequest {
                 subject_pubkey: fixture.authorization.authorization.subject_pubkey.clone(),
-                credentials: vec![different_credential],
-                expires_at: fixture.expires_at,
+                credential: different_credential,
+                expires_at: fixture.expires_at.into(),
             },
             fixture.issued_at,
             &mut rng,
@@ -590,16 +587,6 @@ fn verification_context_rejects_invalid_credential_authorizations() {
     let holder_mismatch_authorization = authorization_statement_signed_by_holder(
         &other_holder,
         holder_mismatch_statement,
-        &mut rng,
-    );
-    let mut issuer_mismatch_statement = fixture.authorization.authorization.clone();
-    issuer_mismatch_statement.credential_refs = vec![CredentialRef {
-        issuer_id_pubkey: IssuerId(nostr::Keys::generate_with_rng(&mut rng).public_key()),
-        trust_badge_id: TrustBadgeId(fixture.credential.credential.digest().unwrap()),
-    }];
-    let issuer_mismatch_authorization = authorization_statement_signed_by_holder(
-        &fixture.holder,
-        issuer_mismatch_statement,
         &mut rng,
     );
     let mut tampered_authorization = fixture.authorization.clone();
@@ -621,14 +608,9 @@ fn verification_context_rejects_invalid_credential_authorizations() {
             &fixture.authorization,
             fixture.issued_at - 1,
         ).unwrap_err().to_string(),
-        "missing_credential_ref": fixture.verifier.verify_credential_authorization_at_time(
+        "missing_trust_badge_id": fixture.verifier.verify_credential_authorization_at_time(
             &fixture.credential,
             &missing_ref_authorization,
-            fixture.issued_at + 1,
-        ).unwrap_err().to_string(),
-        "issuer_mismatch_ref": fixture.verifier.verify_credential_authorization_at_time(
-            &fixture.credential,
-            &issuer_mismatch_authorization,
             fixture.issued_at + 1,
         ).unwrap_err().to_string(),
         "tampered_authorization": fixture.verifier.verify_credential_authorization_at_time(
@@ -641,8 +623,7 @@ fn verification_context_rejects_invalid_credential_authorizations() {
       "expired": "authorization has expired",
       "future_issued_at": "authorization is not yet valid",
       "holder_mismatch": "holder_id does not match",
-      "issuer_mismatch_ref": "credential is not referenced by authorization",
-      "missing_credential_ref": "credential is not referenced by authorization",
+      "missing_trust_badge_id": "trust_badge_id is not authorized",
       "tampered_authorization": "verification failed"
     }
     "###);

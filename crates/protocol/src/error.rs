@@ -24,8 +24,8 @@ pub enum CredentialsError {
     UnknownIssuer,
     #[error("credential has been revoked")]
     CredentialRevoked,
-    #[error("credential is not referenced by authorization")]
-    AuthorizationCredentialRefMissing,
+    #[error("trust_badge_id is not authorized")]
+    AuthorizationTrustBadgeIdMissing,
     #[error("authorization is not yet valid")]
     AuthorizationNotYetValid,
     #[error("authorization has expired")]

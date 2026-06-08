@@ -4,8 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, holder::current_unix_timestamp,
-    CredentialRef, CredentialsError, HolderAuthorization, HolderId, IssuerAuthority, IssuerId,
-    PbrsaPublicKey, ProtocolV1, Revocation, SignedCredential, SignedRevocation, TrustBadgeId,
+    CredentialsError, HolderAuthorization, HolderId, IssuerAuthority, IssuerId, PbrsaPublicKey,
+    ProtocolV1, Revocation, SignedCredential, SignedRevocation, Timestamp, TrustBadgeId,
 };
 
 /// Stateful verifier for trusted issuers, revocations, and credentials.
@@ -97,11 +97,12 @@ impl VerificationContext {
         &self,
         credential: &SignedCredential,
         authorization: &HolderAuthorization,
-        now: u64,
+        now: impl Into<Timestamp>,
     ) -> Result<(), CredentialsError> {
         self.verify_credential(credential)?;
 
         let authorization = authorization.verify()?;
+        let now = now.into();
         let credential_holder_id = credential_holder_id(credential)?;
 
         if credential_holder_id != authorization.holder_id_pubkey {
@@ -116,13 +117,10 @@ impl VerificationContext {
             return Err(CredentialsError::AuthorizationExpired);
         }
 
-        let expected_ref = CredentialRef {
-            issuer_id_pubkey: credential.credential.issuer_id_pubkey.clone(),
-            trust_badge_id: TrustBadgeId(credential.credential.digest()?),
-        };
+        let expected_trust_badge_id = TrustBadgeId(credential.credential.digest()?);
 
-        if !authorization.credential_refs.contains(&expected_ref) {
-            return Err(CredentialsError::AuthorizationCredentialRefMissing);
+        if authorization.trust_badge_id != expected_trust_badge_id {
+            return Err(CredentialsError::AuthorizationTrustBadgeIdMissing);
         }
 
         Ok(())

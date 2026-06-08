@@ -15,7 +15,7 @@ issuer, holder, and verifier.
   signs revocations for credentials it issued.
 - **Holder**: creates an issuance request that hides `blind_msg` from the issuer
   during signing, finalizes the issuer response into a credential, and can
-  authorize external application keys to use selected credentials.
+  authorize external application keys to use a selected credential.
 - **Verifier**: trusts issuer authorities, ingests signed revocations, and verifies
   finalized credentials and holder authorizations against both.
 
@@ -29,7 +29,7 @@ issuer, holder, and verifier.
 - `SignedCredential`: finalized holder credential containing visible `info`,
   disclosed `blind_msg`, and an unblinded proof signature.
 - `HolderAuthorization`: holder-signed authorization that lets an external
-  application subject key use selected credentials until `expires_at`.
+  application subject key use a selected credential until `expires_at`.
 - `SignedRevocation`: issuer-signed credential digest used by verifiers to reject
   revoked credentials.
 

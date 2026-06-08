@@ -121,8 +121,8 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        CredentialRef, HolderAuthorizationScope, HolderAuthorizationStatement, HolderId, IssuerId,
-        ProtocolV1, SubjectPubkey, TrustBadgeId,
+        HolderAuthorizationStatement, HolderId, IssuerId, ProtocolV1, SubjectPubkey, Timestamp,
+        TrustBadgeId,
     };
 
     #[test]
@@ -151,6 +151,14 @@ mod tests {
             canonicalize_json_value(&value).unwrap(),
             br#"{"a":"Hello!","b":false,"c":120}"#
         );
+    }
+
+    #[test]
+    fn timestamp_serializes_as_json_number() {
+        assert_eq!(serde_json::to_value(Timestamp(1_000)).unwrap(), json!(1000));
+
+        let timestamp: Timestamp = serde_json::from_value(json!(2_000)).unwrap();
+        assert_eq!(timestamp, Timestamp(2_000));
     }
 
     #[test]
@@ -192,26 +200,21 @@ mod tests {
 
     #[test]
     fn holder_authorization_payload_is_jcs_canonical() {
-        let issuer_id = IssuerId(nostr::PublicKey::from_byte_array([1u8; 32]));
         let holder_id = HolderId(nostr::PublicKey::from_byte_array([4u8; 32]));
         let subject_pubkey = SubjectPubkey(nostr::PublicKey::from_byte_array([2u8; 32]));
         let authorization = HolderAuthorizationStatement {
             holder_id_pubkey: holder_id.clone(),
             subject_pubkey: subject_pubkey.clone(),
-            credential_refs: vec![CredentialRef {
-                issuer_id_pubkey: issuer_id.clone(),
-                trust_badge_id: TrustBadgeId([3u8; 32].into()),
-            }],
-            scope: vec![HolderAuthorizationScope::Present],
-            issued_at: 1000,
-            expires_at: 2000,
+            trust_badge_id: TrustBadgeId([3u8; 32].into()),
+            issued_at: Timestamp(1000),
+            expires_at: Timestamp(2000),
             authorization_id: "auth-1".to_owned(),
         };
 
         let canonicalized = canonicalize_holder_authorization(&authorization).unwrap();
         let expected = format!(
-            r#"{{"authorization":{{"authorization_id":"auth-1","credential_refs":[{{"issuer_id_pubkey":"{}","trust_badge_id":"AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"}}],"expires_at":2000,"holder_id_pubkey":"{}","issued_at":1000,"scope":["present"],"subject_pubkey":"{}"}},"type":"{}","version":1}}"#,
-            issuer_id.0, holder_id.0, subject_pubkey.0, HOLDER_AUTHORIZATION_CANONICAL_TYPE,
+            r#"{{"authorization":{{"authorization_id":"auth-1","expires_at":2000,"holder_id_pubkey":"{}","issued_at":1000,"subject_pubkey":"{}","trust_badge_id":"AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"}},"type":"{}","version":1}}"#,
+            holder_id.0, subject_pubkey.0, HOLDER_AUTHORIZATION_CANONICAL_TYPE,
         );
 
         assert_eq!(canonicalized, expected.as_bytes());

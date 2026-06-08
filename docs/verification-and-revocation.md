@@ -34,8 +34,8 @@ verifier.verifyCredentialAuthorization(credential, holderAuthorization); // true
 ```
 
 This SDK check verifies issuer trust, credential revocation state, the holder
-authorization signature, holder binding, credential reference, and authorization
-time window. The verifier application still checks subject-key
+authorization signature, holder binding, authorized trust badge id, and
+authorization time window. The verifier application still checks subject-key
 proof-of-possession and credential-schema policy.
 
 ## Revocations

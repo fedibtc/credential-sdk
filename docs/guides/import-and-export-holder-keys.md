@@ -19,7 +19,7 @@ const blindMsg = holder.publicKey;
 must remain private to the holder application.
 
 The same holder identity key signs holder authorizations when a wallet allows
-an external application key to use selected credentials. The external
+an external application key to use a selected credential. The external
 application receives the signed `HolderAuthorization`, not the holder secret
 key.
 

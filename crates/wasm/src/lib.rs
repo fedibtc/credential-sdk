@@ -57,10 +57,10 @@ export interface HolderAuthorization {
 export interface HolderAuthorizationRequest {
   /** External application's Nostr subject public key. */
   readonly subject_pubkey: string;
-  /** Credentials this authorization allows the subject to present. */
-  readonly credentials: readonly SignedCredential[];
+  /** Credential this authorization allows the subject to present. */
+  readonly credential: SignedCredential;
   /** Unix timestamp in seconds. */
-  readonly expires_at: number;
+  readonly expires_at: Timestamp;
 }
 
 /** Holder statement signed by `HolderContext.authorizeCredentialUse` and returned in `HolderAuthorization`. */
@@ -69,31 +69,21 @@ export interface HolderAuthorizationStatement {
   readonly holder_id_pubkey: string;
   /** External application's Nostr subject public key. */
   readonly subject_pubkey: string;
-  /** Credentials this authorization allows the subject to present. */
-  readonly credential_refs: readonly CredentialRef[];
-  /** Future-proof scope field; MVP code preserves it but does not interpret it. */
-  readonly scope: readonly HolderAuthorizationScope[];
+  /** Credential digest this authorization allows the subject to present. */
+  readonly trust_badge_id: TrustBadgeId;
   /** Unix timestamp in seconds. */
-  readonly issued_at: number;
+  readonly issued_at: Timestamp;
   /** Unix timestamp in seconds. */
-  readonly expires_at: number;
+  readonly expires_at: Timestamp;
   /** Future-proof application-chosen id; MVP code preserves it but does not interpret it. */
   readonly authorization_id: string;
-}
-
-/** Credential selected for holder-authorized presentation. */
-export interface CredentialRef {
-  /** Nostr public key identifying the issuer. */
-  readonly issuer_id_pubkey: string;
-  /** Unpadded URL-safe base64 encoded canonical credential digest. */
-  readonly trust_badge_id: TrustBadgeId;
 }
 
 /** Unpadded URL-safe base64 encoded canonical credential digest. */
 export type TrustBadgeId = string;
 
-/** Holder authorization scopes supported by the MVP wire format. */
-export type HolderAuthorizationScope = "present";
+/** Unix timestamp in seconds. */
+export type Timestamp = number;
 
 /** Credential payload signed by the issuer's issuance key. */
 export interface Credential {

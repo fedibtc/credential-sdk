@@ -19,7 +19,7 @@ use crate::{
     canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, verifier::verify_credential_with_key,
     Credential, CredentialProof, CredentialsError, HolderAuthorization, HolderAuthorizationRequest,
     HolderId, IssuanceRequest, IssuanceResponse, IssuerId, PbrsaPublicKey, ProtocolV1,
-    SchnorrSignatureProof, SignedCredential,
+    SchnorrSignatureProof, SignedCredential, Timestamp,
 };
 
 fn default_pbrsa_rng() -> impl TryCryptoRng<Error = Infallible> {
@@ -84,8 +84,8 @@ impl HolderContext {
 
     /// Create a signed authorization allowing an auxiliary subject key to use credentials.
     ///
-    /// The SDK derives this holder's id and credential refs from the supplied
-    /// credentials before signing the canonical authorization statement. Consent
+    /// The SDK derives this holder's id and trust badge id from the supplied
+    /// credential before signing the canonical authorization statement. Consent
     /// UI, storage, transport, and subject-key custody remain application
     /// concerns.
     pub fn authorize_credential_use(
@@ -99,11 +99,11 @@ impl HolderContext {
     pub fn authorize_credential_use_at_time(
         &self,
         request: HolderAuthorizationRequest,
-        issued_at: u64,
+        issued_at: impl Into<Timestamp>,
     ) -> Result<HolderAuthorization, CredentialsError> {
         self.authorize_credential_use_with_rng_at_time(
             request,
-            issued_at,
+            issued_at.into(),
             &mut nostr::secp256k1::rand::rngs::OsRng,
         )
     }
@@ -111,10 +111,10 @@ impl HolderContext {
     pub(crate) fn authorize_credential_use_with_rng_at_time(
         &self,
         request: HolderAuthorizationRequest,
-        issued_at: u64,
+        issued_at: impl Into<Timestamp>,
         rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
     ) -> Result<HolderAuthorization, CredentialsError> {
-        let authorization = request.into_statement(self.holder_id(), issued_at)?;
+        let authorization = request.into_statement(self.holder_id(), issued_at.into())?;
         let signature = self.sign_identity_digest_with_rng(authorization.digest()?, rng);
 
         Ok(HolderAuthorization {
@@ -278,9 +278,9 @@ fn invalid_pending_issuance_state(error: impl ToString) -> CredentialsError {
     CredentialsError::InvalidPendingIssuanceState(error.to_string())
 }
 
-pub(crate) fn current_unix_timestamp() -> Result<u64, CredentialsError> {
+pub(crate) fn current_unix_timestamp() -> Result<Timestamp, CredentialsError> {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
+        .map(|duration| Timestamp(duration.as_secs()))
         .map_err(|_| CredentialsError::VerificationFailed)
 }

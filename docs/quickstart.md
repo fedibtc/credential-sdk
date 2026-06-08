@@ -73,7 +73,7 @@ console.log(verified); // true
 const subjectPubkey = "33".repeat(32);
 const holderAuthorizationRequest = {
   subject_pubkey: subjectPubkey,
-  credentials: [credential],
+  credential,
   expires_at: Math.floor(Date.now() / 1000) + 3_600,
 } satisfies HolderAuthorizationRequest;
 const holderAuthorization = holder.authorizeCredentialUse(
@@ -81,7 +81,7 @@ const holderAuthorization = holder.authorizeCredentialUse(
 );
 
 // Verifier: check the credential, holder authorization, holder binding,
-// credential reference, and authorization time window.
+// authorized trust badge id, and authorization time window.
 const authorized = verifier.verifyCredentialAuthorization(
   credential,
   holderAuthorization,
@@ -113,9 +113,9 @@ this is usually the holder's public key, but the SDK accepts any JSON value.
 Holder authorization verification expects the common Fedi/Nostr shape where
 `credential.blind_msg` is the holder public key string.
 
-`HolderAuthorizationRequest.credentials` are the credentials the holder is
-authorizing. The SDK derives credential refs from those credentials and sets the
-authorization `issued_at`, `scope`, and `authorization_id` fields when signing.
+`HolderAuthorizationRequest.credential` is the credential the holder is
+authorizing. The SDK derives its trust badge id from that credential and sets
+the authorization `issued_at` and `authorization_id` fields when signing.
 
 ## Persisting Pending Issuance
 
