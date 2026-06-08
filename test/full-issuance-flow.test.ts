@@ -110,7 +110,6 @@ describe("full credential issuance flow", () => {
     const holderAuthorizationRequest = {
       subject_pubkey: subjectPubkey,
       credential,
-      expires_at: Math.floor(Date.now() / 1000) + 3_600,
     } satisfies HolderAuthorizationRequest;
     const issuedAtBefore = Math.floor(Date.now() / 1000);
     const holderAuthorization = holder.authorizeCredentialUse(
@@ -124,7 +123,6 @@ describe("full credential issuance flow", () => {
         holder_id_pubkey: holder.publicKey,
         subject_pubkey: subjectPubkey,
         trust_badge_id: signedRevocation.revocation.credential_digest,
-        expires_at: holderAuthorizationRequest.expires_at,
         authorization_id: "",
       },
       proof: {

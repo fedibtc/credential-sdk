@@ -103,9 +103,6 @@ pub struct HolderAuthorizationRequest {
 
     /// Credential this authorization grants the subject permission to present.
     pub credential: SignedCredential,
-
-    /// Unix timestamp in seconds.
-    pub expires_at: Timestamp,
 }
 
 impl HolderAuthorizationRequest {
@@ -122,7 +119,6 @@ impl HolderAuthorizationRequest {
             subject_pubkey: self.subject_pubkey,
             trust_badge_id,
             issued_at,
-            expires_at: self.expires_at,
             authorization_id: String::new(),
         })
     }
@@ -142,9 +138,6 @@ pub struct HolderAuthorizationStatement {
 
     /// Unix timestamp in seconds.
     pub issued_at: Timestamp,
-
-    /// Unix timestamp in seconds.
-    pub expires_at: Timestamp,
 
     /// Future-proof application-chosen id.
     ///

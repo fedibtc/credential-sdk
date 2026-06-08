@@ -32,7 +32,7 @@ Current protocol facts worth preserving:
 - Revocations are signed by issuer identity keys and refer to credential
   digests.
 - Holder authorizations are signed by holder identity keys and let external app
-  subject keys use a selected credential until expiration.
+  subject keys use a selected credential.
 - QR, Nostr relay, HTTP, browser storage, and UI concerns are application-owned.
 
 Historical or stale material:

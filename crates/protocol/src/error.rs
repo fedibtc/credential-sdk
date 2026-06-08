@@ -28,8 +28,6 @@ pub enum CredentialsError {
     AuthorizationTrustBadgeIdMissing,
     #[error("authorization is not yet valid")]
     AuthorizationNotYetValid,
-    #[error("authorization has expired")]
-    AuthorizationExpired,
     #[error("verification failed")]
     VerificationFailed,
 }

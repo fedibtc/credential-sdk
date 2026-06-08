@@ -10,8 +10,8 @@ storage, transport, QR codes, Nostr relay I/O, UI, subject authentication, and
 verifier policy live in consuming applications.
 
 Authorization revocation and SDK-owned presentation signatures are intentionally
-out of scope for the MVP. A holder authorization is valid until `expires_at`,
-assuming its referenced credential remains valid.
+out of scope for the MVP. A holder authorization remains valid while its
+referenced credential remains valid.
 
 ## Architecture Placement
 
@@ -134,7 +134,7 @@ class HolderContext {
 - [x] Match credential digest to a signed `TrustBadgeId`.
 - [x] Verify the extracted credential holder id equals
       `authorization.holder_id_pubkey`.
-- [x] Check authorization `issued_at` and `expires_at`.
+- [x] Check authorization `issued_at`.
 - [x] Leave credential schema and purpose policy to verifier applications.
 - [x] Preserve but do not interpret `authorization_id` in MVP verification.
 - [x] Leave schema interpretation, trust decisions, subject proof-of-possession,
@@ -156,8 +156,7 @@ impl VerificationContext {
 
 - [x] Add specific Rust error variants only where existing variants are too
       ambiguous.
-- [x] Cover at least wrong holder, expired authorization, future issued-at, and
-      missing trust badge id.
+- [x] Cover at least wrong holder, future issued-at, and missing trust badge id.
 - [x] Preserve current thrown-JavaScript-error behavior at the WASM boundary.
 - [x] Avoid broad result-shape changes until the existing machine-readable
       error-code TODO is addressed.
@@ -182,7 +181,6 @@ impl VerificationContext {
 - [x] Add tests that holder authorization signing derives holder id and
       the trust badge id from the high-level request.
 - [x] Add verifier rejection tests for wrong holder key.
-- [x] Add rejection tests for expired authorization.
 - [x] Add rejection tests for future `issued_at`.
 - [x] Add rejection tests when credential digest does not match any
       `TrustBadgeId`.
@@ -210,15 +208,12 @@ impl VerificationContext {
 ### Wallet Application
 
 - [ ] Let the user choose which credential an external app may use.
-- [ ] Decide authorization expiration.
 - [ ] Obtain or verify the external app's `subject_pubkey`.
 - [ ] Select the `SignedCredential` value to authorize; SDK code derives the
       `TrustBadgeId` value.
 - [ ] Show consent UI.
 - [ ] Call `HolderContext.authorizeCredentialUse`.
 - [ ] Store or deliver `HolderAuthorization`.
-- [ ] Reissue a short-lived authorization if the external app still needs
-      access after expiry.
 
 ### External Application
 

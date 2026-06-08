@@ -55,7 +55,6 @@ other protocol objects.
 const holderAuthorization = holder.authorizeCredentialUse({
   subject_pubkey: subjectPubkey,
   credential,
-  expires_at: Math.floor(Date.now() / 1000) + 3_600,
 });
 
 await sendToExternalApp(JSON.stringify(holderAuthorization));

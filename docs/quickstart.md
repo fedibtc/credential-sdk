@@ -74,14 +74,13 @@ const subjectPubkey = "33".repeat(32);
 const holderAuthorizationRequest = {
   subject_pubkey: subjectPubkey,
   credential,
-  expires_at: Math.floor(Date.now() / 1000) + 3_600,
 } satisfies HolderAuthorizationRequest;
 const holderAuthorization = holder.authorizeCredentialUse(
   holderAuthorizationRequest,
 );
 
 // Verifier: check the credential, holder authorization, holder binding,
-// authorized trust badge id, and authorization time window.
+// authorized trust badge id, and authorization issued-at time.
 const authorized = verifier.verifyCredentialAuthorization(
   credential,
   holderAuthorization,

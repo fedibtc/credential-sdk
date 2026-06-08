@@ -67,7 +67,6 @@ const subjectPubkey = "33".repeat(32);
 const holderAuthorizationRequest = {
   subject_pubkey: subjectPubkey,
   credential,
-  expires_at: Math.floor(Date.now() / 1000) + 3_600,
 } satisfies HolderAuthorizationRequest;
 const holderAuthorization = holder.authorizeCredentialUse(
   holderAuthorizationRequest,
@@ -111,7 +110,6 @@ the holder public key string used by `HolderContext.publicKey`.
 interface HolderAuthorizationRequest {
   readonly subject_pubkey: string;
   readonly credential: SignedCredential;
-  readonly expires_at: Timestamp;
 }
 
 interface HolderAuthorization {
@@ -125,7 +123,6 @@ interface HolderAuthorizationStatement {
   readonly subject_pubkey: string;
   readonly trust_badge_id: TrustBadgeId;
   readonly issued_at: Timestamp;
-  readonly expires_at: Timestamp;
   readonly authorization_id: string;
 }
 
@@ -230,7 +227,7 @@ This checklist tracks coarse reusable-library readiness rather than every intern
 - [x] Credential verification against trusted issuer authorities
 - [x] Credential digesting plus signed revocation creation and verification
 - [x] Revocation-aware credential verification
-- [x] Holder authorization verification against credential binding and expiration
+- [x] Holder authorization verification against credential binding and issued-at time
 - [x] RFC 8785/JCS canonical JSON encoding with domain-separated credential, issuer authority, revocation, and holder authorization digests/signatures
 - [x] Deterministic protocol snapshots for issuer authorities, issuance messages, credentials, revocations, holder authorizations, and verifier outcomes
 - [ ] Expose machine-readable error or verification result codes across the WASM boundary

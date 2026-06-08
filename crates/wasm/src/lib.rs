@@ -59,8 +59,6 @@ export interface HolderAuthorizationRequest {
   readonly subject_pubkey: string;
   /** Credential this authorization allows the subject to present. */
   readonly credential: SignedCredential;
-  /** Unix timestamp in seconds. */
-  readonly expires_at: Timestamp;
 }
 
 /** Holder statement signed by `HolderContext.authorizeCredentialUse` and returned in `HolderAuthorization`. */
@@ -73,8 +71,6 @@ export interface HolderAuthorizationStatement {
   readonly trust_badge_id: TrustBadgeId;
   /** Unix timestamp in seconds. */
   readonly issued_at: Timestamp;
-  /** Unix timestamp in seconds. */
-  readonly expires_at: Timestamp;
   /** Future-proof application-chosen id; MVP code preserves it but does not interpret it. */
   readonly authorization_id: string;
 }

@@ -207,13 +207,12 @@ mod tests {
             subject_pubkey: subject_pubkey.clone(),
             trust_badge_id: TrustBadgeId([3u8; 32].into()),
             issued_at: Timestamp(1000),
-            expires_at: Timestamp(2000),
             authorization_id: "auth-1".to_owned(),
         };
 
         let canonicalized = canonicalize_holder_authorization(&authorization).unwrap();
         let expected = format!(
-            r#"{{"authorization":{{"authorization_id":"auth-1","expires_at":2000,"holder_id_pubkey":"{}","issued_at":1000,"subject_pubkey":"{}","trust_badge_id":"AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"}},"type":"{}","version":1}}"#,
+            r#"{{"authorization":{{"authorization_id":"auth-1","holder_id_pubkey":"{}","issued_at":1000,"subject_pubkey":"{}","trust_badge_id":"AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"}},"type":"{}","version":1}}"#,
             holder_id.0, subject_pubkey.0, HOLDER_AUTHORIZATION_CANONICAL_TYPE,
         );
 

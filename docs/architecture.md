@@ -29,7 +29,7 @@ issuer, holder, and verifier.
 - `SignedCredential`: finalized holder credential containing visible `info`,
   disclosed `blind_msg`, and an unblinded proof signature.
 - `HolderAuthorization`: holder-signed authorization that lets an external
-  application subject key use a selected credential until `expires_at`.
+  application subject key use a selected credential.
 - `SignedRevocation`: issuer-signed credential digest used by verifiers to reject
   revoked credentials.
 

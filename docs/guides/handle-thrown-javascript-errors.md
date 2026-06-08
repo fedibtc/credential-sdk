@@ -37,7 +37,8 @@ invalid subject key or credential shape.
 `VerificationContext.verifyCredentialAuthorization()` can throw when the
 credential fails verification, the holder authorization proof fails, the
 credential's trust badge id is not authorized, the credential holder does not
-match the authorization holder, or the authorization is outside its time window.
+match the authorization holder, or the authorization `issued_at` is in the
+future.
 
 `IssuerContext.importSecretKey()` and `HolderContext.importSecretKey()` can
 throw when stored secret material is malformed.

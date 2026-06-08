@@ -48,7 +48,7 @@ sequenceDiagram
   participant V as Verifier
 
   A->>W: Share subject_pubkey
-  W->>W: Select SignedCredential and expires_at
+  W->>W: Select SignedCredential
   W->>W: Sign HolderAuthorization
   W->>A: Send HolderAuthorization
   A->>V: Present SignedCredential and HolderAuthorization
@@ -59,7 +59,7 @@ sequenceDiagram
 The SDK signs holder authorizations with the holder identity key and derives
 the trust badge id from the selected `SignedCredential`. The verifier-side SDK
 check verifies the credential, holder authorization signature, holder binding,
-authorized trust badge id, and authorization time window. Subject-key
+authorized trust badge id, and authorization issued-at time. Subject-key
 proof-of-possession, credential schema policy, storage, and transport stay in
 the application.
 

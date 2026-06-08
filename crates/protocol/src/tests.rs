@@ -86,7 +86,6 @@ fn holder_authorization_request(
     let request = HolderAuthorizationRequest {
         subject_pubkey: SubjectPubkey(subject_public_key),
         credential: credential.clone(),
-        expires_at: 1_717_003_600.into(),
     };
 
     (request, credential)
@@ -98,7 +97,6 @@ struct CredentialAuthorizationFixture {
     credential: SignedCredential,
     authorization: HolderAuthorization,
     issued_at: u64,
-    expires_at: u64,
 }
 
 fn issue_credential_for_holder(
@@ -143,14 +141,12 @@ fn credential_authorization_fixture() -> CredentialAuthorizationFixture {
     let credential =
         issue_credential_for_holder(&issuer, &issuer_authority, &holder, &mut pbrsa_rng);
     let issued_at = 1_717_000_000;
-    let expires_at = 1_717_003_600;
     let subject_pubkey = SubjectPubkey(subject.public_key());
     let authorization = holder
         .authorize_credential_use_with_rng_at_time(
             HolderAuthorizationRequest {
                 subject_pubkey: subject_pubkey.clone(),
                 credential: credential.clone(),
-                expires_at: expires_at.into(),
             },
             issued_at,
             &mut nostr_rng,
@@ -165,7 +161,6 @@ fn credential_authorization_fixture() -> CredentialAuthorizationFixture {
         credential,
         authorization,
         issued_at,
-        expires_at,
     }
 }
 
@@ -576,7 +571,6 @@ fn verification_context_rejects_invalid_credential_authorizations() {
             HolderAuthorizationRequest {
                 subject_pubkey: fixture.authorization.authorization.subject_pubkey.clone(),
                 credential: different_credential,
-                expires_at: fixture.expires_at.into(),
             },
             fixture.issued_at,
             &mut rng,
@@ -598,11 +592,6 @@ fn verification_context_rejects_invalid_credential_authorizations() {
             &holder_mismatch_authorization,
             fixture.issued_at + 1,
         ).unwrap_err().to_string(),
-        "expired": fixture.verifier.verify_credential_authorization_at_time(
-            &fixture.credential,
-            &fixture.authorization,
-            fixture.expires_at,
-        ).unwrap_err().to_string(),
         "future_issued_at": fixture.verifier.verify_credential_authorization_at_time(
             &fixture.credential,
             &fixture.authorization,
@@ -620,7 +609,6 @@ fn verification_context_rejects_invalid_credential_authorizations() {
         ).unwrap_err().to_string(),
     }), @r###"
     {
-      "expired": "authorization has expired",
       "future_issued_at": "authorization is not yet valid",
       "holder_mismatch": "holder_id does not match",
       "missing_trust_badge_id": "trust_badge_id is not authorized",

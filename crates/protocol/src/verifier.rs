@@ -77,7 +77,7 @@ impl VerificationContext {
     /// Verify a credential and a holder authorization.
     ///
     /// The SDK verifies signatures, issuer trust, credential revocation state,
-    /// credential binding, holder binding, and the authorization time window.
+    /// credential binding, holder binding, and the authorization issued-at time.
     /// Application policy still owns live proof that the caller controls
     /// `authorization.authorization.subject_pubkey`.
     pub fn verify_credential_authorization(
@@ -111,10 +111,6 @@ impl VerificationContext {
 
         if now < authorization.issued_at {
             return Err(CredentialsError::AuthorizationNotYetValid);
-        }
-
-        if now >= authorization.expires_at {
-            return Err(CredentialsError::AuthorizationExpired);
         }
 
         let expected_trust_badge_id = TrustBadgeId(credential.credential.digest()?);
