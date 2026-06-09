@@ -68,6 +68,63 @@ impl FromStr for IssuerId {
     }
 }
 
+/// Holder identifier.
+///
+/// Holder identities are Nostr public keys encoded with the SDK's existing
+/// Nostr key serialization.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct HolderId(pub nostr::PublicKey);
+
+impl FromStr for HolderId {
+    type Err = nostr::key::Error;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        nostr::PublicKey::parse(value).map(Self)
+    }
+}
+
+/// Unix timestamp in seconds.
+///
+/// Serializes as a JSON number while keeping protocol timestamp fields strongly
+/// typed in Rust.
+#[derive(
+    Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize,
+)]
+#[serde(transparent)]
+pub struct Timestamp(pub u64);
+
+impl Timestamp {
+    /// Return the timestamp as seconds since the Unix epoch.
+    pub const fn as_secs(self) -> u64 {
+        self.0
+    }
+}
+
+impl From<u64> for Timestamp {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Timestamp> for u64 {
+    fn from(value: Timestamp) -> Self {
+        value.0
+    }
+}
+
+/// SHA-256 digest of a finalized credential payload.
+#[serde_as]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct CredentialDigest(#[serde_as(as = "Sha256DigestBase64UrlUnpadded")] pub Output<Sha256>);
+
+impl From<Output<Sha256>> for CredentialDigest {
+    fn from(value: Output<Sha256>) -> Self {
+        Self(value)
+    }
+}
+
 /// JSON-friendly issuer secret export.
 #[serde_as]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -186,8 +243,7 @@ impl SignedRevocation {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Revocation {
     /// SHA-256 digest of the finalized credential.
-    #[serde_as(as = "Sha256DigestBase64UrlUnpadded")]
-    pub credential_digest: sha2::digest::Output<Sha256>,
+    pub credential_digest: CredentialDigest,
 }
 
 impl Revocation {
@@ -225,8 +281,15 @@ fn verify_identity_signature(
     signature: &Signature,
     message: Message,
 ) -> Result<(), CredentialsError> {
-    let public_key = issuer_id
-        .0
+    verify_identity_signature_with_key(&issuer_id.0, signature, message)
+}
+
+pub(crate) fn verify_identity_signature_with_key(
+    identity_public_key: &nostr::PublicKey,
+    signature: &Signature,
+    message: Message,
+) -> Result<(), CredentialsError> {
+    let public_key = identity_public_key
         .xonly()
         .map_err(|_| CredentialsError::VerificationFailed)?;
 

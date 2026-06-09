@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type {
+  HolderAuthorizationRequest,
   IssuerAuthority,
   JsonValue,
   RevocationLocation,
@@ -25,6 +26,7 @@ const revocationLocations = [
   },
 ] satisfies readonly RevocationLocation[];
 const otherIssuerId = "22".repeat(32);
+const subjectPubkey = "33".repeat(32);
 
 describe("full credential issuance flow", () => {
   it("issues, verifies, revokes, imports issuer keys, and rejects tampering", () => {
@@ -104,6 +106,47 @@ describe("full credential issuance flow", () => {
     expect(
       signedRevocation.revocation.credential_digest.length,
     ).toBeGreaterThan(0);
+
+    const holderAuthorizationRequest = {
+      subject_pubkey: subjectPubkey,
+    } satisfies HolderAuthorizationRequest;
+    const issuedAtBefore = Math.floor(Date.now() / 1000);
+    const holderAuthorization = holder.authorizeCredentialUse(
+      holderAuthorizationRequest,
+      credential,
+    );
+    const issuedAtAfter = Math.floor(Date.now() / 1000);
+
+    expect(holderAuthorization).toMatchObject({
+      version: 1,
+      authorization: {
+        holder_id_pubkey: holder.publicKey,
+        subject_pubkey: subjectPubkey,
+        credential_digest: signedRevocation.revocation.credential_digest,
+      },
+      proof: {
+        signature: expect.any(String),
+      },
+    });
+    expect(holderAuthorization.authorization.issued_at).toBeGreaterThanOrEqual(
+      issuedAtBefore,
+    );
+    expect(holderAuthorization.authorization.issued_at).toBeLessThanOrEqual(
+      issuedAtAfter,
+    );
+    expect(holderAuthorization.proof.signature.length).toBeGreaterThan(0);
+
+    const authorizationVerifier = new VerificationContext();
+    expect(
+      authorizationVerifier.addIssuerAuthority(issuerAuthority),
+    ).toBeUndefined();
+    expect(
+      authorizationVerifier.verifyCredentialAuthorization(
+        credential,
+        holderAuthorization,
+      ),
+    ).toBe(true);
+
     const revocationVerifier = new VerificationContext();
     expect(
       revocationVerifier.addIssuerAuthority(issuerAuthority),

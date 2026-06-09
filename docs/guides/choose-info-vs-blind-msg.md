@@ -46,6 +46,12 @@ const { request, pending } = PendingIssuance.createRequest(
 The issuer receives only the blinded request. The final credential discloses the
 value as `credential.credential.blind_msg`.
 
+Holder authorization verification uses the current Fedi/Nostr convention where
+`credential.credential.blind_msg` is the holder public key string. If an
+application chooses a different `blind_msg` schema, plain credential
+verification still works, but holder authorization verification will not be able
+to bind the credential to the holder key.
+
 ## Privacy Boundary
 
 Blinding protects `blind_msg` during issuance. It does not keep `blind_msg`

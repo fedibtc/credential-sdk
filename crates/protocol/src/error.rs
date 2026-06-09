@@ -14,6 +14,8 @@ pub enum CredentialsError {
     NostrKey(#[from] nostr::key::Error),
     #[error("issuer_id does not match")]
     IssuerIdMismatch,
+    #[error("holder_id does not match")]
+    HolderIdMismatch,
     #[error("issuance response info does not match")]
     InfoMismatch,
     #[error("invalid pending issuance state: {0}")]
@@ -22,6 +24,10 @@ pub enum CredentialsError {
     UnknownIssuer,
     #[error("credential has been revoked")]
     CredentialRevoked,
+    #[error("credential digest is not authorized")]
+    AuthorizationCredentialDigestMismatch,
+    #[error("authorization is not yet valid")]
+    AuthorizationNotYetValid,
     #[error("verification failed")]
     VerificationFailed,
 }

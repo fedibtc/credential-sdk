@@ -7,7 +7,10 @@
 
 use serde_json::{json, Value};
 
-use crate::{Credential, Issuer, IssuerId, ProtocolV1, Revocation};
+use crate::{
+    authorization::HolderAuthorizationStatement, Credential, Issuer, IssuerId, ProtocolV1,
+    Revocation,
+};
 
 /// Canonicalize a JSON value using RFC 8785 / JCS and return UTF-8 bytes.
 ///
@@ -33,6 +36,9 @@ pub const ISSUER_AUTHORITY_CANONICAL_TYPE: &str = "fedibtc.credentials.issuer-au
 
 /// Canonicalized payload type string for signed revocations.
 pub const REVOCATION_CANONICAL_TYPE: &str = "fedibtc.credentials.revocation";
+
+/// Canonicalized payload type string for holder authorization signatures.
+pub const HOLDER_AUTHORIZATION_CANONICAL_TYPE: &str = "fedibtc.credentials.holder-authorization";
 
 /// Build JCS canonical bytes for the PBRSA public credential info.
 ///
@@ -90,6 +96,19 @@ pub fn canonicalize_revocation(revocation: &Revocation) -> serde_json::Result<Ve
     canonicalize_json_value(&payload)
 }
 
+/// Build JCS canonical bytes for a holder authorization statement.
+pub fn canonicalize_holder_authorization(
+    authorization: &HolderAuthorizationStatement,
+) -> serde_json::Result<Vec<u8>> {
+    let payload = json!({
+        "type": HOLDER_AUTHORIZATION_CANONICAL_TYPE,
+        "version": ProtocolV1,
+        "authorization": authorization,
+    });
+
+    canonicalize_json_value(&payload)
+}
+
 /// Build JCS canonical bytes for a credential payload.
 pub fn canonicalize_credential(credential: &Credential) -> serde_json::Result<Vec<u8>> {
     let value = serde_json::to_value(credential)?;
@@ -101,7 +120,10 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    use crate::{IssuerId, ProtocolV1};
+    use crate::{
+        CredentialDigest, HolderAuthorizationStatement, HolderId, IssuerId, ProtocolV1,
+        SubjectPubkey, Timestamp,
+    };
 
     #[test]
     fn canonicalizes_object_keys_recursively() {
@@ -129,6 +151,14 @@ mod tests {
             canonicalize_json_value(&value).unwrap(),
             br#"{"a":"Hello!","b":false,"c":120}"#
         );
+    }
+
+    #[test]
+    fn timestamp_serializes_as_json_number() {
+        assert_eq!(serde_json::to_value(Timestamp(1_000)).unwrap(), json!(1000));
+
+        let timestamp: Timestamp = serde_json::from_value(json!(2_000)).unwrap();
+        assert_eq!(timestamp, Timestamp(2_000));
     }
 
     #[test]
@@ -166,5 +196,25 @@ mod tests {
             )
             .as_bytes()
         );
+    }
+
+    #[test]
+    fn holder_authorization_payload_is_jcs_canonical() {
+        let holder_id = HolderId(nostr::PublicKey::from_byte_array([4u8; 32]));
+        let subject_pubkey = SubjectPubkey(nostr::PublicKey::from_byte_array([2u8; 32]));
+        let authorization = HolderAuthorizationStatement {
+            holder_id_pubkey: holder_id.clone(),
+            subject_pubkey: subject_pubkey.clone(),
+            credential_digest: CredentialDigest([3u8; 32].into()),
+            issued_at: Timestamp(1000),
+        };
+
+        let canonicalized = canonicalize_holder_authorization(&authorization).unwrap();
+        let expected = format!(
+            r#"{{"authorization":{{"credential_digest":"AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM","holder_id_pubkey":"{}","issued_at":1000,"subject_pubkey":"{}"}},"type":"{}","version":1}}"#,
+            holder_id.0, subject_pubkey.0, HOLDER_AUTHORIZATION_CANONICAL_TYPE,
+        );
+
+        assert_eq!(canonicalized, expected.as_bytes());
     }
 }

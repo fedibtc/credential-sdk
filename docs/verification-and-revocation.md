@@ -22,6 +22,22 @@ const verifier = new VerificationContext();
 verifier.verifyCredential(credential); // throws: unknown issuer
 ```
 
+## Holder Authorizations
+
+Wallets can authorize an external application subject key to use selected
+credentials. The verifier checks the credential and holder authorization
+together.
+
+```ts
+verifier.addIssuerAuthority(issuerAuthority);
+verifier.verifyCredentialAuthorization(credential, holderAuthorization); // true
+```
+
+This SDK check verifies issuer trust, credential revocation state, the holder
+authorization signature, holder binding, authorized credential digest, and
+authorization issued-at time. The verifier application still checks subject-key
+proof-of-possession and credential-schema policy.
+
 ## Revocations
 
 Issuers revoke credentials by signing the digest of a finalized credential.

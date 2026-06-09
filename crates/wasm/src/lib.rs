@@ -46,6 +46,37 @@ export interface SignedCredential {
   readonly proof: CredentialProof;
 }
 
+/** Holder-signed authorization allowing an auxiliary subject key to use credentials. */
+export interface HolderAuthorization {
+  readonly version: 1;
+  readonly authorization: HolderAuthorizationStatement;
+  readonly proof: SchnorrSignatureProof;
+}
+
+/** Input for `HolderContext.authorizeCredentialUse`. */
+export interface HolderAuthorizationRequest {
+  /** External application's Nostr subject public key. */
+  readonly subject_pubkey: string;
+}
+
+/** Holder statement signed by `HolderContext.authorizeCredentialUse` and returned in `HolderAuthorization`. */
+export interface HolderAuthorizationStatement {
+  /** Nostr public key identifying the holder. */
+  readonly holder_id_pubkey: string;
+  /** External application's Nostr subject public key. */
+  readonly subject_pubkey: string;
+  /** Credential digest this authorization allows the subject to present. */
+  readonly credential_digest: CredentialDigest;
+  /** Unix timestamp in seconds. */
+  readonly issued_at: Timestamp;
+}
+
+/** Unpadded URL-safe base64 encoded canonical credential digest. */
+export type CredentialDigest = string;
+
+/** Unix timestamp in seconds. */
+export type Timestamp = number;
+
 /** Credential payload signed by the issuer's issuance key. */
 export interface Credential {
   /** Nostr public key identifying the issuer. */
@@ -102,7 +133,7 @@ export interface RevocationProof {
 /** Revocation payload signed by an issuer identity key. */
 export interface Revocation {
   /** Unpadded URL-safe base64 encoded SHA-256 digest. */
-  readonly credential_digest: string;
+  readonly credential_digest: CredentialDigest;
 }
 
 /** Application-owned location where issuer revocations may be published. */
@@ -130,6 +161,15 @@ fn to_js<T: Serialize>(value: &T) -> Result<JsValue, JsError> {
     value
         .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
         .map_err(|error| JsError::new(&error.to_string()))
+}
+
+fn current_unix_timestamp() -> Result<u64, JsError> {
+    let seconds = (js_sys::Date::now() / 1000.0).floor();
+    if !seconds.is_finite() || seconds < 0.0 {
+        return Err(JsError::new("current time must be non-negative"));
+    }
+
+    Ok(seconds as u64)
 }
 
 fn reflect_error(error: JsValue) -> JsError {
@@ -268,6 +308,22 @@ impl HolderContext {
     pub fn public_key(&self) -> String {
         self.inner.public_key().to_string()
     }
+
+    /// Create a signed holder authorization for an auxiliary subject key and selected credential.
+    #[wasm_bindgen(js_name = authorizeCredentialUse, unchecked_return_type = "HolderAuthorization")]
+    pub fn authorize_credential_use(
+        &self,
+        #[wasm_bindgen(unchecked_param_type = "HolderAuthorizationRequest")] request: JsValue,
+        #[wasm_bindgen(unchecked_param_type = "SignedCredential")] credential: JsValue,
+    ) -> Result<JsValue, JsError> {
+        let request: protocol::HolderAuthorizationRequest = from_js(request)?;
+        let credential: protocol::SignedCredential = from_js(credential)?;
+        to_js(&self.inner.authorize_credential_use_at_time(
+            request,
+            &credential,
+            current_unix_timestamp()?,
+        )?)
+    }
 }
 
 #[wasm_bindgen]
@@ -385,6 +441,24 @@ impl VerificationContext {
     ) -> Result<bool, JsError> {
         let credential: protocol::SignedCredential = from_js(credential)?;
         self.inner.verify_credential(&credential)?;
+        Ok(true)
+    }
+
+    /// Verify a credential and holder authorization.
+    #[wasm_bindgen(js_name = verifyCredentialAuthorization)]
+    pub fn verify_credential_authorization(
+        &self,
+        #[wasm_bindgen(unchecked_param_type = "SignedCredential")] credential: JsValue,
+        #[wasm_bindgen(unchecked_param_type = "HolderAuthorization")] authorization: JsValue,
+    ) -> Result<bool, JsError> {
+        let credential: protocol::SignedCredential = from_js(credential)?;
+        let authorization: protocol::HolderAuthorization = from_js(authorization)?;
+
+        self.inner.verify_credential_authorization_at_time(
+            &credential,
+            &authorization,
+            current_unix_timestamp()?,
+        )?;
         Ok(true)
     }
 }

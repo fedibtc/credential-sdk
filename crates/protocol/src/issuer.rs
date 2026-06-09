@@ -274,7 +274,7 @@ impl IssuerContext {
         }
 
         let revocation = Revocation {
-            credential_digest: credential.credential.digest()?,
+            credential_digest: crate::CredentialDigest(credential.credential.digest()?),
         };
 
         let signature = self.sign_identity_digest_with_rng(revocation.digest()?, rng);

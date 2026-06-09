@@ -2,9 +2,9 @@
 
 WebAssembly bindings for a partially blind RSA verifiable credential protocol.
 
-The library is intended to own the protocol-sensitive pieces of credential issuance and verification: holder blinding, issuer partial blind signing, holder finalization, runtime validation, and the WASM/TypeScript API surface around those operations.
+The library is intended to own the protocol-sensitive pieces of credential issuance and verification: holder blinding, issuer partial blind signing, holder finalization, holder authorization signing, runtime validation, and the WASM/TypeScript API surface around those operations.
 
-It deliberately does not own app concerns such as browser storage, QR codes, Nostr relay I/O, HTTP fetching, UI state, verifier policy, or revocation list refresh jobs.
+It deliberately does not own app concerns such as browser storage, QR codes, Nostr relay I/O, HTTP fetching, UI state, subject-key custody, verifier policy, or revocation list refresh jobs.
 
 The generated npm package is `@fedibtc/fedi-credential-sdk-wasm`. In this repository, tests import from the generated `pkg/fedi_credential_sdk_wasm.js` file after `pnpm run build`.
 
@@ -13,7 +13,11 @@ The generated npm package is `@fedibtc/fedi-credential-sdk-wasm`. In this reposi
 The protocol separates issuer-visible credential information from the holder-hidden message that is blinded during issuance. For the current Fedi/Nostr use case, the hidden message is usually the holder's public key, but protocol methods accept any JSON value.
 
 ```ts
-import type { JsonValue, RevocationLocation } from "@fedibtc/fedi-credential-sdk-wasm";
+import type {
+  HolderAuthorizationRequest,
+  JsonValue,
+  RevocationLocation,
+} from "@fedibtc/fedi-credential-sdk-wasm";
 import {
   HolderContext,
   IssuerContext,
@@ -57,6 +61,19 @@ const verifier = new VerificationContext();
 verifier.addIssuerAuthority(issuerAuthority);
 verifier.verifyCredential(credential); // true
 
+// Holder can authorize an external app key to use a selected credential.
+// Subject-key generation, storage, and live authentication are app-owned.
+const subjectPubkey = "33".repeat(32);
+const holderAuthorizationRequest = {
+  subject_pubkey: subjectPubkey,
+} satisfies HolderAuthorizationRequest;
+const holderAuthorization = holder.authorizeCredentialUse(
+  holderAuthorizationRequest,
+  credential,
+);
+
+verifier.verifyCredentialAuthorization(credential, holderAuthorization); // true
+
 // Issuer can revoke a finalized credential. Transport/publication is app-owned.
 const signedRevocation = issuer.revokeCredential(credential);
 verifier.addRevocation(signedRevocation);
@@ -84,6 +101,41 @@ The finalized credential has this shape:
 
 During issuance, `credential.info` is public and `credential.blind_msg` is blinded. The holder creates an `IssuanceRequest` plus local pending state, the issuer returns an `IssuanceResponse`, and the holder finalizes that response into the credential shape above. The issuer partially blind-signs both pieces together: `blind_msg` is the hidden payload, and `info` is the visible credential data.
 
+Holder authorization lets a wallet grant an external application key permission
+to use a selected credential without sharing the holder secret key. For the
+current authorization verifier, the finalized credential's `blind_msg` must be
+the holder public key string used by `HolderContext.publicKey`.
+
+```ts
+interface HolderAuthorizationRequest {
+  readonly subject_pubkey: string;
+}
+
+interface HolderAuthorization {
+  readonly version: 1;
+  readonly authorization: HolderAuthorizationStatement;
+  readonly proof: SchnorrSignatureProof;
+}
+
+interface HolderAuthorizationStatement {
+  readonly holder_id_pubkey: string;
+  readonly subject_pubkey: string;
+  readonly credential_digest: CredentialDigest;
+  readonly issued_at: Timestamp;
+}
+
+type CredentialDigest = string;
+type Timestamp = number;
+```
+
+`HolderContext.authorizeCredentialUse` derives `holder_id_pubkey`,
+`credential_digest` and `issued_at`. Verifiers call
+`VerificationContext.verifyCredentialAuthorization` to check the credential,
+holder authorization signature, holder binding, authorized credential digest,
+and issued-at time. Applications still check that the current caller controls
+`authorization.subject_pubkey`, and they apply schema-specific policy to the
+credential.
+
 `PendingIssuance` can be exported as a versioned string and imported again after a browser reload:
 
 ```ts
@@ -107,10 +159,10 @@ The current high-level API is organized around runtime contexts:
 
 - `IssuerContext`: generate/import/export issuer keys, create signed issuer authorities, issue credentials, and create signed revocations
 - `PendingIssuance`: create holder issuance requests and finalize issuer responses
-- `HolderContext`: generate/import/export holder identity keys
-- `VerificationContext`: trust issuer authorities, ingest revocations, and verify credentials
+- `HolderContext`: generate/import/export holder identity keys and authorize external app keys to use credentials
+- `VerificationContext`: trust issuer authorities, ingest revocations, verify credentials, and verify holder authorizations
 
-All validation failures cross the WASM boundary as thrown JavaScript errors. `VerificationContext.verifyCredential` returns `true` when the credential is trusted, correctly signed, and not revoked.
+All validation failures cross the WASM boundary as thrown JavaScript errors. `VerificationContext.verifyCredential` and `VerificationContext.verifyCredentialAuthorization` return `true` when their checks pass.
 
 The main methods are:
 
@@ -129,6 +181,10 @@ class HolderContext {
   static importSecretKey(secretKey: string): HolderContext;
   exportSecretKey(): string;
   readonly publicKey: string;
+  authorizeCredentialUse(
+    request: HolderAuthorizationRequest,
+    credential: SignedCredential,
+  ): HolderAuthorization;
 }
 
 class PendingIssuance {
@@ -149,6 +205,10 @@ class VerificationContext {
   addIssuerAuthority(issuerAuthority: IssuerAuthority): void;
   addRevocation(revocation: SignedRevocation): void;
   verifyCredential(credential: SignedCredential): boolean;
+  verifyCredentialAuthorization(
+    credential: SignedCredential,
+    authorization: HolderAuthorization,
+  ): boolean;
 }
 ```
 
@@ -162,11 +222,13 @@ This checklist tracks coarse reusable-library readiness rather than every intern
 - [x] Holder issuance request flow with retained pending unblinding state
 - [x] Issuer issuance response flow with partially blind signing over hidden `blind_msg` plus visible `credential.info`
 - [x] Holder finalization into a verifiable credential with an unblinded signature
+- [x] Holder authorization signing for external app credential use
 - [x] Credential verification against trusted issuer authorities
 - [x] Credential digesting plus signed revocation creation and verification
 - [x] Revocation-aware credential verification
-- [x] RFC 8785/JCS canonical JSON encoding with domain-separated credential, issuer authority, and revocation digests/signatures
-- [x] Deterministic protocol snapshots for issuer authorities, issuance messages, credentials, revocations, and verifier outcomes
+- [x] Holder authorization verification against credential binding and issued-at time
+- [x] RFC 8785/JCS canonical JSON encoding with domain-separated credential, issuer authority, revocation, and holder authorization digests/signatures
+- [x] Deterministic protocol snapshots for issuer authorities, issuance messages, credentials, revocations, holder authorizations, and verifier outcomes
 - [ ] Expose machine-readable error or verification result codes across the WASM boundary
 - [ ] Complete a security review of the pbRSA suite, domain separation, randomness, key handling, replay risk, and malformed input behavior
 

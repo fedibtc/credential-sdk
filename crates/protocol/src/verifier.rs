@@ -3,8 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, CredentialsError, IssuerAuthority,
-    IssuerId, PbrsaPublicKey, ProtocolV1, Revocation, SignedCredential, SignedRevocation,
+    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, holder::current_unix_timestamp,
+    CredentialDigest, CredentialsError, HolderAuthorization, HolderId, IssuerAuthority, IssuerId,
+    PbrsaPublicKey, ProtocolV1, Revocation, SignedCredential, SignedRevocation, Timestamp,
 };
 
 /// Stateful verifier for trusted issuers, revocations, and credentials.
@@ -60,7 +61,7 @@ impl VerificationContext {
         verify_credential_with_key(issuer_public_key, credential)?;
 
         let revocation = Revocation {
-            credential_digest: credential.credential.digest()?,
+            credential_digest: CredentialDigest(credential.credential.digest()?),
         };
 
         if self
@@ -72,6 +73,66 @@ impl VerificationContext {
 
         Ok(())
     }
+
+    /// Verify a credential and a holder authorization.
+    ///
+    /// The SDK verifies signatures, issuer trust, credential revocation state,
+    /// credential binding, holder binding, and the authorization issued-at time.
+    /// Application policy still owns live proof that the caller controls
+    /// `authorization.authorization.subject_pubkey`.
+    pub fn verify_credential_authorization(
+        &self,
+        credential: &SignedCredential,
+        authorization: &HolderAuthorization,
+    ) -> Result<(), CredentialsError> {
+        self.verify_credential_authorization_at_time(
+            credential,
+            authorization,
+            current_unix_timestamp()?,
+        )
+    }
+
+    /// Verify a credential and holder authorization using an explicit timestamp.
+    pub fn verify_credential_authorization_at_time(
+        &self,
+        credential: &SignedCredential,
+        authorization: &HolderAuthorization,
+        now: impl Into<Timestamp>,
+    ) -> Result<(), CredentialsError> {
+        self.verify_credential(credential)?;
+
+        let authorization = authorization.verify()?;
+        let now = now.into();
+        let credential_holder_id = credential_holder_id(credential)?;
+
+        if credential_holder_id != authorization.holder_id_pubkey {
+            return Err(CredentialsError::HolderIdMismatch);
+        }
+
+        if now < authorization.issued_at {
+            return Err(CredentialsError::AuthorizationNotYetValid);
+        }
+
+        let expected_credential_digest = CredentialDigest(credential.credential.digest()?);
+
+        if authorization.credential_digest != expected_credential_digest {
+            return Err(CredentialsError::AuthorizationCredentialDigestMismatch);
+        }
+
+        Ok(())
+    }
+}
+
+pub(crate) fn credential_holder_id(
+    credential: &SignedCredential,
+) -> Result<HolderId, CredentialsError> {
+    let Some(holder_id) = credential.credential.blind_msg.as_str() else {
+        return Err(CredentialsError::VerificationFailed);
+    };
+
+    holder_id
+        .parse::<HolderId>()
+        .map_err(|_| CredentialsError::VerificationFailed)
 }
 
 pub(crate) fn verify_credential_with_key(

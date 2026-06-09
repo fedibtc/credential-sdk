@@ -4,6 +4,7 @@
 //! protocol. Credential `info` and `blind_msg` fields are arbitrary JSON values;
 //! callers decide what schema, holder identifiers, and claims mean.
 
+pub mod authorization;
 pub mod canonical;
 pub mod error;
 pub mod holder;
@@ -12,6 +13,7 @@ mod serde;
 pub mod types;
 pub mod verifier;
 
+pub use authorization::*;
 pub use canonical::*;
 pub use error::*;
 pub use holder::*;

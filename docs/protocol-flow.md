@@ -39,6 +39,30 @@ sequenceDiagram
   V->>V: Check ingested revocations
 ```
 
+## Holder Authorization
+
+```mermaid
+sequenceDiagram
+  participant W as Holder Wallet
+  participant A as External App
+  participant V as Verifier
+
+  A->>W: Share subject_pubkey
+  W->>W: Select SignedCredential
+  W->>W: Sign HolderAuthorization
+  W->>A: Send HolderAuthorization
+  A->>V: Present SignedCredential and HolderAuthorization
+  V->>V: Verify credential and holder authorization
+  V->>V: Apply subject_pubkey and credential policy
+```
+
+The SDK signs holder authorizations with the holder identity key and derives
+the credential digest from the selected `SignedCredential`. The verifier-side SDK
+check verifies the credential, holder authorization signature, holder binding,
+authorized credential digest, and authorization issued-at time. Subject-key
+proof-of-possession, credential schema policy, storage, and transport stay in
+the application.
+
 ## Revocation
 
 ```mermaid
