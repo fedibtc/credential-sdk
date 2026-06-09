@@ -109,11 +109,11 @@ describe("full credential issuance flow", () => {
 
     const holderAuthorizationRequest = {
       subject_pubkey: subjectPubkey,
-      credential,
     } satisfies HolderAuthorizationRequest;
     const issuedAtBefore = Math.floor(Date.now() / 1000);
     const holderAuthorization = holder.authorizeCredentialUse(
       holderAuthorizationRequest,
+      credential,
     );
     const issuedAtAfter = Math.floor(Date.now() / 1000);
 
@@ -122,8 +122,7 @@ describe("full credential issuance flow", () => {
       authorization: {
         holder_id_pubkey: holder.publicKey,
         subject_pubkey: subjectPubkey,
-        trust_badge_id: signedRevocation.revocation.credential_digest,
-        authorization_id: "",
+        credential_digest: signedRevocation.revocation.credential_digest,
       },
       proof: {
         signature: expect.any(String),

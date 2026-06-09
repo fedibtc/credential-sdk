@@ -66,10 +66,10 @@ verifier.verifyCredential(credential); // true
 const subjectPubkey = "33".repeat(32);
 const holderAuthorizationRequest = {
   subject_pubkey: subjectPubkey,
-  credential,
 } satisfies HolderAuthorizationRequest;
 const holderAuthorization = holder.authorizeCredentialUse(
   holderAuthorizationRequest,
+  credential,
 );
 
 verifier.verifyCredentialAuthorization(credential, holderAuthorization); // true
@@ -109,7 +109,6 @@ the holder public key string used by `HolderContext.publicKey`.
 ```ts
 interface HolderAuthorizationRequest {
   readonly subject_pubkey: string;
-  readonly credential: SignedCredential;
 }
 
 interface HolderAuthorization {
@@ -121,20 +120,19 @@ interface HolderAuthorization {
 interface HolderAuthorizationStatement {
   readonly holder_id_pubkey: string;
   readonly subject_pubkey: string;
-  readonly trust_badge_id: TrustBadgeId;
+  readonly credential_digest: CredentialDigest;
   readonly issued_at: Timestamp;
-  readonly authorization_id: string;
 }
 
-type TrustBadgeId = string;
+type CredentialDigest = string;
 type Timestamp = number;
 ```
 
 `HolderContext.authorizeCredentialUse` derives `holder_id_pubkey`,
-`trust_badge_id`, `issued_at`, and `authorization_id`. Verifiers call
+`credential_digest` and `issued_at`. Verifiers call
 `VerificationContext.verifyCredentialAuthorization` to check the credential,
-holder authorization signature, holder binding, authorized trust badge id, and time
-window. Applications still check that the current caller controls
+holder authorization signature, holder binding, authorized credential digest,
+and issued-at time. Applications still check that the current caller controls
 `authorization.subject_pubkey`, and they apply schema-specific policy to the
 credential.
 
@@ -185,6 +183,7 @@ class HolderContext {
   readonly publicKey: string;
   authorizeCredentialUse(
     request: HolderAuthorizationRequest,
+    credential: SignedCredential,
   ): HolderAuthorization;
 }
 

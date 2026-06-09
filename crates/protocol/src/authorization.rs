@@ -4,15 +4,14 @@
 //! subject key to present holder credentials without sharing the holder key.
 
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use sha2::{digest::Output, Digest, Sha256};
 use std::str::FromStr;
 
 use crate::{
     canonical::canonicalize_holder_authorization,
-    serde::Sha256DigestBase64UrlUnpadded,
     types::{
-        verify_identity_signature_with_key, ProtocolV1, SchnorrSignatureProof, SignedCredential,
+        verify_identity_signature_with_key, CredentialDigest, HolderId, ProtocolV1,
+        SchnorrSignatureProof, SignedCredential, Timestamp,
     },
     CredentialsError,
 };
@@ -20,22 +19,6 @@ use crate::{
 /// Domain separator for holder authorization identity signatures.
 pub const HOLDER_AUTHORIZATION_SIGNATURE_DOMAIN_SEPARATOR: &[u8] =
     b"fedi-credential/holder-authorization-signature/v1\0";
-
-/// Public identity of a credential holder.
-///
-/// This intentionally mirrors `IssuerId`: holder identities are Nostr public
-/// keys encoded with the SDK's existing Nostr key serialization.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct HolderId(pub nostr::PublicKey);
-
-impl FromStr for HolderId {
-    type Err = nostr::key::Error;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        nostr::PublicKey::parse(value).map(Self)
-    }
-}
 
 /// Public identity of the auxiliary key or actor authorized by the holder.
 ///
@@ -52,57 +35,14 @@ impl FromStr for SubjectPubkey {
     }
 }
 
-/// Stable identifier for the credential or trust badge being delegated.
+/// Request for a holder authorization.
 ///
-/// This is the same canonical credential digest form already used by
-/// `Revocation.credential_digest`: `Credential::digest()` over canonical
-/// `Credential`, encoded as unpadded URL-safe base64 on the JSON wire.
-#[serde_as]
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct TrustBadgeId(#[serde_as(as = "Sha256DigestBase64UrlUnpadded")] pub Output<Sha256>);
-
-/// Unix timestamp in seconds.
-///
-/// Serializes as a JSON number while keeping protocol timestamp fields strongly
-/// typed in Rust.
-#[derive(
-    Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize,
-)]
-#[serde(transparent)]
-pub struct Timestamp(pub u64);
-
-impl Timestamp {
-    /// Return the timestamp as seconds since the Unix epoch.
-    pub const fn as_secs(self) -> u64 {
-        self.0
-    }
-}
-
-impl From<u64> for Timestamp {
-    fn from(value: u64) -> Self {
-        Self(value)
-    }
-}
-
-impl From<Timestamp> for u64 {
-    fn from(value: Timestamp) -> Self {
-        value.0
-    }
-}
-
-/// Application input used by a holder context to create a signed authorization.
-///
-/// The caller supplies the credentials being delegated. The SDK derives
-/// `holder_id_pubkey` from `HolderContext` and derives `trust_badge_id` from
-/// the supplied credential using `Credential::digest()`.
+/// An auxiliary subject key asks to act under the holder's identity. The holder
+/// chooses which credential to authorize separately when signing.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HolderAuthorizationRequest {
     /// The auxiliary key or actor that the holder authorizes.
     pub subject_pubkey: SubjectPubkey,
-
-    /// Credential this authorization grants the subject permission to present.
-    pub credential: SignedCredential,
 }
 
 impl HolderAuthorizationRequest {
@@ -111,15 +51,15 @@ impl HolderAuthorizationRequest {
         self,
         holder_id_pubkey: HolderId,
         issued_at: Timestamp,
+        credential: &SignedCredential,
     ) -> Result<HolderAuthorizationStatement, CredentialsError> {
-        let trust_badge_id = TrustBadgeId(self.credential.credential.digest()?);
+        let credential_digest = CredentialDigest(credential.credential.digest()?);
 
         Ok(HolderAuthorizationStatement {
             holder_id_pubkey,
             subject_pubkey: self.subject_pubkey,
-            trust_badge_id,
+            credential_digest,
             issued_at,
-            authorization_id: String::new(),
         })
     }
 }
@@ -134,16 +74,10 @@ pub struct HolderAuthorizationStatement {
     pub subject_pubkey: SubjectPubkey,
 
     /// Credential digest this authorization grants the subject permission to present.
-    pub trust_badge_id: TrustBadgeId,
+    pub credential_digest: CredentialDigest,
 
     /// Unix timestamp in seconds.
     pub issued_at: Timestamp,
-
-    /// Future-proof application-chosen id.
-    ///
-    /// MVP code signs and preserves this field, but does not use it for
-    /// replacement, replay tracking, or revocation.
-    pub authorization_id: String,
 }
 
 impl HolderAuthorizationStatement {

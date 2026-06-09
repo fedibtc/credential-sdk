@@ -52,10 +52,12 @@ selected credential. The authorization is a transportable JSON object like the
 other protocol objects.
 
 ```ts
-const holderAuthorization = holder.authorizeCredentialUse({
-  subject_pubkey: subjectPubkey,
+const holderAuthorization = holder.authorizeCredentialUse(
+  {
+    subject_pubkey: subjectPubkey,
+  },
   credential,
-});
+);
 
 await sendToExternalApp(JSON.stringify(holderAuthorization));
 ```

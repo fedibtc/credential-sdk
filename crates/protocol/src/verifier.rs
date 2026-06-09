@@ -4,8 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, holder::current_unix_timestamp,
-    CredentialsError, HolderAuthorization, HolderId, IssuerAuthority, IssuerId, PbrsaPublicKey,
-    ProtocolV1, Revocation, SignedCredential, SignedRevocation, Timestamp, TrustBadgeId,
+    CredentialDigest, CredentialsError, HolderAuthorization, HolderId, IssuerAuthority, IssuerId,
+    PbrsaPublicKey, ProtocolV1, Revocation, SignedCredential, SignedRevocation, Timestamp,
 };
 
 /// Stateful verifier for trusted issuers, revocations, and credentials.
@@ -61,7 +61,7 @@ impl VerificationContext {
         verify_credential_with_key(issuer_public_key, credential)?;
 
         let revocation = Revocation {
-            credential_digest: credential.credential.digest()?,
+            credential_digest: CredentialDigest(credential.credential.digest()?),
         };
 
         if self
@@ -113,17 +113,19 @@ impl VerificationContext {
             return Err(CredentialsError::AuthorizationNotYetValid);
         }
 
-        let expected_trust_badge_id = TrustBadgeId(credential.credential.digest()?);
+        let expected_credential_digest = CredentialDigest(credential.credential.digest()?);
 
-        if authorization.trust_badge_id != expected_trust_badge_id {
-            return Err(CredentialsError::AuthorizationTrustBadgeIdMissing);
+        if authorization.credential_digest != expected_credential_digest {
+            return Err(CredentialsError::AuthorizationCredentialDigestMismatch);
         }
 
         Ok(())
     }
 }
 
-fn credential_holder_id(credential: &SignedCredential) -> Result<HolderId, CredentialsError> {
+pub(crate) fn credential_holder_id(
+    credential: &SignedCredential,
+) -> Result<HolderId, CredentialsError> {
     let Some(holder_id) = credential.credential.blind_msg.as_str() else {
         return Err(CredentialsError::VerificationFailed);
     };

@@ -3,11 +3,11 @@ use serde_json::json;
 use std::time::{Duration, Instant};
 
 use crate::{
-    Credential, CredentialProof, HolderAuthorization, HolderAuthorizationRequest,
+    Credential, CredentialDigest, CredentialProof, HolderAuthorization, HolderAuthorizationRequest,
     HolderAuthorizationStatement, HolderContext, HolderId, IssuerAuthority, IssuerContext,
     IssuerId, IssuerSecretKeys, PendingIssuance, ProtocolV1, Revocation, RevocationLocation,
     RevocationProof, SchnorrSignatureProof, SignedCredential, SignedRevocation, SubjectPubkey,
-    TrustBadgeId, VerificationContext,
+    VerificationContext,
 };
 
 const TEST_RNG_SEED: u64 = 0x5eed_f00d_cafe_babe;
@@ -43,7 +43,7 @@ fn revocation_signed_by(
     let secret_keys = issuer.export_secret_key().unwrap();
     let identity_keys = nostr::Keys::parse(&secret_keys.issuer_id_secret_key).unwrap();
     let revocation = Revocation {
-        credential_digest: credential.credential.digest().unwrap(),
+        credential_digest: crate::CredentialDigest(credential.credential.digest().unwrap()),
     };
     let signature = identity_keys.sign_schnorr_with_ctx(
         nostr::SECP256K1,
@@ -61,7 +61,10 @@ fn revocation_signed_by(
     }
 }
 
-fn credential_for_authorization(issuer_id_pubkey: IssuerId) -> SignedCredential {
+fn credential_for_authorization(
+    issuer_id_pubkey: IssuerId,
+    holder_public_key: nostr::PublicKey,
+) -> SignedCredential {
     SignedCredential {
         version: ProtocolV1,
         credential: Credential {
@@ -70,7 +73,7 @@ fn credential_for_authorization(issuer_id_pubkey: IssuerId) -> SignedCredential 
                 "schema": "fedi-trust-score-v1.0",
                 "trust_level": 7,
             }),
-            blind_msg: json!("holder-public-key"),
+            blind_msg: json!(holder_public_key),
         },
         proof: CredentialProof {
             signature: PbrsaSignature(vec![1, 2, 3, 4]),
@@ -80,12 +83,14 @@ fn credential_for_authorization(issuer_id_pubkey: IssuerId) -> SignedCredential 
 
 fn holder_authorization_request(
     subject_public_key: nostr::PublicKey,
+    holder_public_key: nostr::PublicKey,
 ) -> (HolderAuthorizationRequest, SignedCredential) {
-    let credential =
-        credential_for_authorization(IssuerId(nostr::PublicKey::from_byte_array([7u8; 32])));
+    let credential = credential_for_authorization(
+        IssuerId(nostr::PublicKey::from_byte_array([7u8; 32])),
+        holder_public_key,
+    );
     let request = HolderAuthorizationRequest {
         subject_pubkey: SubjectPubkey(subject_public_key),
-        credential: credential.clone(),
     };
 
     (request, credential)
@@ -146,8 +151,8 @@ fn credential_authorization_fixture() -> CredentialAuthorizationFixture {
         .authorize_credential_use_with_rng_at_time(
             HolderAuthorizationRequest {
                 subject_pubkey: subject_pubkey.clone(),
-                credential: credential.clone(),
             },
+            &credential,
             issued_at,
             &mut nostr_rng,
         )
@@ -498,11 +503,12 @@ fn holder_context_authorizes_credential_use() {
     let mut rng = <NostrRng as nostr::secp256k1::rand::SeedableRng>::seed_from_u64(TEST_RNG_SEED);
     let holder = HolderContext::generate_with_rng(&mut rng);
     let subject = nostr::Keys::generate_with_rng(&mut rng);
-    let (request, credential) = holder_authorization_request(subject.public_key());
-    let expected_trust_badge_id = TrustBadgeId(credential.credential.digest().unwrap());
+    let (request, credential) =
+        holder_authorization_request(subject.public_key(), holder.public_key());
+    let expected_credential_digest = CredentialDigest(credential.credential.digest().unwrap());
 
     let authorization = holder
-        .authorize_credential_use_with_rng_at_time(request, 1_717_000_000, &mut rng)
+        .authorize_credential_use_with_rng_at_time(request, &credential, 1_717_000_000, &mut rng)
         .unwrap();
 
     assert_eq!(authorization.version, ProtocolV1);
@@ -515,8 +521,8 @@ fn holder_context_authorizes_credential_use() {
         SubjectPubkey(subject.public_key())
     );
     assert_eq!(
-        authorization.authorization.trust_badge_id,
-        expected_trust_badge_id
+        authorization.authorization.credential_digest,
+        expected_credential_digest
     );
     assert_eq!(
         authorization.digest().unwrap(),
@@ -562,16 +568,21 @@ fn verification_context_rejects_invalid_credential_authorizations() {
     let mut rng =
         <NostrRng as nostr::secp256k1::rand::SeedableRng>::seed_from_u64(TEST_RNG_SEED + 1);
     let other_holder = HolderContext::generate_with_rng(&mut rng);
-    let different_credential = credential_for_authorization(IssuerId(
-        nostr::Keys::generate_with_rng(&mut rng).public_key(),
-    ));
+    let different_credential = credential_for_authorization(
+        IssuerId(nostr::Keys::generate_with_rng(&mut rng).public_key()),
+        fixture.holder.public_key(),
+    );
+    let other_holder_credential = credential_for_authorization(
+        fixture.credential.credential.issuer_id_pubkey.clone(),
+        other_holder.public_key(),
+    );
     let missing_ref_authorization = fixture
         .holder
         .authorize_credential_use_with_rng_at_time(
             HolderAuthorizationRequest {
                 subject_pubkey: fixture.authorization.authorization.subject_pubkey.clone(),
-                credential: different_credential,
             },
+            &different_credential,
             fixture.issued_at,
             &mut rng,
         )
@@ -584,9 +595,17 @@ fn verification_context_rejects_invalid_credential_authorizations() {
         &mut rng,
     );
     let mut tampered_authorization = fixture.authorization.clone();
-    tampered_authorization.authorization.authorization_id = "tampered".to_owned();
+    tampered_authorization.authorization.issued_at = crate::Timestamp(fixture.issued_at + 2);
 
     insta::assert_json_snapshot!(json!({
+        "signing_holder_mismatch": fixture.holder.authorize_credential_use_with_rng_at_time(
+            HolderAuthorizationRequest {
+                subject_pubkey: fixture.authorization.authorization.subject_pubkey.clone(),
+            },
+            &other_holder_credential,
+            fixture.issued_at,
+            &mut rng,
+        ).unwrap_err().to_string(),
         "holder_mismatch": fixture.verifier.verify_credential_authorization_at_time(
             &fixture.credential,
             &holder_mismatch_authorization,
@@ -597,7 +616,7 @@ fn verification_context_rejects_invalid_credential_authorizations() {
             &fixture.authorization,
             fixture.issued_at - 1,
         ).unwrap_err().to_string(),
-        "missing_trust_badge_id": fixture.verifier.verify_credential_authorization_at_time(
+        "credential_digest_mismatch": fixture.verifier.verify_credential_authorization_at_time(
             &fixture.credential,
             &missing_ref_authorization,
             fixture.issued_at + 1,
@@ -609,9 +628,10 @@ fn verification_context_rejects_invalid_credential_authorizations() {
         ).unwrap_err().to_string(),
     }), @r###"
     {
+      "credential_digest_mismatch": "credential digest is not authorized",
       "future_issued_at": "authorization is not yet valid",
       "holder_mismatch": "holder_id does not match",
-      "missing_trust_badge_id": "trust_badge_id is not authorized",
+      "signing_holder_mismatch": "holder_id does not match",
       "tampered_authorization": "verification failed"
     }
     "###);

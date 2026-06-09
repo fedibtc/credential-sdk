@@ -64,7 +64,7 @@ verifier.verifyCredentialAuthorization(credential, holderAuthorization); // true
 ```
 
 This checks the credential, holder authorization signature, holder binding,
-authorized trust badge id, and authorization issued-at time. Your application still
+authorized credential digest, and authorization issued-at time. Your application still
 checks that the current caller controls
 `holderAuthorization.authorization.subject_pubkey` and that the credential
 schema is appropriate for the verifier's policy.

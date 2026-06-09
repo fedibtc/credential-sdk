@@ -57,8 +57,6 @@ export interface HolderAuthorization {
 export interface HolderAuthorizationRequest {
   /** External application's Nostr subject public key. */
   readonly subject_pubkey: string;
-  /** Credential this authorization allows the subject to present. */
-  readonly credential: SignedCredential;
 }
 
 /** Holder statement signed by `HolderContext.authorizeCredentialUse` and returned in `HolderAuthorization`. */
@@ -68,15 +66,13 @@ export interface HolderAuthorizationStatement {
   /** External application's Nostr subject public key. */
   readonly subject_pubkey: string;
   /** Credential digest this authorization allows the subject to present. */
-  readonly trust_badge_id: TrustBadgeId;
+  readonly credential_digest: CredentialDigest;
   /** Unix timestamp in seconds. */
   readonly issued_at: Timestamp;
-  /** Future-proof application-chosen id; MVP code preserves it but does not interpret it. */
-  readonly authorization_id: string;
 }
 
 /** Unpadded URL-safe base64 encoded canonical credential digest. */
-export type TrustBadgeId = string;
+export type CredentialDigest = string;
 
 /** Unix timestamp in seconds. */
 export type Timestamp = number;
@@ -137,7 +133,7 @@ export interface RevocationProof {
 /** Revocation payload signed by an issuer identity key. */
 export interface Revocation {
   /** Unpadded URL-safe base64 encoded SHA-256 digest. */
-  readonly credential_digest: string;
+  readonly credential_digest: CredentialDigest;
 }
 
 /** Application-owned location where issuer revocations may be published. */
@@ -313,18 +309,20 @@ impl HolderContext {
         self.inner.public_key().to_string()
     }
 
-    /// Create a signed holder authorization for an auxiliary subject key.
+    /// Create a signed holder authorization for an auxiliary subject key and selected credential.
     #[wasm_bindgen(js_name = authorizeCredentialUse, unchecked_return_type = "HolderAuthorization")]
     pub fn authorize_credential_use(
         &self,
         #[wasm_bindgen(unchecked_param_type = "HolderAuthorizationRequest")] request: JsValue,
+        #[wasm_bindgen(unchecked_param_type = "SignedCredential")] credential: JsValue,
     ) -> Result<JsValue, JsError> {
         let request: protocol::HolderAuthorizationRequest = from_js(request)?;
-        to_js(
-            &self
-                .inner
-                .authorize_credential_use_at_time(request, current_unix_timestamp()?)?,
-        )
+        let credential: protocol::SignedCredential = from_js(credential)?;
+        to_js(&self.inner.authorize_credential_use_at_time(
+            request,
+            &credential,
+            current_unix_timestamp()?,
+        )?)
     }
 }
 

@@ -121,8 +121,8 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        HolderAuthorizationStatement, HolderId, IssuerId, ProtocolV1, SubjectPubkey, Timestamp,
-        TrustBadgeId,
+        CredentialDigest, HolderAuthorizationStatement, HolderId, IssuerId, ProtocolV1,
+        SubjectPubkey, Timestamp,
     };
 
     #[test]
@@ -205,14 +205,13 @@ mod tests {
         let authorization = HolderAuthorizationStatement {
             holder_id_pubkey: holder_id.clone(),
             subject_pubkey: subject_pubkey.clone(),
-            trust_badge_id: TrustBadgeId([3u8; 32].into()),
+            credential_digest: CredentialDigest([3u8; 32].into()),
             issued_at: Timestamp(1000),
-            authorization_id: "auth-1".to_owned(),
         };
 
         let canonicalized = canonicalize_holder_authorization(&authorization).unwrap();
         let expected = format!(
-            r#"{{"authorization":{{"authorization_id":"auth-1","holder_id_pubkey":"{}","issued_at":1000,"subject_pubkey":"{}","trust_badge_id":"AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM"}},"type":"{}","version":1}}"#,
+            r#"{{"authorization":{{"credential_digest":"AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM","holder_id_pubkey":"{}","issued_at":1000,"subject_pubkey":"{}"}},"type":"{}","version":1}}"#,
             holder_id.0, subject_pubkey.0, HOLDER_AUTHORIZATION_CANONICAL_TYPE,
         );
 

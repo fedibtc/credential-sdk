@@ -57,9 +57,9 @@ sequenceDiagram
 ```
 
 The SDK signs holder authorizations with the holder identity key and derives
-the trust badge id from the selected `SignedCredential`. The verifier-side SDK
+the credential digest from the selected `SignedCredential`. The verifier-side SDK
 check verifies the credential, holder authorization signature, holder binding,
-authorized trust badge id, and authorization issued-at time. Subject-key
+authorized credential digest, and authorization issued-at time. Subject-key
 proof-of-possession, credential schema policy, storage, and transport stay in
 the application.
 

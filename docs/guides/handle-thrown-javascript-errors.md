@@ -32,11 +32,12 @@ state, or visible `info` do not match.
 the credential proof fails, or the credential has been revoked.
 
 `HolderContext.authorizeCredentialUse()` can throw when the request contains an
-invalid subject key or credential shape.
+invalid subject key, when the credential shape is invalid, or when the selected
+credential is not bound to the signing holder.
 
 `VerificationContext.verifyCredentialAuthorization()` can throw when the
 credential fails verification, the holder authorization proof fails, the
-credential's trust badge id is not authorized, the credential holder does not
+credential digest is not authorized, the credential holder does not
 match the authorization holder, or the authorization `issued_at` is in the
 future.
 

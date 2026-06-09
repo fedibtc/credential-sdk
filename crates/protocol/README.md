@@ -53,10 +53,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Holder authorizes an external application subject key to use this credential.
     let subject_pubkey: SubjectPubkey = "33".repeat(32).parse()?;
-    let authorization = holder.authorize_credential_use(HolderAuthorizationRequest {
-        subject_pubkey,
-        credential: credential.clone(),
-    })?;
+    let authorization = holder.authorize_credential_use(
+        HolderAuthorizationRequest { subject_pubkey },
+        &credential,
+    )?;
     verifier.verify_credential_authorization(&credential, &authorization)?;
 
     // Issuer can revoke a finalized credential. Transport/publication is app-owned.
@@ -78,7 +78,7 @@ The high-level API is organized around runtime contexts and wire structs:
 - `VerificationContext`: trust signed issuer authorities, verify signed revocations, verify finalized credentials, and verify holder authorizations
 - `IssuerAuthority`, `IssuanceRequest`, `IssuanceResponse`, `SignedCredential`, `HolderAuthorization`, and `SignedRevocation`: serde-compatible protocol wire objects
 
-All fallible operations return `Result<_, CredentialsError>`. Important verification failures include `UnknownIssuer`, `CredentialRevoked`, `IssuerIdMismatch`, `InfoMismatch`, `HolderIdMismatch`, `AuthorizationTrustBadgeIdMissing`, `AuthorizationNotYetValid`, and `VerificationFailed`.
+All fallible operations return `Result<_, CredentialsError>`. Important verification failures include `UnknownIssuer`, `CredentialRevoked`, `IssuerIdMismatch`, `InfoMismatch`, `HolderIdMismatch`, `AuthorizationCredentialDigestMismatch`, `AuthorizationNotYetValid`, and `VerificationFailed`.
 
 ## Credential Flow
 

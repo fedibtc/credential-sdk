@@ -16,7 +16,8 @@ use serde_with::serde_as;
 
 use crate::serde::Base64UrlUnpadded;
 use crate::{
-    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info, verifier::verify_credential_with_key,
+    canonicalize_pbrsa_blind_msg, canonicalize_pbrsa_info,
+    verifier::{credential_holder_id, verify_credential_with_key},
     Credential, CredentialProof, CredentialsError, HolderAuthorization, HolderAuthorizationRequest,
     HolderId, IssuanceRequest, IssuanceResponse, IssuerId, PbrsaPublicKey, ProtocolV1,
     SchnorrSignatureProof, SignedCredential, Timestamp,
@@ -82,27 +83,30 @@ impl HolderContext {
         HolderId(self.identity_keys.public_key())
     }
 
-    /// Create a signed authorization allowing an auxiliary subject key to use credentials.
+    /// Create a signed authorization allowing an auxiliary subject key to use a credential.
     ///
-    /// The SDK derives this holder's id and trust badge id from the supplied
+    /// The SDK derives this holder's id and credential digest from the supplied
     /// credential before signing the canonical authorization statement. Consent
     /// UI, storage, transport, and subject-key custody remain application
     /// concerns.
     pub fn authorize_credential_use(
         &self,
         request: HolderAuthorizationRequest,
+        credential: &SignedCredential,
     ) -> Result<HolderAuthorization, CredentialsError> {
-        self.authorize_credential_use_at_time(request, current_unix_timestamp()?)
+        self.authorize_credential_use_at_time(request, credential, current_unix_timestamp()?)
     }
 
     /// Create a signed authorization using an explicit issuance timestamp.
     pub fn authorize_credential_use_at_time(
         &self,
         request: HolderAuthorizationRequest,
+        credential: &SignedCredential,
         issued_at: impl Into<Timestamp>,
     ) -> Result<HolderAuthorization, CredentialsError> {
         self.authorize_credential_use_with_rng_at_time(
             request,
+            credential,
             issued_at.into(),
             &mut nostr::secp256k1::rand::rngs::OsRng,
         )
@@ -111,10 +115,16 @@ impl HolderContext {
     pub(crate) fn authorize_credential_use_with_rng_at_time(
         &self,
         request: HolderAuthorizationRequest,
+        credential: &SignedCredential,
         issued_at: impl Into<Timestamp>,
         rng: &mut (impl nostr::secp256k1::rand::Rng + nostr::secp256k1::rand::CryptoRng),
     ) -> Result<HolderAuthorization, CredentialsError> {
-        let authorization = request.into_statement(self.holder_id(), issued_at.into())?;
+        let holder_id = self.holder_id();
+        if credential_holder_id(credential)? != holder_id {
+            return Err(CredentialsError::HolderIdMismatch);
+        }
+
+        let authorization = request.into_statement(holder_id, issued_at.into(), credential)?;
         let signature = self.sign_identity_digest_with_rng(authorization.digest()?, rng);
 
         Ok(HolderAuthorization {

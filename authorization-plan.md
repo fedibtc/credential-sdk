@@ -43,20 +43,18 @@ referenced credential remains valid.
 
 - [x] Add `HolderId` as a transparent wrapper around `nostr::PublicKey`.
 - [x] Add `SubjectPubkey` as a transparent wrapper around `nostr::PublicKey`.
-- [x] Add `TrustBadgeId` as a transparent wrapper around
+- [x] Add `CredentialDigest` as a transparent wrapper around
       `sha2::digest::Output<Sha256>`, serialized with the same
       `Sha256DigestBase64UrlUnpadded` encoding used by
       `Revocation.credential_digest`.
-- [x] Add `trust_badge_id` containing a signed `TrustBadgeId` value.
+- [x] Add `credential_digest` containing a signed `CredentialDigest` value.
 - [x] Add `HolderAuthorizationStatement`.
 - [x] Add `HolderAuthorization`.
 - [x] Reuse `ProtocolV1` for `HolderAuthorization.version`.
 - [x] Reuse `SchnorrSignatureProof` for `HolderAuthorization.proof`.
 - [x] Preserve existing `SignedCredential`, `Credential`, `IssuerAuthority`,
       and `SignedRevocation` shapes.
-- [x] Include `authorization_id` as a signed future-proof field.
 - [x] Omit signed audience/purpose scoping from the MVP holder authorization.
-- [x] Defer any verifier semantics for `authorization_id`.
 - [x] Omit `AuthorizedPresentation` types from the MVP.
 - [x] Omit holder authorization revocation types from the MVP.
 
@@ -90,9 +88,9 @@ referenced credential remains valid.
 - [x] Add `HolderContext::authorize_credential_use`.
 - [x] Derive signed `holder_id_pubkey` from `HolderContext.publicKey` instead
       of accepting a caller-provided holder id.
-- [x] Derive signed `TrustBadgeId` from the supplied `SignedCredential`
+- [x] Derive signed `CredentialDigest` from the supplied `SignedCredential`
       instead of accepting a caller-provided credential digest.
-- [x] Derive signed `issued_at` and `authorization_id` in the SDK
+- [x] Derive signed `issued_at` in the SDK
       instead of requiring them in the wallet request.
 - [x] Keep external subject key custody out of `HolderContext`.
 - [x] Do not add wallet consent, storage, pairing, or transport logic to
@@ -105,6 +103,7 @@ impl HolderContext {
     pub fn authorize_credential_use(
         &self,
         request: HolderAuthorizationRequest,
+        credential: &SignedCredential,
     ) -> Result<HolderAuthorization, CredentialsError>;
 }
 ```
@@ -115,6 +114,7 @@ Proposed WASM shape:
 class HolderContext {
   authorizeCredentialUse(
     request: HolderAuthorizationRequest,
+    credential: SignedCredential,
   ): HolderAuthorization;
 }
 ```
@@ -131,12 +131,11 @@ class HolderContext {
 - [x] Verify the credential with existing `VerificationContext` issuer and
       credential revocation state.
 - [x] Compute the credential digest with SDK canonicalization.
-- [x] Match credential digest to a signed `TrustBadgeId`.
+- [x] Match credential digest to a signed `CredentialDigest`.
 - [x] Verify the extracted credential holder id equals
       `authorization.holder_id_pubkey`.
 - [x] Check authorization `issued_at`.
 - [x] Leave credential schema and purpose policy to verifier applications.
-- [x] Preserve but do not interpret `authorization_id` in MVP verification.
 - [x] Leave schema interpretation, trust decisions, subject proof-of-possession,
       and display behavior to the consuming verifier application.
 
@@ -156,7 +155,7 @@ impl VerificationContext {
 
 - [x] Add specific Rust error variants only where existing variants are too
       ambiguous.
-- [x] Cover at least wrong holder, future issued-at, and missing trust badge id.
+- [x] Cover at least wrong holder, future issued-at, and credential digest mismatch.
 - [x] Preserve current thrown-JavaScript-error behavior at the WASM boundary.
 - [x] Avoid broad result-shape changes until the existing machine-readable
       error-code TODO is addressed.
@@ -166,10 +165,10 @@ impl VerificationContext {
 - [x] Add TypeScript interfaces for `HolderAuthorization`.
 - [x] Add TypeScript interfaces for `HolderAuthorizationRequest`.
 - [x] Add TypeScript interfaces for `HolderAuthorizationStatement`.
-- [x] Add TypeScript interface or alias for `TrustBadgeId`.
+- [x] Add TypeScript interface or alias for `CredentialDigest`.
 - [x] Expose holder authorization signing on `HolderContext`.
 - [x] Do not expose standalone credential digest calculation for authorization
-      creation; `HolderContext.authorizeCredentialUse` derives the trust badge id.
+      creation; `HolderContext.authorizeCredentialUse` derives the credential digest.
 - [x] Expose holder authorization verification.
 - [x] Expose credential-bound authorization verification on
       `VerificationContext`.
@@ -179,11 +178,11 @@ impl VerificationContext {
 - [x] Add deterministic canonical JSON tests for holder authorization.
 - [x] Add valid holder authorization signing and verification tests.
 - [x] Add tests that holder authorization signing derives holder id and
-      the trust badge id from the high-level request.
+      the credential digest from the selected credential.
 - [x] Add verifier rejection tests for wrong holder key.
 - [x] Add rejection tests for future `issued_at`.
 - [x] Add rejection tests when credential digest does not match any
-      `TrustBadgeId`.
+      `CredentialDigest`.
 - [x] Add rejection tests when extracted credential holder key does not match
       `authorization.holder_id_pubkey`.
 - [x] Add WASM serialization shape tests.
@@ -210,7 +209,7 @@ impl VerificationContext {
 - [ ] Let the user choose which credential an external app may use.
 - [ ] Obtain or verify the external app's `subject_pubkey`.
 - [ ] Select the `SignedCredential` value to authorize; SDK code derives the
-      `TrustBadgeId` value.
+      `CredentialDigest` value.
 - [ ] Show consent UI.
 - [ ] Call `HolderContext.authorizeCredentialUse`.
 - [ ] Store or deliver `HolderAuthorization`.
@@ -270,12 +269,10 @@ These remain outside the SDK:
 
 - [ ] Holder authorization revocation.
 - [ ] SDK-owned authorized presentation/challenge signatures.
-- [ ] Scope-specific verifier policy beyond carrying the signed field.
-- [ ] Typed `AuthorizationId` and semantics beyond carrying the signed string.
 - [ ] SDK-managed subject key contexts.
 
 ## Open MVP Decisions
 
-- [x] Decide that v1 authorizations support one `trust_badge_id` directly.
+- [x] Decide that v1 authorizations support one `credential_digest` directly.
 - [ ] Decide whether to add a conventional holder-key helper for common
       `blind_msg` shapes while keeping arbitrary schema parsing app-owned.
