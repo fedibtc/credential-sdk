@@ -11,6 +11,7 @@ type BrowserCdpSession = {
 type KeygenTiming = {
   readonly repeat: number;
   readonly run: number;
+  readonly workerCount: number;
   readonly strategy: KeygenStrategy;
   readonly elapsedMs: number;
 };
@@ -43,6 +44,20 @@ function envNumber(name: string, defaultValue: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultValue;
 }
 
+function envNumberList(name: string): number[] | undefined {
+  const rawValue = envValue(name);
+  if (rawValue === undefined) {
+    return undefined;
+  }
+
+  const values = rawValue
+    .split(",")
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value) && value > 0);
+
+  return values.length > 0 ? [...new Set(values)] : undefined;
+}
+
 function envPositiveNumber(name: string): number | undefined {
   const rawValue = envValue(name);
   if (rawValue === undefined) {
@@ -69,9 +84,13 @@ function envKeygenStrategies(name: string): KeygenStrategy[] {
 
 const keygenStrategies = envKeygenStrategies("VITE_RSA_KEYGEN_STRATEGIES");
 const concurrentWorkers = envNumber("VITE_RSA_KEYGEN_CONCURRENT_WORKERS", 4);
+const concurrentWorkerCounts = envNumberList(
+  "VITE_RSA_KEYGEN_WORKER_COUNTS",
+) ?? [concurrentWorkers];
 const repeatCount = envNumber("VITE_RSA_KEYGEN_REPEATS", 5);
 const slowKeygenTimeoutMs = envNumber("VITE_RSA_KEYGEN_TIMEOUT_MS", 3_600_000);
 const cpuThrottleRate = envPositiveNumber("VITE_RSA_KEYGEN_CPU_THROTTLE_RATE");
+const buildLabel = envValue("VITE_RSA_KEYGEN_BUILD_LABEL") ?? "unspecified";
 
 function writeTiming(message: string) {
   console.info(message);
@@ -129,7 +148,9 @@ function reportKeygenStats(
   wallElapsedMs: number,
 ) {
   writeTiming(
-    `browser Worker WASM RSA keygen comparison: concurrent_workers=${concurrentWorkers}, repeats=${repeatCount}, samples_per_strategy=${
+    `browser Worker WASM RSA keygen comparison: build=${buildLabel}, worker_counts=${concurrentWorkerCounts.join(
+      ",",
+    )}, repeats=${repeatCount}, samples_per_strategy=${
       repeatCount
     }, strategies=${keygenStrategies.join(
       ",",
@@ -138,23 +159,31 @@ function reportKeygenStats(
     }, wall=${(wallElapsedMs / 1000).toFixed(3)}s`,
   );
 
-  for (const strategy of keygenStrategies) {
-    reportKeygenStatsForStrategy(timings, strategy);
-    reportKeygenRepeatStats(timings, strategy);
-  }
+  for (const workerCount of concurrentWorkerCounts) {
+    for (const strategy of keygenStrategies) {
+      reportKeygenStatsForStrategy(timings, strategy, workerCount);
+      reportKeygenRepeatStats(timings, strategy, workerCount);
+    }
 
-  if (keygenStrategies.length > 1) {
-    reportKeygenComparison(timings);
+    if (keygenStrategies.length > 1) {
+      reportKeygenComparison(timings, workerCount);
+    }
   }
 }
 
 function reportKeygenStatsForStrategy(
   timings: readonly KeygenTiming[],
   strategy: KeygenStrategy,
+  workerCount: number,
 ) {
   const strategyTimings = timings.filter(
-    (timing) => timing.strategy === strategy,
+    (timing) =>
+      timing.strategy === strategy && timing.workerCount === workerCount,
   );
+  if (strategyTimings.length === 0) {
+    return;
+  }
+
   const sortedByElapsed = [...strategyTimings].sort(
     (a, b) => a.elapsedMs - b.elapsedMs,
   );
@@ -168,11 +197,13 @@ function reportKeygenStatsForStrategy(
   const slowest = sortedByElapsed[sortedByElapsed.length - 1];
 
   writeTiming(
-    `${keygenMethodLabel(strategy)} browser Worker WASM RSA keygen summary: runs=${
+    `${keygenMethodLabel(strategy)} browser Worker WASM RSA keygen summary: build=${buildLabel}, workers=${workerCount}, runs=${
       strategyTimings.length
-    }, fastest=${(fastest.elapsedMs / 1000).toFixed(3)}s (run ${
-      fastest.run
-    }), slowest=${(slowest.elapsedMs / 1000).toFixed(3)}s (run ${
+    }, fastest=${(fastest.elapsedMs / 1000).toFixed(3)}s (repeat ${
+      fastest.repeat
+    } worker ${fastest.run}), slowest=${(slowest.elapsedMs / 1000).toFixed(
+      3,
+    )}s (repeat ${slowest.repeat} worker ${
       slowest.run
     }), average=${average.toFixed(3)}s, median=${median(sortedSeconds).toFixed(
       3,
@@ -185,7 +216,9 @@ function reportKeygenStatsForStrategy(
     writeTiming(
       `${keygenMethodLabel(strategy)} browser Worker WASM RSA keygen sample repeat ${
         timing.repeat
-      } worker ${timing.run}: ${(timing.elapsedMs / 1000).toFixed(3)}s`,
+      } workers ${workerCount} winner ${timing.run}: ${(
+        timing.elapsedMs / 1000
+      ).toFixed(3)}s`,
     );
   }
 }
@@ -193,10 +226,14 @@ function reportKeygenStatsForStrategy(
 function reportKeygenRepeatStats(
   timings: readonly KeygenTiming[],
   strategy: KeygenStrategy,
+  workerCount: number,
 ) {
   for (let repeat = 1; repeat <= repeatCount; repeat += 1) {
     const repeatTimings = timings.filter(
-      (timing) => timing.strategy === strategy && timing.repeat === repeat,
+      (timing) =>
+        timing.strategy === strategy &&
+        timing.workerCount === workerCount &&
+        timing.repeat === repeat,
     );
     const sortedSeconds = repeatTimings
       .map((timing) => timing.elapsedMs / 1000)
@@ -207,7 +244,7 @@ function reportKeygenRepeatStats(
     }
 
     writeTiming(
-      `${keygenMethodLabel(strategy)} browser Worker WASM RSA keygen repeat ${repeat}/${repeatCount} summary: fastest=${sortedSeconds[0].toFixed(
+      `${keygenMethodLabel(strategy)} browser Worker WASM RSA keygen repeat ${repeat}/${repeatCount} workers ${workerCount} summary: fastest=${sortedSeconds[0].toFixed(
         3,
       )}s, slowest=${sortedSeconds[sortedSeconds.length - 1].toFixed(
         3,
@@ -221,9 +258,13 @@ function reportKeygenRepeatStats(
 function secondsForStrategy(
   timings: readonly KeygenTiming[],
   strategy: KeygenStrategy,
+  workerCount: number,
 ): number[] {
   return timings
-    .filter((timing) => timing.strategy === strategy)
+    .filter(
+      (timing) =>
+        timing.strategy === strategy && timing.workerCount === workerCount,
+    )
     .map((timing) => timing.elapsedMs / 1000)
     .sort((a, b) => a - b);
 }
@@ -232,9 +273,16 @@ function average(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
-function reportKeygenComparison(timings: readonly KeygenTiming[]) {
-  const threadSeconds = secondsForStrategy(timings, "thread_rng");
-  const systemSeconds = secondsForStrategy(timings, "system_rng");
+function reportKeygenComparison(
+  timings: readonly KeygenTiming[],
+  workerCount: number,
+) {
+  const threadSeconds = secondsForStrategy(timings, "thread_rng", workerCount);
+  const systemSeconds = secondsForStrategy(timings, "system_rng", workerCount);
+  if (threadSeconds.length === 0 || systemSeconds.length === 0) {
+    return;
+  }
+
   const threadMedian = median(threadSeconds);
   const systemMedian = median(systemSeconds);
   const threadAverage = average(threadSeconds);
@@ -245,7 +293,7 @@ function reportKeygenComparison(timings: readonly KeygenTiming[]) {
     threadAverage <= systemAverage ? "thread_rng" : "system_rng";
 
   writeTiming(
-    `browser Worker WASM RSA keygen result: median_winner=${keygenMethodLabel(
+    `browser Worker WASM RSA keygen result: build=${buildLabel}, workers=${workerCount}, median_winner=${keygenMethodLabel(
       medianWinner,
     )}, thread_median=${threadMedian.toFixed(
       3,
@@ -276,6 +324,7 @@ function isKeygenWorkerResponse(value: unknown): value is KeygenWorkerResponse {
     (response.type === "timing" &&
       typeof response.timing?.repeat === "number" &&
       typeof response.timing?.run === "number" &&
+      typeof response.timing?.workerCount === "number" &&
       isKeygenStrategy(response.timing.strategy) &&
       typeof response.timing.elapsedMs === "number") ||
     (response.type === "error" && typeof response.message === "string")
@@ -374,19 +423,19 @@ async function runBrowserWorkerKeygenRace(
   }
 }
 
-async function runBrowserWorkerKeygens(
-  runCount: number,
-): Promise<KeygenTiming[]> {
+async function runBrowserWorkerKeygens(): Promise<KeygenTiming[]> {
   const timings: KeygenTiming[] = [];
 
-  for (const strategy of keygenStrategies) {
-    for (let repeat = 1; repeat <= repeatCount; repeat += 1) {
-      writeTiming(
-        `${keygenMethodLabel(strategy)} browser Worker WASM RSA keygen batch starting: repeat=${repeat}/${repeatCount}, workers=${runCount}`,
-      );
-      timings.push(
-        await runBrowserWorkerKeygenRace(repeat, runCount, strategy),
-      );
+  for (const workerCount of concurrentWorkerCounts) {
+    for (const strategy of keygenStrategies) {
+      for (let repeat = 1; repeat <= repeatCount; repeat += 1) {
+        writeTiming(
+          `${keygenMethodLabel(strategy)} browser Worker WASM RSA keygen batch starting: repeat=${repeat}/${repeatCount}, workers=${workerCount}`,
+        );
+        timings.push(
+          await runBrowserWorkerKeygenRace(repeat, workerCount, strategy),
+        );
+      }
     }
   }
 
@@ -399,7 +448,7 @@ describe("RSA issuer key generation in a browser Worker", () => {
     async () => {
       await configureCpuThrottling();
       const wallStarted = performance.now();
-      const timings = await runBrowserWorkerKeygens(concurrentWorkers);
+      const timings = await runBrowserWorkerKeygens();
 
       reportKeygenStats(timings, performance.now() - wallStarted);
     },

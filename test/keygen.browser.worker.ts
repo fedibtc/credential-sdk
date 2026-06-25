@@ -18,6 +18,7 @@ type KeygenWorkerRequest = {
 type KeygenTiming = {
   readonly repeat: number;
   readonly run: number;
+  readonly workerCount: number;
   readonly strategy: KeygenStrategy;
   readonly elapsedMs: number;
 };
@@ -120,6 +121,7 @@ function generateIssuer(sdk: WasmSdk, strategy: KeygenStrategy): IssuerContext {
 async function generateIssuerForTiming(
   repeat: number,
   run: number,
+  runCount: number,
   strategy: KeygenStrategy,
 ): Promise<KeygenTiming> {
   workerScope.postMessage({
@@ -158,7 +160,7 @@ async function generateIssuerForTiming(
   });
   smokeTestGeneratedIssuer(sdk, issuer);
 
-  return { repeat, run, strategy, elapsedMs };
+  return { repeat, run, workerCount: runCount, strategy, elapsedMs };
 }
 
 workerScope.addEventListener("message", (event) => {
@@ -169,6 +171,7 @@ workerScope.addEventListener("message", (event) => {
         timing: await generateIssuerForTiming(
           event.data.repeat,
           event.data.run,
+          event.data.runCount,
           event.data.strategy,
         ),
       });
