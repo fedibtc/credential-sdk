@@ -60,6 +60,10 @@ June 15, 2026.
 - [ ] Build holder authorization events with kind `37705`, canonical JSON
   `HolderAuthorizationPublication` content, `p = <subject_pubkey>`, and
   `d = credential-authorization:<subject_pubkey>:<credential_digest>`.
+- [ ] Build `d`/`p` tag values from the protocol serde string forms
+  (`CredentialDigest` unpadded URL-safe base64, `SubjectPubkey`/`HolderId`
+  pubkey serde), never from independently re-encoded bytes, so publishers and
+  consumers index the same values.
 - [ ] Allow caller-provided extra tags for application metadata without
   replacing the required SDK tags.
 - [ ] Require the event author to match the holder pubkey before preparing
@@ -81,7 +85,9 @@ June 15, 2026.
 - [ ] Publish prepared holder credential and holder authorization events to a
   configured relay set using a caller-provided signer.
 - [ ] Return a publish report with per-relay success/failure status.
-- [ ] Fetch authorizations by subject pubkey using kind `37705` plus `#p`.
+- [ ] Fetch authorizations by subject pubkey using kind `37705` plus `#p`,
+  parsing each candidate with the requested subject as `expected_subject` and
+  dropping any event whose signed `subject_pubkey` does not match the request.
 - [ ] Fetch holder-published credentials by digest using kind `37702` plus `#d`.
 - [ ] Parse, validate, and deduplicate fetched events before returning protocol
   objects to callers.

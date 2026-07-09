@@ -183,6 +183,20 @@ types:
 - `["t", "..."]` is only a topic label. Applications may use their own `t` tag
   values; generic SDK fetching should not depend on them.
 
+Tag value encoding is fixed so publishers and consumers compute the same
+`#d`/`#p` index values for the same object:
+
+- `<credential_digest>` is the exact serde string form of the protocol
+  `CredentialDigest`: the SHA-256 credential digest encoded as unpadded
+  URL-safe base64. It is not hex, padded base64, or the raw digest bytes.
+- `<subject_pubkey>` and any holder pubkey are the serde string form the
+  protocol crate uses for that pubkey type (`SubjectPubkey`/`HolderId`).
+- The literal prefixes `credential:` and `credential-authorization:` and the
+  `:` separators are part of the `d` value exactly as written.
+
+Implementations must build these strings from the protocol serde output rather
+than re-encoding the underlying bytes independently.
+
 ## Event Content Serialization
 
 Event `content` should be canonical JSON for deterministic event IDs and stable
@@ -275,7 +289,13 @@ Validation:
 - `event.pubkey == holder_authorization.authorization.holder_id_pubkey`.
 - `holder_authorization.verify()` succeeds.
 - `holder_authorization.authorization.subject_pubkey` matches the expected
-  authorized application pubkey when the caller supplied one.
+  authorized application pubkey when the caller supplied one. The subject-scoped
+  fetch path (`fetch_authorizations_for_subject`) always supplies it: the `#p`
+  relay tag is only a lookup hint, so the parser rejects any event whose signed
+  `subject_pubkey` differs from the requested subject. `expected_subject: None`
+  is only for callers that intentionally inspect an authorization without
+  binding it to a specific subject, and must never be used on the authenticated
+  subject-scoped fetch path.
 - `Credential::digest(signed_credential.credential)` equals
   `holder_authorization.authorization.credential_digest`.
 - The backing credential holder binding matches
@@ -299,6 +319,14 @@ Authorized applications fetch authorizations by querying for their own pubkey:
 The fetch filter intentionally does not require a `t` tag. Applications may add
 their own `t` tags, and the transport crate validates parsed event content
 rather than trusting tag names.
+
+The `#p` filter is likewise only a lookup hint. A relay can return an event
+whose `p` tag matches the requested subject while the signed
+`holder_authorization.authorization.subject_pubkey` names a different key.
+`fetch_authorizations_for_subject` therefore parses every candidate with the
+requested subject as `expected_subject` and drops any authorization whose signed
+subject does not match, so a mismatched or malicious tag can never surface an
+authorization for the wrong authenticated subject.
 
 Consumers can fetch a holder-published credential by digest:
 
@@ -391,6 +419,13 @@ pub fn parse_holder_authorization_event(
     expected_subject: Option<&SubjectPubkey>,
 ) -> Result<HolderAuthorizationPublication, NostrTransportError>;
 ```
+
+`expected_subject` binds the parsed authorization to a specific subject: when
+`Some`, the parser rejects any event whose signed
+`holder_authorization.authorization.subject_pubkey` differs. Subject-scoped
+lookups such as `fetch_authorizations_for_subject` always pass `Some`; `None` is
+reserved for callers that deliberately inspect an authorization without binding
+it to an authenticated subject.
 
 Relay client functions:
 
