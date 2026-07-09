@@ -6,6 +6,12 @@ Draft architecture for a future `fedi-credential-sdk-nostr-transport` crate.
 This document is intentionally scoped to the MVP needed for holder-published
 credentials and holder-published credential authorizations.
 
+This crate is not a core part of the SDK. Transport is unrelated to the
+cryptographic protocol, so the crate lives here as an optional
+extension/utility crate that provides transport functionality for apps that
+depend on this SDK. It sits on top of `fedi-credential-sdk-protocol` and is
+never a dependency of it.
+
 This transport is based on the holder authorization and Nostr publication
 protocols described in
 `fedibtc/decentralized-federations/docs/dpc/holder-authorizations.md` and
@@ -53,6 +59,9 @@ again.
 - The crate does not prove live possession of the authorized application's
   subject key. Applications prove possession through their own signatures,
   sessions, RPC authentication, or event signatures.
+- The crate does not enforce a publish cooldown or time delay before a holder
+  publishes a credential or authorization. That policy is left to the consuming
+  app.
 
 ## Crate Boundary
 
@@ -142,8 +151,14 @@ kind `30078` with namespaced `d` tags.
 
 ## Addressing And Indexing
 
-Use addressable events because the latest holder-published value should replace
-older equivalent publications for the same holder and object.
+Use addressable events. A published credential or authorization is immutable,
+so this is not about mutating content: the same immutable object keeps a single
+stable `d`-tag address so relays replace, rather than accumulate, repeated
+publications of that object. Re-publishing the same credential or authorization
+(for example to refresh relay coverage) collapses to one addressable slot per
+holder and object instead of leaving stale duplicate events behind. Consumers
+still resolve any residual divergence between relays at fetch time by keeping
+the copy with the newest `created_at` (see Fetching).
 
 Rules:
 
@@ -301,8 +316,14 @@ Fetch code should:
 - Wait for EOSE or a caller-configured timeout.
 - Parse and verify every candidate event.
 - Deduplicate authorization events by
-  `(holder_id_pubkey, subject_pubkey, credential_digest)`.
-- Deduplicate credential events by `credential_digest`.
+  `(holder_id_pubkey, subject_pubkey, credential_digest)`, keeping the event
+  with the newest `created_at`.
+- Deduplicate credential events by `credential_digest`, keeping the event with
+  the newest `created_at`.
+
+Because the published objects are immutable, duplicates for the same key carry
+the same authoritative content; the newest-`created_at` tie-break only decides
+which relay copy to keep when relays are mid-propagation and briefly disagree.
 
 ## Publishing
 
@@ -430,6 +451,10 @@ Application/verifier:
 - Holder and authorized application policy.
 - Live subject-key possession.
 - Authorization freshness policy.
+- Publish cooldown policy. A time delay before a holder may publish a credential
+  (or use it to issue and publish authorizations) is recommended, but this
+  transport crate does not enforce it. The consuming app owns and implements the
+  cooldown.
 
 ## TODO
 

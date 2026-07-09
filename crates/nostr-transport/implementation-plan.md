@@ -2,7 +2,9 @@
 
 ## Status
 
-Draft implementation plan for `fedi-credential-sdk-nostr-transport`.
+Draft implementation plan for `fedi-credential-sdk-nostr-transport`, the
+optional extension/utility transport crate layered on top of
+`fedi-credential-sdk-protocol` (not a core part of the cryptographic protocol).
 
 This plan implements the MVP in [`architecture.md`](./architecture.md):
 holder-published credentials and holder-published credential authorizations over
