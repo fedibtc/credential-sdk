@@ -82,7 +82,8 @@ June 15, 2026.
 - [ ] Fetch authorizations by subject pubkey using kind `37705` plus `#p`.
 - [ ] Fetch holder-published credentials by digest using kind `37702` plus `#d`.
 - [ ] Parse, validate, and deduplicate fetched events before returning protocol
-  objects to callers.
+  objects to callers, keeping the event with the newest `created_at` when the
+  same address comes back in more than one version.
 
 ### 5. WASM Boundary
 
@@ -111,6 +112,9 @@ June 15, 2026.
   application fetches by `subject_pubkey`, verifier checks with
   `VerificationContext`.
 - [ ] Document relay persistence and publish-report semantics.
+- [ ] Document the recommended publishing cooldown (~30 days before a credential
+  is published or used to sign/publish an authorization) as integrator policy,
+  not a rule enforced by this crate.
 
 ## Future Work
 

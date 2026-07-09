@@ -6,6 +6,13 @@ Draft architecture for a future `fedi-credential-sdk-nostr-transport` crate.
 This document is intentionally scoped to the MVP needed for holder-published
 credentials and holder-published credential authorizations.
 
+This crate is not part of the cryptographic protocol core. Transport is
+unrelated to the credential protocol itself, so this crate lives here as an
+extension/utility crate that provides Nostr transport functionality for apps
+that depend on the SDK. The team's decision to house it in this repository is
+a packaging convenience, not a statement that transport is part of the
+protocol.
+
 This transport is based on the holder authorization and Nostr publication
 protocols described in
 `fedibtc/decentralized-federations/docs/dpc/holder-authorizations.md` and
@@ -25,6 +32,13 @@ authorization plus the backing credential to Nostr. Later, the authorized
 application can query relays for its own pubkey, fetch the publication, verify
 it, and store the credential/authorization pair without talking to the holder
 again.
+
+Publishing cooldown (recommendation): integrators are encouraged to enforce a
+time delay before a freshly issued credential may be published, or used to sign
+and publish any authorization. A cooldown on the order of 30 days is the
+recurring recommendation. This is a recommendation left up to integrators, not
+a rule enforced by this transport crate: the cooldown is holder/application
+policy and is more likely to live in the consuming credential app than here.
 
 ## Goals
 
@@ -142,8 +156,18 @@ kind `30078` with namespaced `d` tags.
 
 ## Addressing And Indexing
 
-Use addressable events because the latest holder-published value should replace
+Use addressable events so the latest holder-published value cleanly supersedes
 older equivalent publications for the same holder and object.
+
+A published credential or authorization is itself immutable, so in the common
+case there is only ever one value per address and replacement never triggers.
+We keep the events addressable anyway for two reasons: it stays wire-compatible
+with the Nostr transport reference, which keeps the holder authorization on an
+addressable kind, and it gives a well-defined single-slot outcome if a holder
+ever re-publishes (for example after a relay loses an event or after a future
+non-MVP refresh flow). Because addressability lets different relays transiently
+hold different versions of the same address, the fetch path resolves conflicts
+by the newest `created_at` (see Fetching).
 
 Rules:
 
@@ -301,8 +325,14 @@ Fetch code should:
 - Wait for EOSE or a caller-configured timeout.
 - Parse and verify every candidate event.
 - Deduplicate authorization events by
-  `(holder_id_pubkey, subject_pubkey, credential_digest)`.
-- Deduplicate credential events by `credential_digest`.
+  `(holder_id_pubkey, subject_pubkey, credential_digest)`, keeping the event
+  with the newest `created_at`.
+- Deduplicate credential events by `credential_digest`, keeping the event with
+  the newest `created_at`.
+
+Relays do not all update at the same instant, so the same address can come back
+in more than one version during a fetch. Keeping the newest `created_at` ensures
+the most recent holder-published value wins instead of an arbitrary stale copy.
 
 ## Publishing
 
