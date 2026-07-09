@@ -81,9 +81,10 @@ June 15, 2026.
 - [ ] Return a publish report with per-relay success/failure status.
 - [ ] Fetch authorizations by subject pubkey using kind `37705` plus `#p`.
 - [ ] Fetch holder-published credentials by digest using kind `37702` plus `#d`.
-- [ ] Parse, validate, and deduplicate fetched events before returning protocol
-  objects to callers, keeping the event with the newest `created_at` when the
-  same address comes back in more than one version.
+- [ ] Parse and validate fetched events, discarding invalid ones, then
+  deduplicate only the validated events before returning protocol objects to
+  callers, keeping the event with the newest `created_at` when the same address
+  comes back in more than one version.
 
 ### 5. WASM Boundary
 

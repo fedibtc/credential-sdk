@@ -224,8 +224,9 @@ Validation:
 - The Nostr event signature is valid.
 - `event.kind == 37702`.
 - `content` parses as `SignedCredential`.
-- `Credential::digest(content.credential)` equals the `credential_digest` in the
-  `d` tag when that tag is present.
+- The event contains the required `d` tag, and
+  `Credential::digest(content.credential)` equals the `credential_digest` in that
+  `d` tag.
 - The holder pubkey represented by `event.pubkey` matches the holder binding in
   the credential. In the current MVP schema, this means
   `credential.credential.blind_msg` is the holder pubkey string.
@@ -280,6 +281,9 @@ Validation:
 - The Nostr event signature is valid.
 - `event.kind == 37705`.
 - `content` parses as `HolderAuthorizationPublication`.
+- The event contains the required `d` tag, and it equals
+  `credential-authorization:<subject_pubkey>:<credential_digest>` using the
+  subject pubkey and credential digest from the verified content.
 - `event.pubkey == content.holder_id_pubkey`.
 - `event.pubkey == holder_authorization.authorization.holder_id_pubkey`.
 - `holder_authorization.verify()` succeeds.
@@ -323,7 +327,9 @@ Fetch code should:
 
 - Query all configured relays.
 - Wait for EOSE or a caller-configured timeout.
-- Parse and verify every candidate event.
+- Parse and verify every candidate event, and discard events that fail
+  validation before deduplicating. Deduplication must run only over events that
+  already passed validation.
 - Deduplicate authorization events by
   `(holder_id_pubkey, subject_pubkey, credential_digest)`, keeping the event
   with the newest `created_at`.
@@ -331,8 +337,10 @@ Fetch code should:
   the newest `created_at`.
 
 Relays do not all update at the same instant, so the same address can come back
-in more than one version during a fetch. Keeping the newest `created_at` ensures
-the most recent holder-published value wins instead of an arbitrary stale copy.
+in more than one version during a fetch. Validate first, then keep the newest
+`created_at` among the validated events: this ensures the most recent valid
+holder-published value wins instead of an arbitrary stale copy, and prevents a
+malformed or unsigned event with a later timestamp from evicting a valid one.
 
 ## Publishing
 
