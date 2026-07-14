@@ -56,8 +56,10 @@ June 15, 2026.
 - [ ] Build holder credential events with kind `37702`, canonical JSON
   `SignedCredential` content, and `d = credential:<credential_digest>`.
 - [ ] Build holder authorization events with kind `37705`, canonical JSON
-  `HolderAuthorizationPublication` content, `p = <subject_pubkey>`, and
-  `d = credential-authorization:<subject_pubkey>:<credential_digest>`.
+  `HolderAuthorizationPublication` content, `p = <subject_pubkey>`, and an
+  application-namespaced `d` address carrying the subject pubkey and credential
+  digest (the FMan flow uses `d = fman-authorization:<subject_pubkey>:<credential_digest>`
+  per `FMan-nostr.md`). Do not hardcode or require a fixed `d` prefix here.
 - [ ] Allow caller-provided extra tags for application metadata without
   replacing the required SDK tags.
 - [ ] Require the event author to match the holder pubkey before preparing

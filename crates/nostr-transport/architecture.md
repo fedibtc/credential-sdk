@@ -184,9 +184,17 @@ The tag strings in this document are Nostr index values, not new SDK protocol
 types:
 
 - `["d", "credential:<credential_digest>"]` is the stable address for a
-  holder-published credential event.
-- `["d", "credential-authorization:<subject_pubkey>:<credential_digest>"]` is
-  the stable address for a holder-published authorization event.
+  holder-published credential event. The SDK owns this string because it also
+  fetches standalone credentials by this `d` value.
+- The holder-published authorization event's `d` address is an
+  application-namespaced string, not an SDK-fixed value. It carries the subject
+  pubkey and credential digest so re-publications for the same
+  `(application, subject, credential)` replace cleanly. The FMan flow uses
+  `["d", "fman-authorization:<subject_pubkey>:<credential_digest>"]` per
+  `FMan-nostr.md` (its `fman_id_pubkey` is the subject pubkey in SDK terms).
+  Generic SDK fetching does not depend on this prefix; authorizations are
+  discovered by `p`, so the SDK does not fix or require a particular `d` prefix
+  here.
 - `["p", "<subject_pubkey>"]` lets the authorized application find
   authorizations for its own pubkey.
 - `["t", "..."]` is only a topic label. Applications may use their own `t` tag
@@ -264,8 +272,10 @@ Event wrapper:
   kind: 37705,
   pubkey: "<holder pubkey>",
   tags: [
-    ["d", "credential-authorization:<subject_pubkey>:<credential_digest>"],
-    ["t", "fedi-credential-authorization"],
+    // `d` and `t` are application-namespaced. The values below are the FMan
+    // flow from FMan-nostr.md; another application supplies its own namespace.
+    ["d", "fman-authorization:<subject_pubkey>:<credential_digest>"],
+    ["t", "fedi-fman-authorization"],
     ["p", "<subject_pubkey>"]
   ],
   content: "<canonical JSON string of the holder authorization envelope>"
@@ -281,9 +291,13 @@ Validation:
 - The Nostr event signature is valid.
 - `event.kind == 37705`.
 - `content` parses as `HolderAuthorizationPublication`.
-- The event contains the required `d` tag, and it equals
-  `credential-authorization:<subject_pubkey>:<credential_digest>` using the
-  subject pubkey and credential digest from the verified content.
+- Authoritative values (subject pubkey, credential digest) come from the
+  verified content, not the `d` tag. The `d` tag is an application-namespaced
+  routing and replacement hint, so validation does not require a specific `d`
+  prefix; when a `d` tag is present it may be cross-checked against the content
+  but is never the source of truth. This keeps the SDK able to parse and
+  validate application-specific authorization events such as the FMan flow's
+  `fman-authorization:` events in `FMan-nostr.md`.
 - `event.pubkey == content.holder_id_pubkey`.
 - `event.pubkey == holder_authorization.authorization.holder_id_pubkey`.
 - `holder_authorization.verify()` succeeds.
