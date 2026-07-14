@@ -75,6 +75,10 @@ June 15, 2026.
   available; keep issuer trust policy caller-owned.
 - [ ] Treat tags as routing hints and validate authoritative values from event
   content.
+- [ ] Reject the event if a present `d` tag embeds a
+  `<subject_pubkey>:<credential_digest>` suffix that disagrees with the verified
+  content, so an event cannot be addressed under a subject/digest it does not
+  authorize (keep the namespace prefix configurable).
 
 ### 4. Relay Publish And Fetch
 

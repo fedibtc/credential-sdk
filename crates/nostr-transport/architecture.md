@@ -294,10 +294,16 @@ Validation:
 - Authoritative values (subject pubkey, credential digest) come from the
   verified content, not the `d` tag. The `d` tag is an application-namespaced
   routing and replacement hint, so validation does not require a specific `d`
-  prefix; when a `d` tag is present it may be cross-checked against the content
-  but is never the source of truth. This keeps the SDK able to parse and
-  validate application-specific authorization events such as the FMan flow's
-  `fman-authorization:` events in `FMan-nostr.md`.
+  prefix; this keeps the SDK able to parse and validate application-specific
+  authorization events such as the FMan flow's `fman-authorization:` events in
+  `FMan-nostr.md`.
+- The `d` tag namespace prefix stays configurable, but a present `d` tag that
+  embeds a `<subject_pubkey>:<credential_digest>` suffix must match the verified
+  content's subject pubkey and credential digest. Reject the event on mismatch.
+  Without this check a validly signed authorization could be stored under an
+  addressable slot that disagrees with its body, so app code keying off the `d`
+  address (caching or addressable replacement) would bind it under the wrong
+  subject/digest even though the content itself verifies.
 - `event.pubkey == content.holder_id_pubkey`.
 - `event.pubkey == holder_authorization.authorization.holder_id_pubkey`.
 - `holder_authorization.verify()` succeeds.
