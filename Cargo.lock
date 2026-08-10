@@ -538,10 +538,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "fedi-credential-sdk-schemas"
+version = "0.0.4"
+dependencies = [
+ "fedi-credential-sdk-protocol",
+ "nostr",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "fedi-credential-sdk-wasm"
 version = "0.0.4"
 dependencies = [
  "fedi-credential-sdk-protocol",
+ "fedi-credential-sdk-schemas",
  "getrandom 0.4.2",
  "js-sys",
  "serde",

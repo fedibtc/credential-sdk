@@ -1,4 +1,5 @@
 use fedi_credential_sdk_protocol as protocol;
+use fedi_credential_sdk_schemas as schemas;
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -461,4 +462,52 @@ impl VerificationContext {
         )?;
         Ok(true)
     }
+}
+
+#[wasm_bindgen(typescript_custom_section)]
+const TYPESCRIPT_SCHEMAS_SURFACE: &'static str = r#"
+/** Parsed payload of a `fedi-trust-score-v1.0` badge. */
+export interface TrustScoreBadgeV1 {
+  /** Public result of attester-private scoring; acceptability is caller policy. */
+  readonly trust_level: number;
+  /** Holder Nostr public key bound by the revealed `blind_msg`, canonical lowercase hex. */
+  readonly holder_pubkey: string;
+}
+"#;
+
+/// The `info.schema` identifier for trust-score badges, revision v1.0.
+#[wasm_bindgen(js_name = trustScoreSchemaV1)]
+pub fn trust_score_schema_v1() -> String {
+    schemas::TRUST_SCORE_SCHEMA_V1.to_owned()
+}
+
+/// Build the issuance `info` value for a `fedi-trust-score-v1.0` badge.
+#[wasm_bindgen(js_name = trustScoreInfoV1, unchecked_return_type = "JsonValue")]
+pub fn trust_score_info_v1(trust_level: u32) -> Result<JsValue, JsError> {
+    to_js(&schemas::trust_score_info_v1(trust_level.into()))
+}
+
+/// Build the issuance `blind_msg` value binding a `fedi-trust-score-v1.0` badge to a holder.
+#[wasm_bindgen(js_name = trustScoreBlindMsgV1, unchecked_return_type = "JsonValue")]
+pub fn trust_score_blind_msg_v1(holder_pubkey: String) -> Result<JsValue, JsError> {
+    let holder: protocol::HolderId = holder_pubkey
+        .parse()
+        .map_err(|_| JsError::new("holder_pubkey is not a valid Nostr public key"))?;
+    to_js(&schemas::trust_score_blind_msg_v1(&holder.0))
+}
+
+/// Parse a cryptographically verified credential as a `fedi-trust-score-v1.0` badge.
+///
+/// Schema validation only — verify the credential (and any holder authorization)
+/// with a `VerificationContext` first.
+#[wasm_bindgen(js_name = parseTrustScoreBadgeV1, unchecked_return_type = "TrustScoreBadgeV1")]
+pub fn parse_trust_score_badge_v1(
+    #[wasm_bindgen(unchecked_param_type = "SignedCredential")] credential: JsValue,
+) -> Result<JsValue, JsError> {
+    let credential: protocol::SignedCredential = from_js(credential)?;
+    let badge = schemas::parse_trust_score_badge_v1(&credential.credential)?;
+    to_js(&serde_json::json!({
+        "trust_level": badge.trust_level,
+        "holder_pubkey": badge.holder_pubkey.to_string(),
+    }))
 }

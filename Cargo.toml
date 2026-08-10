@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/protocol",
+    "crates/schemas",
     "crates/wasm",
 ]
 resolver = "2"
@@ -14,6 +15,7 @@ readme = "README.md"
 
 [workspace.dependencies]
 fedi-credential-sdk-protocol = { path = "crates/protocol", version = "0.0.4" }
+fedi-credential-sdk-schemas = { path = "crates/schemas", version = "0.0.4" }
 
 [profile.release]
 opt-level = "s"
