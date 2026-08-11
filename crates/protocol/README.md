@@ -17,7 +17,7 @@ use serde_json::json;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let credential_info = json!({
-        "schema": "fedi-trust-score-v1.0",
+        "schema": "example-membership-v1.0",
         "trust_level": 7,
     });
 
@@ -90,7 +90,7 @@ The finalized `SignedCredential` contains issuer-visible `info`, holder-hidden `
   "credential": {
     "issuer_id_pubkey": "nostr-issuer-public-key",
     "info": {
-      "schema": "fedi-trust-score-v1.0",
+      "schema": "example-membership-v1.0",
       "trust_level": 7
     },
     "blind_msg": "anonymous-holder-public-key"

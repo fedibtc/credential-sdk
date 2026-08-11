@@ -19,7 +19,7 @@ const revocationLocations = [
 ] satisfies readonly RevocationLocation[];
 
 const credentialInfo = {
-  schema: "fedi-trust-score-v1.0",
+  schema: "example-membership-v1.0",
   trust_level: 7,
 } satisfies JsonValue;
 

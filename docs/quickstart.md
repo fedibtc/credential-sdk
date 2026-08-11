@@ -31,9 +31,16 @@ import {
 
 ```ts
 const credentialInfo = {
-  schema: "fedi-trust-score-v1.0",
+  schema: "example-membership-v1.0",
   trust_level: 7,
 } satisfies JsonValue;
+
+> The schema strings in these examples are placeholders. Deployed first-party
+> schemas (such as `fedi-trust-score-v1.0`) are defined once in
+> [`crates/schemas`](crates/schemas) — use its constructors and parsers instead
+> of hand-building `info`, and never reuse a deployed schema string for a new
+> credential type.
+
 
 const revocationLocations = [
   {
@@ -124,7 +131,7 @@ store the pending state:
 
 ```ts
 const credentialInfo = {
-  schema: "fedi-trust-score-v1.0",
+  schema: "example-membership-v1.0",
   trust_level: 7,
 } satisfies JsonValue;
 

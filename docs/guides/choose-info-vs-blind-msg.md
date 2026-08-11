@@ -19,7 +19,7 @@ what to issue.
 
 ```ts
 const credentialInfo = {
-  schema: "fedi-trust-score-v1.0",
+  schema: "example-membership-v1.0",
   trust_level: 7,
   issued_at: "2026-05-22T00:00:00Z",
 } satisfies JsonValue;

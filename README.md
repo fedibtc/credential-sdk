@@ -26,9 +26,16 @@ import {
 } from "@fedibtc/fedi-credential-sdk-wasm";
 
 const credentialInfo = {
-  schema: "fedi-trust-score-v1.0",
+  schema: "example-membership-v1.0",
   trust_level: 7,
 } satisfies JsonValue;
+
+> The schema strings in these examples are placeholders. Deployed first-party
+> schemas (such as `fedi-trust-score-v1.0`) are defined once in
+> [`crates/schemas`](crates/schemas) — use its constructors and parsers instead
+> of hand-building `info`, and never reuse a deployed schema string for a new
+> credential type.
+
 
 const revocationLocations = [
   {
@@ -88,7 +95,7 @@ The finalized credential has this shape:
   credential: {
     issuer_id_pubkey: "nostr-issuer-public-key",
     info: {
-      schema: "fedi-trust-score-v1.0",
+      schema: "example-membership-v1.0",
       trust_level: 7,
     },
     blind_msg: "anonymous-holder-public-key",
