@@ -482,9 +482,15 @@ pub fn trust_score_schema_v1() -> String {
 }
 
 /// Build the issuance `info` value for a `fedi-trust-score-v1.0` badge.
+///
+/// Rejects anything but an integer in the documented `1..=12` trust model —
+/// no silent truncation or wrap-around of illegal inputs.
 #[wasm_bindgen(js_name = trustScoreInfoV1, unchecked_return_type = "JsonValue")]
-pub fn trust_score_info_v1(trust_level: u32) -> Result<JsValue, JsError> {
-    to_js(&schemas::trust_score_info_v1(trust_level.into()))
+pub fn trust_score_info_v1(trust_level: f64) -> Result<JsValue, JsError> {
+    if !trust_level.is_finite() || trust_level.fract() != 0.0 || trust_level < 0.0 {
+        return Err(JsError::new("trust_level must be a non-negative integer"));
+    }
+    to_js(&schemas::trust_score_info_v1(trust_level as u64)?)
 }
 
 /// Build the issuance `blind_msg` value binding a `fedi-trust-score-v1.0` badge to a holder.

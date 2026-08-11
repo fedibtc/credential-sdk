@@ -6,6 +6,9 @@
 //!
 //! Regenerate with:
 //! `REGENERATE_GOLDEN=1 cargo test -p fedi-credential-sdk-schemas --test golden`
+//! then run the tests again without the variable: the validating tests compare
+//! against the fixture embedded at compile time, so a regeneration run always
+//! validates the previous fixture, not the one it just wrote.
 
 use fedi_credential_sdk_protocol::{
     HolderAuthorization, HolderAuthorizationRequest, HolderContext, IssuerAuthority,
@@ -97,7 +100,7 @@ fn issue(
     authority: &IssuerAuthority,
     holder: &HolderContext,
 ) -> SignedCredential {
-    let info = trust_score_info_v1(FIXTURE_TRUST_LEVEL);
+    let info = trust_score_info_v1(FIXTURE_TRUST_LEVEL).expect("legal level");
     let blind_msg = trust_score_blind_msg_v1(&holder.public_key());
 
     let (request, pending) = PendingIssuance::create_request(

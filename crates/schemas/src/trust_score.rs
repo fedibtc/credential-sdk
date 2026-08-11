@@ -13,6 +13,17 @@
 //! This shape is normative for `v1.0` because it is what the shipped PeerBadge
 //! issuer produces; verifiers adapt to it, not the other way around.
 //!
+//! `trust_level` is bounded to the documented trust model: the "Fedi
+//! Verification (Eng)" product document defines a 12-level model ("The Trust
+//! model will comprise of 12 levels"), of which Fedi issues 3, 6, and 9. The
+//! schema enforces the `1..=12` range; which levels are *acceptable* remains
+//! caller policy. The tight bound also keeps native (u64) and JavaScript
+//! (f64) verifiers exactly agreed on every representable level.
+//!
+//! `fedi-trust-score-v1.0` badges attest **holders** (persons). A credential
+//! about any other subject MUST use a new schema string, never this one with
+//! extra annotations.
+//!
 //! # Future work: `issuance_epoch`
 //!
 //! Earlier verifier-side drafts required a coarse `issuance_epoch` batch id in
@@ -29,6 +40,12 @@ use serde_json::Value;
 
 /// `info.schema` identifier for trust-score badges, revision v1.0.
 pub const TRUST_SCORE_SCHEMA_V1: &str = "fedi-trust-score-v1.0";
+
+/// Lowest legal `trust_level` in the documented 12-level trust model.
+pub const TRUST_SCORE_LEVEL_MIN: u64 = 1;
+
+/// Highest legal `trust_level` in the documented 12-level trust model.
+pub const TRUST_SCORE_LEVEL_MAX: u64 = 12;
 
 /// Parsed payload of a `fedi-trust-score-v1.0` badge.
 ///
@@ -58,6 +75,13 @@ pub enum TrustScoreSchemaError {
     #[error("credential info trust_level is missing or not an unsigned integer")]
     InvalidTrustLevel,
 
+    /// `info.trust_level` is outside the documented `1..=12` trust model.
+    #[error(
+        "credential info trust_level is outside the \
+         {TRUST_SCORE_LEVEL_MIN}..={TRUST_SCORE_LEVEL_MAX} trust model range"
+    )]
+    TrustLevelOutOfRange,
+
     /// `credential.blind_msg` is not a canonical lowercase hex holder pubkey
     /// string.
     #[error("credential blind_msg is not a canonical lowercase hex holder pubkey")]
@@ -65,11 +89,22 @@ pub enum TrustScoreSchemaError {
 }
 
 /// Build the issuance `info` value for a trust-score badge.
-pub fn trust_score_info_v1(trust_level: u64) -> Value {
-    serde_json::json!({
+///
+/// Rejects levels outside `1..=12` so an issuer bug surfaces as an error at
+/// the source instead of a signed badge carrying an illegal level.
+pub fn trust_score_info_v1(trust_level: u64) -> Result<Value, TrustScoreSchemaError> {
+    validate_trust_level(trust_level)?;
+    Ok(serde_json::json!({
         "schema": TRUST_SCORE_SCHEMA_V1,
         "trust_level": trust_level,
-    })
+    }))
+}
+
+fn validate_trust_level(trust_level: u64) -> Result<(), TrustScoreSchemaError> {
+    if !(TRUST_SCORE_LEVEL_MIN..=TRUST_SCORE_LEVEL_MAX).contains(&trust_level) {
+        return Err(TrustScoreSchemaError::TrustLevelOutOfRange);
+    }
+    Ok(())
 }
 
 /// Build the issuance `blind_msg` value binding the badge to a holder.
@@ -98,6 +133,7 @@ pub fn parse_trust_score_badge_v1(
         .get("trust_level")
         .and_then(Value::as_u64)
         .ok_or(TrustScoreSchemaError::InvalidTrustLevel)?;
+    validate_trust_level(trust_level)?;
 
     let holder_hex = credential
         .blind_msg
@@ -149,11 +185,41 @@ mod tests {
     #[test]
     fn constructors_round_trip_through_the_parser() {
         let holder = nostr::PublicKey::parse(HOLDER_HEX).expect("valid key");
-        let credential = credential(trust_score_info_v1(3), trust_score_blind_msg_v1(&holder));
+        for trust_level in TRUST_SCORE_LEVEL_MIN..=TRUST_SCORE_LEVEL_MAX {
+            let credential = credential(
+                trust_score_info_v1(trust_level).expect("legal level"),
+                trust_score_blind_msg_v1(&holder),
+            );
 
-        let badge = parse_trust_score_badge_v1(&credential).expect("parses");
-        assert_eq!(badge.trust_level, 3);
-        assert_eq!(badge.holder_pubkey, holder);
+            let badge = parse_trust_score_badge_v1(&credential).expect("parses");
+            assert_eq!(badge.trust_level, trust_level);
+            assert_eq!(badge.holder_pubkey, holder);
+        }
+    }
+
+    #[test]
+    fn constructor_rejects_out_of_range_levels() {
+        for trust_level in [0, 13, u64::MAX] {
+            assert_eq!(
+                trust_score_info_v1(trust_level),
+                Err(TrustScoreSchemaError::TrustLevelOutOfRange)
+            );
+        }
+    }
+
+    #[test]
+    fn parser_rejects_out_of_range_levels() {
+        for info in [
+            serde_json::json!({"schema": TRUST_SCORE_SCHEMA_V1, "trust_level": 0}),
+            serde_json::json!({"schema": TRUST_SCORE_SCHEMA_V1, "trust_level": 13}),
+            serde_json::json!({"schema": TRUST_SCORE_SCHEMA_V1, "trust_level": u64::MAX}),
+        ] {
+            let credential = credential(info, Value::String(HOLDER_HEX.to_owned()));
+            assert_eq!(
+                parse_trust_score_badge_v1(&credential),
+                Err(TrustScoreSchemaError::TrustLevelOutOfRange)
+            );
+        }
     }
 
     #[test]
@@ -228,7 +294,7 @@ mod tests {
             Value::String(npub),
             Value::String("not-a-key".to_owned()),
         ] {
-            let credential = credential(trust_score_info_v1(3), blind_msg);
+            let credential = credential(trust_score_info_v1(3).expect("legal level"), blind_msg);
             assert_eq!(
                 parse_trust_score_badge_v1(&credential),
                 Err(TrustScoreSchemaError::InvalidHolderBinding)
