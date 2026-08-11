@@ -1,0 +1,15 @@
+[package]
+name = "fedi-credential-sdk-schemas"
+version.workspace = true
+edition.workspace = true
+description = "First-party credential schemas layered on the schema-agnostic core protocol crate."
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+fedi-credential-sdk-protocol.workspace = true
+nostr = "0.44.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"

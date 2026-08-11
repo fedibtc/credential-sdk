@@ -15,6 +15,7 @@ sys-rng = ["fedi-credential-sdk-protocol/sys-rng"]
 
 [dependencies]
 fedi-credential-sdk-protocol.workspace = true
+fedi-credential-sdk-schemas.workspace = true
 getrandom = { version = "0.4.2", features = ["wasm_js"] }
 js-sys = "0.3"
 serde = { version = "1.0", features = ["derive"] }

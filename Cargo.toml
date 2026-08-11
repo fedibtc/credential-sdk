@@ -1,19 +1,21 @@
 [workspace]
 members = [
     "crates/protocol",
+    "crates/schemas",
     "crates/wasm",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.0.4"
+version = "0.0.5"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/fedibtc/credential-sdk"
 readme = "README.md"
 
 [workspace.dependencies]
-fedi-credential-sdk-protocol = { path = "crates/protocol", version = "0.0.4" }
+fedi-credential-sdk-protocol = { path = "crates/protocol", version = "0.0.5" }
+fedi-credential-sdk-schemas = { path = "crates/schemas", version = "0.0.5" }
 
 [profile.release]
 opt-level = "s"
