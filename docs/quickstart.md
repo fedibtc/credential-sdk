@@ -37,7 +37,7 @@ const credentialInfo = {
 
 > The schema strings in these examples are placeholders. Deployed first-party
 > schemas (such as `fedi-trust-score-v1.0`) are defined once in
-> [`crates/schemas`](crates/schemas) — use its constructors and parsers instead
+> [`crates/schemas`](../crates/schemas) — use its constructors and parsers instead
 > of hand-building `info`, and never reuse a deployed schema string for a new
 > credential type.
 
