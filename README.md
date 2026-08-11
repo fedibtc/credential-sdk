@@ -259,3 +259,17 @@ Useful scripts:
 - `pnpm run test:ts` rebuilds the WASM package, typechecks TypeScript, and runs Vitest.
 - `pnpm run check` runs typecheck and the full test suite.
 - `pnpm run publish:dry-run` builds and validates the generated package before publishing.
+
+## Publishing to npm
+
+Publish `@fedibtc/fedi-credential-sdk-wasm` with the `Publish` GitHub Actions workflow. The workflow uses npm trusted publishing, so it does not require an npm token.
+
+1. Set the release version in `package.json` and under `[workspace.package]` in `Cargo.toml`. Do not add a leading `v`.
+2. Update the workspace dependency versions and `Cargo.lock` when the Cargo workspace version changes.
+3. Merge the version changes into `master`.
+4. Open **Actions > Publish > Run workflow** in GitHub.
+5. Select `master`, enter the release version, and run the workflow.
+
+The workflow stops if the selected branch is not `master` or if either source version does not match the input. It installs the locked dependencies and runs `pnpm run check`. It then checks the generated package name and version. It also confirms that the version does not already exist on npm. If all checks pass, it publishes the public package from `pkg`.
+
+Run `pnpm run publish:dry-run` inside `devenv shell` if you want to inspect the generated package before you start the workflow.
