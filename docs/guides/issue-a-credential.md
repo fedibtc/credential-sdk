@@ -40,7 +40,7 @@ only creates and verifies the signed authority.
 
 ```ts
 const credentialInfo = {
-  schema: "fedi-trust-score-v1.0",
+  schema: "example-membership-v1.0",
   trust_level: 7,
 } satisfies JsonValue;
 
