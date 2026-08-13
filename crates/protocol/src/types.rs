@@ -351,6 +351,17 @@ impl Credential {
     }
 }
 
+/// Compute the protocol credential digest for a finalized credential.
+///
+/// The digest is SHA-256 over the credential digest domain separator followed
+/// by the RFC 8785/JCS canonical [`Credential`] payload. The proof, including
+/// `proof.signature`, is deliberately excluded.
+pub fn credential_digest(
+    credential: &SignedCredential,
+) -> Result<CredentialDigest, CredentialsError> {
+    Ok(CredentialDigest(credential.credential.digest()?))
+}
+
 /// Request produced by a holder during issuance.
 ///
 /// The holder keeps the original unblinded `blind_msg` locally and sends only
@@ -438,6 +449,23 @@ mod tests {
         assert_eq!(
             first.credential.digest().unwrap(),
             second.credential.digest().unwrap()
+        );
+    }
+
+    #[test]
+    fn public_digest_matches_cross_api_golden_vector() {
+        #[derive(Deserialize)]
+        struct GoldenVector {
+            signed_credential: SignedCredential,
+        }
+
+        let vector: GoldenVector =
+            serde_json::from_str(include_str!("../../schemas/fixtures/trust-score-v1.json"))
+                .unwrap();
+
+        assert_eq!(
+            serde_json::to_value(credential_digest(&vector.signed_credential).unwrap()).unwrap(),
+            json!("QK-voxaw9juOY7kZRJVcpWqi7hJP_Q33pAeto-Kg8NM")
         );
     }
 }
