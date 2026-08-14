@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "crates/nostr-transport",
     "crates/protocol",
     "crates/schemas",
     "crates/wasm",
@@ -15,7 +14,6 @@ repository = "https://github.com/fedibtc/credential-sdk"
 readme = "README.md"
 
 [workspace.dependencies]
-fedi-credential-sdk-nostr-transport = { path = "crates/nostr-transport", version = "0.0.5" }
 fedi-credential-sdk-protocol = { path = "crates/protocol", version = "0.0.5" }
 fedi-credential-sdk-schemas = { path = "crates/schemas", version = "0.0.5" }
 

@@ -1,4 +1,3 @@
-use fedi_credential_sdk_nostr_transport as nostr_transport;
 use fedi_credential_sdk_protocol as protocol;
 use fedi_credential_sdk_schemas as schemas;
 use serde::{de::DeserializeOwned, Serialize};
@@ -153,28 +152,6 @@ export interface PendingIssuanceResult {
   /** Local holder state required to finalize the issuer response. */
   readonly pending: PendingIssuance;
 }
-
-/** Unsigned NIP-01 event ready for an application-owned Nostr signer. */
-export interface UnsignedNostrEvent {
-  readonly pubkey: string;
-  readonly created_at: number;
-  readonly kind: number;
-  readonly tags: readonly (readonly string[])[];
-  readonly content: string;
-}
-
-/** Signed NIP-01 event returned by a Nostr signer or relay client. */
-export interface NostrEvent extends UnsignedNostrEvent {
-  readonly id: string;
-  readonly sig: string;
-}
-
-/** Validated standalone credential publication. */
-export interface StandaloneCredentialPublication {
-  readonly event: NostrEvent;
-  readonly credential: SignedCredential;
-  readonly credential_digest: CredentialDigest;
-}
 "#;
 
 fn from_js<T: DeserializeOwned>(value: JsValue) -> Result<T, JsError> {
@@ -193,20 +170,6 @@ fn current_unix_timestamp() -> Result<u64, JsError> {
         return Err(JsError::new("current time must be non-negative"));
     }
 
-    Ok(seconds as u64)
-}
-
-fn publication_timestamp(value: Option<f64>) -> Result<u64, JsError> {
-    let seconds = value.unwrap_or_else(|| (js_sys::Date::now() / 1000.0).floor());
-    if !seconds.is_finite()
-        || seconds < 0.0
-        || seconds.fract() != 0.0
-        || seconds > 9_007_199_254_740_991.0
-    {
-        return Err(JsError::new(
-            "created_at must be a non-negative safe integer Unix timestamp",
-        ));
-    }
     Ok(seconds as u64)
 }
 
@@ -241,81 +204,6 @@ pub fn credential_digest(
         .as_str()
         .map(ToOwned::to_owned)
         .ok_or_else(|| JsError::new("credential digest was not a string"))
-}
-
-/// Prepare an unsigned kind-37702 standalone holder credential event.
-///
-/// The complete credential uses ordinary SDK JSON. The event keeps the draft
-/// `d`, `t`, and holder `p` tags. The application must validate the credential
-/// schema and obtain `holder_pubkey` before it calls this function.
-#[wasm_bindgen(
-    js_name = prepareStandaloneCredentialEvent,
-    unchecked_return_type = "UnsignedNostrEvent"
-)]
-pub fn prepare_standalone_credential_event(
-    holder_pubkey: String,
-    #[wasm_bindgen(unchecked_param_type = "SignedCredential")] credential: JsValue,
-    created_at: Option<f64>,
-) -> Result<JsValue, JsError> {
-    let holder_pubkey = nostr::PublicKey::parse(&holder_pubkey)?;
-    let credential: protocol::SignedCredential = from_js(credential)?;
-    let event = nostr_transport::prepare_holder_credential_event(
-        holder_pubkey,
-        &credential,
-        nostr::Timestamp::from(publication_timestamp(created_at)?),
-    )?;
-    to_js(&event)
-}
-
-/// Parse and validate a signed kind-37702 standalone credential event.
-///
-/// The application must validate the credential schema and supply the holder
-/// public key resolved from that schema. This function validates the Nostr
-/// envelope against that key. It does not interpret `blind_msg`.
-#[wasm_bindgen(
-    js_name = parseStandaloneCredentialEvent,
-    unchecked_return_type = "StandaloneCredentialPublication"
-)]
-pub fn parse_standalone_credential_event(
-    expected_holder_pubkey: String,
-    #[wasm_bindgen(unchecked_param_type = "NostrEvent")] event: JsValue,
-) -> Result<JsValue, JsError> {
-    let expected_holder_pubkey = nostr::PublicKey::parse(&expected_holder_pubkey)?;
-    let event: nostr::Event = from_js(event)?;
-    to_js(&nostr_transport::parse_holder_credential_event(
-        &event,
-        &expected_holder_pubkey,
-    )?)
-}
-
-/// Validate candidates before returning the newest valid publication.
-///
-/// `expected_holder_pubkey` must come from application-level credential schema
-/// validation. Structurally malformed candidates and candidates from other
-/// event authors are skipped.
-#[wasm_bindgen(
-    js_name = selectNewestStandaloneCredentialEvent,
-    unchecked_return_type = "StandaloneCredentialPublication | undefined"
-)]
-pub fn select_newest_standalone_credential_event(
-    expected_holder_pubkey: String,
-    #[wasm_bindgen(unchecked_param_type = "readonly NostrEvent[]")] events: JsValue,
-) -> Result<JsValue, JsError> {
-    let expected_holder_pubkey = nostr::PublicKey::parse(&expected_holder_pubkey)?;
-    if !js_sys::Array::is_array(&events) {
-        return Err(JsError::new("events must be an array"));
-    }
-    let events: Vec<nostr::Event> = js_sys::Array::from(&events)
-        .iter()
-        .filter_map(|event| from_js(event).ok())
-        .collect();
-    match nostr_transport::select_newest_valid_holder_credential_event(
-        events.iter(),
-        &expected_holder_pubkey,
-    ) {
-        Some(parsed) => to_js(&parsed),
-        None => Ok(JsValue::UNDEFINED),
-    }
 }
 
 #[wasm_bindgen]
