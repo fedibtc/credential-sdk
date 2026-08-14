@@ -2,9 +2,16 @@
 
 ## Status
 
-Draft architecture for a future `fedi-credential-sdk-nostr-transport` crate.
-This document is intentionally scoped to the MVP needed for holder-published
-credentials and holder-published credential authorizations.
+The holder-published credential half of this document (kind `37702`) is now
+implemented in `fedi-credential-sdk-nostr-transport` and bound in the existing
+WASM package. The holder-published credential authorization half (kind `37705`)
+and the relay publish/fetch client remain draft. This document is intentionally
+scoped to the MVP needed for holder-published credentials and holder-published
+credential authorizations.
+
+The implementation deliberately diverges from the draft that was reviewed in
+PR #27 on a few points. Those changes and their rationale are recorded in
+[Changes From The Reviewed Draft](#changes-from-the-reviewed-draft).
 
 This crate is not part of the cryptographic protocol core. Transport is
 unrelated to the credential protocol itself, so this crate lives here as an
@@ -19,6 +26,93 @@ protocols described in
 `docs/dpc/FMan-nostr.md`. Even though this crate stays generic and does not own
 application-specific advertisement documents, implementation work should be
 validated against those protocol documents as the compatibility source of truth.
+
+## Changes From The Reviewed Draft
+
+The kind `37702` implementation changes four things relative to the draft
+reviewed in PR #27.
+
+### 1. Event content is ordinary SDK JSON, not canonical JSON
+
+The draft required RFC 8785/JCS canonical JSON for event `content`. The
+implementation serializes `content` with the protocol crate's ordinary serde
+JSON output instead.
+
+Rationale: the Nostr event id already commits to the exact published content
+bytes, and consumers must parse and validate `content` rather than compare its
+bytes, so byte-level reproducibility across implementations buys nothing at
+the transport layer. The one value that must be reproducible across systems is
+the credential digest in the `d` tag, and the protocol crate computes that
+digest over JCS internally (`credential_digest`), independent of how the event
+content is formatted. Requiring JCS for `content` would force every consuming
+system to ship a JCS implementation just to produce events; with ordinary JSON
+they only need a JSON serializer, and any JSON encoding of the same
+`SignedCredential` remains verifiable because validation recomputes the digest
+from the parsed content. SDK test fixtures stay stable because serde output is
+deterministic for a given SDK version.
+
+### 2. The holder binding is caller-supplied, not read from `blind_msg`
+
+The draft validated `event.pubkey` against
+`credential.credential.blind_msg`, relying on the MVP schema convention that
+`blind_msg` holds the holder pubkey. The implementation instead takes an
+explicit holder pubkey argument (`holder_pubkey` in prepare,
+`expected_holder_pubkey` in parse) and never interprets `blind_msg`.
+
+Rationale: `blind_msg` is application data, not a protocol field (see the
+protocol crate's `Credential` docs), so reading a holder pubkey out of it
+would couple the transport crate to one schema and silently misvalidate
+credentials from any other schema. Consuming systems already validate the
+credential schema before trusting a credential; that validation is where the
+holder key is resolved, and the transport then enforces that `event.pubkey`
+and the `p` tag match the resolved key. The check from the draft still
+happens — it has moved to the application layer where the schema is known.
+
+### 3. Required tags are validated strictly, not treated as hints
+
+The draft's rule was "treat every tag as a lookup hint only". The implemented
+`37702` validation is stricter than the draft's validation list: an event is
+rejected unless it has exactly one two-element `d` tag with a
+`credential:<digest>` value matching the content digest, a two-element
+`["t", "fedi-credential"]` tag, and exactly one two-element `p` tag equal to
+the event author and the expected holder. In particular, a `p` tag carrying a
+NIP-01 relay-hint third element is rejected.
+
+Rationale: for this event the SDK owns the entire envelope — `prepare` is the
+only intended producer — so every accepted event can be required to have
+exactly the shape `prepare` emits. Strictness keeps the addressable slot
+unambiguous (no duplicate `d` tags), removes any gap between what the SDK
+publishes and what it accepts, and is the forward-compatible default while the
+kind is provisional: loosening validation later keeps previously published
+events valid, whereas tightening later would orphan them. Authoritative values
+are still verified from content exactly as the draft required; the tags are
+additionally pinned. Producers must publish the prepared `d`, `t`, and `p`
+tags unmodified and must not append relay hints or extra elements to them.
+Additional tags under other names are tolerated by validation, so application
+metadata tags remain possible even though `prepare` does not emit any.
+
+### 4. Prepare/parse API shape
+
+Smaller, non-wire-visible changes from the draft's proposed Rust API:
+
+- `prepare_holder_credential_event` returns a `nostr::UnsignedEvent` (not an
+  `EventBuilder`) and takes `created_at` explicitly. An unsigned event is a
+  plain serializable value, which suits external application-owned signers and
+  the WASM boundary, and an explicit timestamp keeps event ids deterministic
+  in tests. The WASM binding defaults `created_at` to the current time.
+- `parse_holder_credential_event` returns a `ParsedHolderCredentialEvent`
+  bundling the event, the parsed `SignedCredential`, and the verified
+  `CredentialDigest`, so callers get the validated digest without recomputing
+  it.
+- `select_newest_valid_holder_credential_event` implements the
+  validate-first, newest-`created_at`-wins fetch rule from this document as a
+  reusable helper, since the relay client that would normally house it is
+  deferred.
+- The WASM bindings expose these as free functions named
+  `prepareStandaloneCredentialEvent`, `parseStandaloneCredentialEvent`,
+  `selectNewestStandaloneCredentialEvent`, and `credentialDigest` in the
+  existing `@fedibtc/credential-sdk` package ("standalone credential" is the
+  JS-facing name for the holder credential event).
 
 ## Outcome
 
@@ -70,7 +164,7 @@ policy and is more likely to live in the consuming credential app than here.
 
 ## Crate Boundary
 
-Proposed crate:
+Crate:
 
 ```text
 crates/nostr-transport
@@ -174,8 +268,12 @@ Rules:
 - Use `d` as the addressable replacement key.
 - Use `p` for public key lookup.
 - Use `t` for the event family.
-- Treat every tag as a lookup hint only.
 - Verify all authoritative values from event content and protocol signatures.
+- For the fully SDK-owned `37702` event, additionally require the exact
+  prepared tag shape (see
+  [Changes From The Reviewed Draft](#changes-from-the-reviewed-draft)). For
+  the application-namespaced `37705` event, tags beyond the validated
+  bindings remain lookup hints only.
 
 Nostr relays commonly index single-letter tags. Multi-letter tags can be useful
 for debugging, but fetch code must not depend on them.
@@ -202,10 +300,14 @@ types:
 
 ## Event Content Serialization
 
-Event `content` should be canonical JSON for deterministic event IDs and stable
-test fixtures. The transport crate owns this serialization for transport
-envelopes. The protocol objects inside the transport envelope remain the
-protocol crate's serde output.
+Event `content` is the protocol crate's ordinary serde JSON output. Canonical
+(RFC 8785/JCS) serialization is not used at the transport layer; JCS is used
+only inside the protocol crate's credential digest, which is what the `d` tag
+and all cross-system digest comparisons rely on. See
+[Changes From The Reviewed Draft](#changes-from-the-reviewed-draft) for the
+rationale. The transport crate owns content serialization for transport
+envelopes; the protocol objects inside remain the protocol crate's serde
+output.
 
 ## Holder Credential Event
 
@@ -223,23 +325,29 @@ Event wrapper:
     ["t", "fedi-credential"],
     ["p", "<holder pubkey>"]
   ],
-  content: "<canonical JSON string of fedi_credential_sdk_protocol::SignedCredential>"
+  content: "<SDK serde JSON string of fedi_credential_sdk_protocol::SignedCredential>"
 }
 ```
 
-Validation:
+Validation (as implemented in `parse_holder_credential_event`):
 
-- The Nostr event signature is valid.
+- The Nostr event signature and id are valid.
 - `event.kind == 37702`.
+- The event carries a two-element `["t", "fedi-credential"]` tag.
+- The event carries exactly one two-element `p` tag, and both `event.pubkey`
+  and the `p` tag value equal the caller-supplied expected holder pubkey. The
+  caller resolves that pubkey by validating the credential schema (in the
+  current MVP schema it lives in `blind_msg`, but the transport crate never
+  interprets `blind_msg` — see
+  [Changes From The Reviewed Draft](#changes-from-the-reviewed-draft)).
+- The event carries exactly one two-element `d` tag with a
+  `credential:<credential_digest>` value.
 - `content` parses as `SignedCredential`.
-- The event contains the required `d` tag, and
-  `Credential::digest(content.credential)` equals the `credential_digest` in that
-  `d` tag.
-- The holder pubkey represented by `event.pubkey` matches the holder binding in
-  the credential. In the current MVP schema, this means
-  `credential.credential.blind_msg` is the holder pubkey string.
-- The credential itself is verified through `VerificationContext` when the
-  caller has issuer authorities and revocation state.
+- `Credential::digest(content.credential)` equals the `credential_digest` in
+  the `d` tag.
+- The credential itself is verified through `VerificationContext` by the
+  caller when it has issuer authorities and revocation state; the transport
+  crate does not run protocol verification.
 
 The transport crate should expose this as a holder-authored publication helper.
 It should not support issuer-authored credential publication in the MVP.
@@ -278,7 +386,7 @@ Event wrapper:
     ["t", "fedi-fman-authorization"],
     ["p", "<subject_pubkey>"]
   ],
-  content: "<canonical JSON string of the holder authorization envelope>"
+  content: "<SDK serde JSON string of the holder authorization envelope>"
 }
 ```
 
@@ -372,8 +480,8 @@ Publishing should:
 - Let callers choose success policy: at least one relay, quorum, or all relays.
 - Treat duplicate acceptance as success.
 
-The transport crate should expose prepare functions that produce unsigned event
-builders, plus publish functions that sign and send those builders. This lets
+The transport crate should expose prepare functions that produce unsigned
+events, plus publish functions that sign and send them. This lets
 applications with their own Nostr client reuse the SDK transport envelope logic
 without adopting the SDK relay client.
 
@@ -383,10 +491,36 @@ replaced by application-specific tags.
 
 ## Public API Shape
 
-Core constants:
+Implemented (holder credential):
 
 ```rust
 pub const KIND_HOLDER_CREDENTIAL: Kind = Kind::Custom(37702);
+pub const CREDENTIAL_D_TAG_PREFIX: &str = "credential:";
+pub const CREDENTIAL_TOPIC: &str = "fedi-credential";
+
+pub fn prepare_holder_credential_event(
+    holder_pubkey: PublicKey,
+    credential: &SignedCredential,
+    created_at: Timestamp,
+) -> Result<UnsignedEvent, NostrTransportError>;
+
+pub fn parse_holder_credential_event(
+    event: &Event,
+    expected_holder_pubkey: &PublicKey,
+) -> Result<ParsedHolderCredentialEvent, NostrTransportError>;
+
+pub fn select_newest_valid_holder_credential_event<'a>(
+    events: impl IntoIterator<Item = &'a Event>,
+    expected_holder_pubkey: &PublicKey,
+) -> Option<ParsedHolderCredentialEvent>;
+```
+
+See [Changes From The Reviewed Draft](#changes-from-the-reviewed-draft) for
+how these signatures differ from the draft below.
+
+Draft (holder authorization, not yet implemented):
+
+```rust
 pub const KIND_HOLDER_AUTHORIZATION: Kind = Kind::Custom(37705);
 ```
 
@@ -404,11 +538,6 @@ pub struct HolderAuthorizationPublication {
 Prepare functions:
 
 ```rust
-pub fn prepare_holder_credential_event(
-    credential: &SignedCredential,
-    options: HolderCredentialPublishOptions,
-) -> Result<EventBuilder, NostrTransportError>;
-
 pub fn prepare_holder_authorization_event(
     authorization: &HolderAuthorization,
     credential: &SignedCredential,
@@ -419,15 +548,16 @@ pub fn prepare_holder_authorization_event(
 Parse functions:
 
 ```rust
-pub fn parse_holder_credential_event(
-    event: &nostr::Event,
-) -> Result<SignedCredential, NostrTransportError>;
-
 pub fn parse_holder_authorization_event(
     event: &nostr::Event,
     expected_subject: Option<&SubjectPubkey>,
 ) -> Result<HolderAuthorizationPublication, NostrTransportError>;
 ```
+
+When the authorization event is implemented, its prepare/parse pair should
+follow the implemented credential-event signatures (an `UnsignedEvent` result
+and an explicit expected-key argument) rather than the builder/options shape
+drafted above.
 
 Relay client functions:
 
@@ -491,8 +621,11 @@ Application/verifier:
 
 ## TODO
 
+- Implement the `37705` holder authorization event (prepare/parse/validation).
+- Add the relay publish/fetch client.
 - Add revocation event publication and fetching after the holder publication MVP.
-- Re-check kind availability before implementation and before release.
+- Re-check kind availability before release (`37702` was re-checked when it was
+  implemented; `37705` needs a re-check before its implementation).
 
 ## References
 
