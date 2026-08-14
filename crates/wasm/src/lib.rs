@@ -291,7 +291,8 @@ pub fn parse_standalone_credential_event(
 /// Validate candidates before returning the newest valid publication.
 ///
 /// `expected_holder_pubkey` must come from application-level credential schema
-/// validation. Candidates from other event authors are rejected.
+/// validation. Structurally malformed candidates and candidates from other
+/// event authors are skipped.
 #[wasm_bindgen(
     js_name = selectNewestStandaloneCredentialEvent,
     unchecked_return_type = "StandaloneCredentialPublication | undefined"
@@ -301,7 +302,13 @@ pub fn select_newest_standalone_credential_event(
     #[wasm_bindgen(unchecked_param_type = "readonly NostrEvent[]")] events: JsValue,
 ) -> Result<JsValue, JsError> {
     let expected_holder_pubkey = nostr::PublicKey::parse(&expected_holder_pubkey)?;
-    let events: Vec<nostr::Event> = from_js(events)?;
+    if !js_sys::Array::is_array(&events) {
+        return Err(JsError::new("events must be an array"));
+    }
+    let events: Vec<nostr::Event> = js_sys::Array::from(&events)
+        .iter()
+        .filter_map(|event| from_js(event).ok())
+        .collect();
     match nostr_transport::select_newest_valid_holder_credential_event(
         events.iter(),
         &expected_holder_pubkey,

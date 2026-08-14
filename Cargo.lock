@@ -524,7 +524,6 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 name = "fedi-credential-sdk-nostr-transport"
 version = "0.0.5"
 dependencies = [
- "blind-rsa-signatures",
  "fedi-credential-sdk-protocol",
  "nostr",
  "serde",

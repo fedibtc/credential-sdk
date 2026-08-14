@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import vector from "../crates/schemas/fixtures/trust-score-v1.json";
-import type { SignedCredential } from "../pkg/fedi_credential_sdk_wasm.js";
+import type {
+  NostrEvent,
+  SignedCredential,
+} from "../pkg/fedi_credential_sdk_wasm.js";
 import {
   credentialDigest,
   prepareStandaloneCredentialEvent,
+  selectNewestStandaloneCredentialEvent,
 } from "../pkg/fedi_credential_sdk_wasm.js";
 
 const goldenDigest = "QK-voxaw9juOY7kZRJVcpWqi7hJP_Q33pAeto-Kg8NM";
@@ -38,5 +42,15 @@ describe("standalone holder credential events", () => {
       ],
       content: JSON.stringify(credential),
     });
+  });
+
+  it("skips a structurally malformed relay candidate", () => {
+    const malformedCandidates = [
+      { id: "not-a-nostr-event" },
+    ] as unknown as readonly NostrEvent[];
+
+    expect(
+      selectNewestStandaloneCredentialEvent(holderPubkey, malformedCandidates),
+    ).toBeUndefined();
   });
 });
