@@ -198,12 +198,7 @@ pub fn credential_digest(
     #[wasm_bindgen(unchecked_param_type = "SignedCredential")] credential: JsValue,
 ) -> Result<String, JsError> {
     let credential: protocol::SignedCredential = from_js(credential)?;
-    let digest = protocol::credential_digest(&credential)?;
-    let value = serde_json::to_value(digest)?;
-    value
-        .as_str()
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| JsError::new("credential digest was not a string"))
+    Ok(protocol::credential_digest(&credential)?.to_string())
 }
 
 #[wasm_bindgen]

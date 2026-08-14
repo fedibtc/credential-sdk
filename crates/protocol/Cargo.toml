@@ -12,6 +12,7 @@ default = []
 sys-rng = []
 
 [dependencies]
+base64 = "0.22"
 blind-rsa-signatures = "0.17.1"
 hex = "0.4.3"
 nostr = "0.44.2"

@@ -125,6 +125,15 @@ impl From<Output<Sha256>> for CredentialDigest {
     }
 }
 
+impl std::fmt::Display for CredentialDigest {
+    /// Format as the wire string: unpadded URL-safe base64, identical to the
+    /// JSON serialization of this type.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use base64::Engine as _;
+        f.write_str(&base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(self.0))
+    }
+}
+
 /// JSON-friendly issuer secret export.
 #[serde_as]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -462,10 +471,15 @@ mod tests {
         let vector: GoldenVector =
             serde_json::from_str(include_str!("../../schemas/fixtures/trust-score-v1.json"))
                 .unwrap();
+        let digest = credential_digest(&vector.signed_credential).unwrap();
 
         assert_eq!(
-            serde_json::to_value(credential_digest(&vector.signed_credential).unwrap()).unwrap(),
+            serde_json::to_value(&digest).unwrap(),
             json!("QK-voxaw9juOY7kZRJVcpWqi7hJP_Q33pAeto-Kg8NM")
+        );
+        assert_eq!(
+            digest.to_string(),
+            "QK-voxaw9juOY7kZRJVcpWqi7hJP_Q33pAeto-Kg8NM"
         );
     }
 }
