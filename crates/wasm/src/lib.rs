@@ -190,6 +190,17 @@ pub fn init_tracing() -> bool {
     tracing_wasm::try_set_as_global_default().is_ok()
 }
 
+/// Compute the SDK credential digest.
+///
+/// The digest uses RFC 8785/JCS over the credential payload and excludes the proof.
+#[wasm_bindgen(js_name = credentialDigest)]
+pub fn credential_digest(
+    #[wasm_bindgen(unchecked_param_type = "SignedCredential")] credential: JsValue,
+) -> Result<String, JsError> {
+    let credential: protocol::SignedCredential = from_js(credential)?;
+    Ok(protocol::CredentialDigest::from(credential.credential.digest()?).to_string())
+}
+
 #[wasm_bindgen]
 #[derive(Clone)]
 /// Issuer-side context for creating issuer authorities, issuing credentials, and revoking credentials.
