@@ -1,0 +1,110 @@
+name: RSA keygen
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keygen-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: Native RSA keygen
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.29.0/install
+
+      - name: Use devenv binary cache
+        uses: cachix/cachix-action@v16
+        with:
+          name: devenv
+
+      - name: Install devenv
+        run: nix profile install nixpkgs#devenv
+
+      - name: Run native RSA keygen tests
+        env:
+          RSA_KEYGEN_RUNS: 3
+          RSA_KEYGEN_CONCURRENT: 1
+        run: devenv shell -- pnpm run test:keygen:rust
+
+  wasm:
+    name: WASM RSA keygen (Node)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.29.0/install
+
+      - name: Use devenv binary cache
+        uses: cachix/cachix-action@v16
+        with:
+          name: devenv
+
+      - name: Install devenv
+        run: nix profile install nixpkgs#devenv
+
+      - name: Install JavaScript dependencies
+        run: devenv shell -- pnpm install --frozen-lockfile
+
+      - name: Run WASM RSA keygen tests
+        env:
+          RSA_KEYGEN_RUNS: 3
+          RSA_KEYGEN_CONCURRENT: 1
+          RSA_KEYGEN_TIMEOUT_MS: 3600000
+        run: devenv shell -- pnpm run test:keygen:ts
+
+  browser:
+    name: WASM RSA keygen (browser)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.29.0/install
+
+      - name: Use devenv binary cache
+        uses: cachix/cachix-action@v16
+        with:
+          name: devenv
+
+      - name: Install devenv
+        run: nix profile install nixpkgs#devenv
+
+      - name: Install JavaScript dependencies
+        run: devenv shell -- pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: devenv shell -- pnpm exec playwright install --with-deps chromium
+
+      - name: Run browser RSA keygen tests
+        env:
+          VITE_RSA_KEYGEN_REPEATS: 2
+          VITE_RSA_KEYGEN_CONCURRENT_WORKERS: 2
+          VITE_RSA_KEYGEN_TIMEOUT_MS: 3600000
+        run: devenv shell -- pnpm run test:keygen:browser
