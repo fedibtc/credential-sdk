@@ -1,4 +1,0 @@
-- do want to use nostr keys for issuer identity? or just normal ecdsa keys?
-  - yes choosing for now
-- removing nostr keys from this protocol layer
-  - to simplify this layer
