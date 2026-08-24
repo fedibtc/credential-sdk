@@ -39,17 +39,23 @@
     "publish:dry-run": "pnpm run build && npm publish ./pkg --access public --dry-run"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.15",
-    "@vitest/browser-playwright": "^4.1.6",
-    "mermaid": "^11.15.0",
-    "playwright": "^1.60.0",
-    "rollup": "^4.60.3",
-    "typedoc": "^0.28.19",
+    "@biomejs/biome": "^2.5.10",
+    "@vitest/browser-playwright": "^4.1.11",
+    "esbuild": "^0.28.2",
+    "mermaid": "^11.17.1",
+    "playwright": "^1.62.1",
+    "rollup": "^4.62.5",
+    "typedoc": "^0.28.20",
     "typedoc-theme-oxide": "^0.3.0",
     "typescript": "^5.9.3",
-    "vite": "^8.0.12",
+    "vite": "^8.2.2",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.6.0",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.11"
+  },
+  "pnpm": {
+    "overrides": {
+      "uuid@10": ">=11.1.1"
+    }
   }
 }
