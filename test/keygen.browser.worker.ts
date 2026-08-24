@@ -22,6 +22,16 @@ type KeygenTiming = {
   readonly elapsedMs: number;
 };
 
+type IssuerSecrets = {
+  readonly issuer_id_secret_key: string;
+  readonly issuance_secret_key: string;
+};
+
+type KeygenRunResult = {
+  readonly timing: KeygenTiming;
+  readonly secrets: IssuerSecrets;
+};
+
 type KeygenWorkerResponse =
   | {
       readonly type: "progress";
@@ -33,6 +43,7 @@ type KeygenWorkerResponse =
   | {
       readonly type: "timing";
       readonly timing: KeygenTiming;
+      readonly secrets: IssuerSecrets;
     }
   | {
       readonly type: "error";
@@ -68,7 +79,10 @@ function loadSdk(): Promise<WasmSdk> {
   return wasmSdkPromise;
 }
 
-function smokeTestGeneratedIssuer(sdk: WasmSdk, issuer: IssuerContext) {
+function smokeTestGeneratedIssuer(
+  sdk: WasmSdk,
+  issuer: IssuerContext,
+): IssuerSecrets {
   const { HolderContext, PendingIssuance, VerificationContext } = sdk;
   const exported = issuer.exportSecretKey();
   assert(
@@ -105,6 +119,11 @@ function smokeTestGeneratedIssuer(sdk: WasmSdk, issuer: IssuerContext) {
     verifier.verifyCredential(credential) === true,
     "generated issuer credential verification failed",
   );
+
+  return {
+    issuer_id_secret_key: exported.issuer_id_secret_key,
+    issuance_secret_key: exported.issuance_secret_key,
+  };
 }
 
 function keygenStrategyLabel(strategy: KeygenStrategy): string {
@@ -121,7 +140,7 @@ async function generateIssuerForTiming(
   repeat: number,
   run: number,
   strategy: KeygenStrategy,
-): Promise<KeygenTiming> {
+): Promise<KeygenRunResult> {
   workerScope.postMessage({
     type: "progress",
     repeat,
@@ -156,22 +175,20 @@ async function generateIssuerForTiming(
     strategy,
     message: `smoke testing generated issuer from ${strategyLabel}`,
   });
-  smokeTestGeneratedIssuer(sdk, issuer);
+  const secrets = smokeTestGeneratedIssuer(sdk, issuer);
 
-  return { repeat, run, strategy, elapsedMs };
+  return { timing: { repeat, run, strategy, elapsedMs }, secrets };
 }
 
 workerScope.addEventListener("message", (event) => {
   void (async () => {
     try {
-      workerScope.postMessage({
-        type: "timing",
-        timing: await generateIssuerForTiming(
-          event.data.repeat,
-          event.data.run,
-          event.data.strategy,
-        ),
-      });
+      const { timing, secrets } = await generateIssuerForTiming(
+        event.data.repeat,
+        event.data.run,
+        event.data.strategy,
+      );
+      workerScope.postMessage({ type: "timing", timing, secrets });
     } catch (error) {
       workerScope.postMessage({
         type: "error",

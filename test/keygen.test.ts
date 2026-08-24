@@ -18,6 +18,18 @@ type KeygenTiming = {
   readonly elapsedMs: number;
 };
 
+type IssuerSecretField = "issuer_id_secret_key" | "issuance_secret_key";
+
+type IssuerSecrets = {
+  readonly issuer_id_secret_key: string;
+  readonly issuance_secret_key: string;
+};
+
+type KeygenRunResult = {
+  readonly timing: KeygenTiming;
+  readonly secrets: IssuerSecrets;
+};
+
 type WorkerInstance = {
   on: (event: string, listener: (...args: unknown[]) => void) => void;
 };
@@ -74,7 +86,7 @@ function writeTiming(message: string) {
   }
 }
 
-function smokeTestGeneratedIssuer(issuer: IssuerContext) {
+function smokeTestGeneratedIssuer(issuer: IssuerContext): IssuerSecrets {
   const exported = issuer.exportSecretKey();
   expect(exported.issuer_id_secret_key).toMatch(/^[0-9a-f]+$/);
   expect(exported.issuance_secret_key.length).toBeGreaterThan(0);
@@ -95,17 +107,25 @@ function smokeTestGeneratedIssuer(issuer: IssuerContext) {
   const verifier = new VerificationContext();
   expect(verifier.addIssuerAuthority(issuerAuthority)).toBeUndefined();
   expect(verifier.verifyCredential(credential)).toBe(true);
+
+  return {
+    issuer_id_secret_key: exported.issuer_id_secret_key,
+    issuance_secret_key: exported.issuance_secret_key,
+  };
 }
 
-function generateIssuerForTiming(run: number, runCount: number): KeygenTiming {
+function generateIssuerForTiming(
+  run: number,
+  runCount: number,
+): KeygenRunResult {
   const started = Date.now();
   const issuer = IssuerContext.generate();
   const elapsedMs = Date.now() - started;
 
   writeRunTiming({ run, elapsedMs }, runCount);
-  smokeTestGeneratedIssuer(issuer);
+  const secrets = smokeTestGeneratedIssuer(issuer);
 
-  return { run, elapsedMs };
+  return { timing: { run, elapsedMs }, secrets };
 }
 
 function writeRunTiming(timing: KeygenTiming, runCount: number) {
@@ -161,6 +181,19 @@ function reportKeygenStats(
   }
 }
 
+// Compares only unique-value counts so generated secrets never appear in
+// assertion messages or test output.
+function assertDistinctIssuerSecrets(
+  results: readonly KeygenRunResult[],
+  field: IssuerSecretField,
+) {
+  const unique = new Set(results.map((result) => result.secrets[field])).size;
+  expect(
+    unique,
+    `${field}: expected ${results.length} unique values across ${results.length} keygen runs, found ${unique} (${results.length - unique} duplicated)`,
+  ).toBe(results.length);
+}
+
 async function importWorkerThreads(): Promise<WorkerThreadsModule> {
   const workerThreadsSpecifier = "node:worker_threads";
   return import(workerThreadsSpecifier) as Promise<WorkerThreadsModule>;
@@ -208,16 +241,25 @@ function workerSource(run: number, pkgUrl: string): string {
       throw new Error("generated issuer credential verification failed");
     }
 
-    parentPort.postMessage({ run: ${run}, elapsedMs });
+    parentPort.postMessage({
+      run: ${run},
+      elapsedMs,
+      issuer_id_secret_key: exported.issuer_id_secret_key,
+      issuance_secret_key: exported.issuance_secret_key,
+    });
   `;
 }
 
-function isKeygenTiming(value: unknown): value is KeygenTiming {
+type KeygenWorkerMessage = KeygenTiming & IssuerSecrets;
+
+function isKeygenWorkerMessage(value: unknown): value is KeygenWorkerMessage {
   return (
     typeof value === "object" &&
     value !== null &&
-    typeof (value as KeygenTiming).run === "number" &&
-    typeof (value as KeygenTiming).elapsedMs === "number"
+    typeof (value as KeygenWorkerMessage).run === "number" &&
+    typeof (value as KeygenWorkerMessage).elapsedMs === "number" &&
+    typeof (value as KeygenWorkerMessage).issuer_id_secret_key === "string" &&
+    typeof (value as KeygenWorkerMessage).issuance_secret_key === "string"
   );
 }
 
@@ -226,7 +268,7 @@ function runWorkerKeygen(
   pkgUrl: string,
   run: number,
   runCount: number,
-): Promise<KeygenTiming> {
+): Promise<KeygenRunResult> {
   const worker = new Worker(
     new URL(
       `data:text/javascript,${encodeURIComponent(workerSource(run, pkgUrl))}`,
@@ -237,22 +279,29 @@ function runWorkerKeygen(
     },
   );
 
-  return new Promise((resolve, reject) => {
-    let timing: KeygenTiming | undefined;
+  // Executor form: project lib is ES2022, which lacks Promise.withResolvers.
+  return new Promise<KeygenRunResult>((resolve, reject) => {
+    let result: KeygenRunResult | undefined;
 
     worker.on("message", (message) => {
-      if (!isKeygenTiming(message)) {
+      if (!isKeygenWorkerMessage(message)) {
         reject(new Error("RSA keygen worker returned an invalid message"));
         return;
       }
 
-      timing = message;
-      writeRunTiming(timing, runCount);
+      result = {
+        timing: { run: message.run, elapsedMs: message.elapsedMs },
+        secrets: {
+          issuer_id_secret_key: message.issuer_id_secret_key,
+          issuance_secret_key: message.issuance_secret_key,
+        },
+      };
+      writeRunTiming(result.timing, runCount);
     });
     worker.on("error", (error) => reject(error));
     worker.on("exit", (code) => {
-      if (code === 0 && timing) {
-        resolve(timing);
+      if (code === 0 && result) {
+        resolve(result);
         return;
       }
 
@@ -261,7 +310,9 @@ function runWorkerKeygen(
   });
 }
 
-async function runConcurrentKeygens(runCount: number): Promise<KeygenTiming[]> {
+async function runConcurrentKeygens(
+  runCount: number,
+): Promise<KeygenRunResult[]> {
   const { Worker } = await importWorkerThreads();
   const pkgUrl = new URL("../pkg/fedi_credential_sdk_wasm.js", import.meta.url)
     .href;
@@ -277,13 +328,22 @@ async function reportsRsaKeygenTiming() {
   initTracing();
 
   const wallStarted = Date.now();
-  const timings = runKeygensConcurrently
+  const results = runKeygensConcurrently
     ? await runConcurrentKeygens(keygenRuns)
     : Array.from({ length: keygenRuns }, (_, index) =>
         generateIssuerForTiming(index + 1, keygenRuns),
       );
 
-  reportKeygenStats(timings, Date.now() - wallStarted, runKeygensConcurrently);
+  reportKeygenStats(
+    results.map((result) => result.timing),
+    Date.now() - wallStarted,
+    runKeygensConcurrently,
+  );
+
+  if (keygenRuns > 1) {
+    assertDistinctIssuerSecrets(results, "issuer_id_secret_key");
+    assertDistinctIssuerSecrets(results, "issuance_secret_key");
+  }
 }
 
 describe("RSA issuer key generation", () => {

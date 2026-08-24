@@ -1,4 +1,4 @@
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { cdp } from "vitest/browser";
 import KeygenBrowserWorker from "./keygen.browser.worker.ts?worker";
 
@@ -15,6 +15,18 @@ type KeygenTiming = {
   readonly elapsedMs: number;
 };
 
+type IssuerSecretField = "issuer_id_secret_key" | "issuance_secret_key";
+
+type IssuerSecrets = {
+  readonly issuer_id_secret_key: string;
+  readonly issuance_secret_key: string;
+};
+
+type KeygenRunResult = {
+  readonly timing: KeygenTiming;
+  readonly secrets: IssuerSecrets;
+};
+
 type KeygenWorkerResponse =
   | {
       readonly type: "progress";
@@ -26,6 +38,7 @@ type KeygenWorkerResponse =
   | {
       readonly type: "timing";
       readonly timing: KeygenTiming;
+      readonly secrets: IssuerSecrets;
     }
   | {
       readonly type: "error";
@@ -277,9 +290,24 @@ function isKeygenWorkerResponse(value: unknown): value is KeygenWorkerResponse {
       typeof response.timing?.repeat === "number" &&
       typeof response.timing?.run === "number" &&
       isKeygenStrategy(response.timing.strategy) &&
-      typeof response.timing.elapsedMs === "number") ||
+      typeof response.timing.elapsedMs === "number" &&
+      typeof response.secrets?.issuer_id_secret_key === "string" &&
+      typeof response.secrets?.issuance_secret_key === "string") ||
     (response.type === "error" && typeof response.message === "string")
   );
+}
+
+// Compares only unique-value counts so generated secrets never appear in
+// assertion messages or test output.
+function assertDistinctIssuerSecrets(
+  results: readonly KeygenRunResult[],
+  field: IssuerSecretField,
+) {
+  const unique = new Set(results.map((result) => result.secrets[field])).size;
+  expect(
+    unique,
+    `${field}: expected ${results.length} unique values across ${results.length} keygen runs, found ${unique} (${results.length - unique} duplicated)`,
+  ).toBe(results.length);
 }
 
 function startBrowserWorkerKeygen(
@@ -288,13 +316,13 @@ function startBrowserWorkerKeygen(
   runCount: number,
   strategy: KeygenStrategy,
 ): {
-  promise: Promise<KeygenTiming>;
+  promise: Promise<KeygenRunResult>;
   terminate: () => void;
 } {
   const worker = new KeygenBrowserWorker();
   let settled = false;
-
-  const promise = new Promise<KeygenTiming>((resolve, reject) => {
+  // Executor form: project lib is ES2022, which lacks Promise.withResolvers.
+  const promise = new Promise<KeygenRunResult>((resolve, reject) => {
     function cleanup() {
       settled = true;
       worker.terminate();
@@ -328,7 +356,7 @@ function startBrowserWorkerKeygen(
 
       writeRunTiming(event.data.timing, runCount);
       cleanup();
-      resolve(event.data.timing);
+      resolve({ timing: event.data.timing, secrets: event.data.secrets });
     });
 
     worker.addEventListener("error", (event) => {
@@ -360,7 +388,7 @@ async function runBrowserWorkerKeygenRace(
   repeat: number,
   runCount: number,
   strategy: KeygenStrategy,
-): Promise<KeygenTiming> {
+): Promise<KeygenRunResult> {
   const workers = Array.from({ length: runCount }, (_, index) =>
     startBrowserWorkerKeygen(repeat, index + 1, runCount, strategy),
   );
@@ -376,21 +404,21 @@ async function runBrowserWorkerKeygenRace(
 
 async function runBrowserWorkerKeygens(
   runCount: number,
-): Promise<KeygenTiming[]> {
-  const timings: KeygenTiming[] = [];
+): Promise<KeygenRunResult[]> {
+  const results: KeygenRunResult[] = [];
 
   for (const strategy of keygenStrategies) {
     for (let repeat = 1; repeat <= repeatCount; repeat += 1) {
       writeTiming(
         `${keygenMethodLabel(strategy)} browser Worker WASM RSA keygen batch starting: repeat=${repeat}/${repeatCount}, workers=${runCount}`,
       );
-      timings.push(
+      results.push(
         await runBrowserWorkerKeygenRace(repeat, runCount, strategy),
       );
     }
   }
 
-  return timings;
+  return results;
 }
 
 describe("RSA issuer key generation in a browser Worker", () => {
@@ -399,9 +427,17 @@ describe("RSA issuer key generation in a browser Worker", () => {
     async () => {
       await configureCpuThrottling();
       const wallStarted = performance.now();
-      const timings = await runBrowserWorkerKeygens(concurrentWorkers);
+      const results = await runBrowserWorkerKeygens(concurrentWorkers);
 
-      reportKeygenStats(timings, performance.now() - wallStarted);
+      reportKeygenStats(
+        results.map((result) => result.timing),
+        performance.now() - wallStarted,
+      );
+
+      if (results.length > 1) {
+        assertDistinctIssuerSecrets(results, "issuer_id_secret_key");
+        assertDistinctIssuerSecrets(results, "issuance_secret_key");
+      }
     },
     slowKeygenTimeoutMs,
   );

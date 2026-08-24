@@ -213,7 +213,7 @@ fn env_bool(name: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn smoke_test_generated_issuer(issuer: &IssuerContext) {
+fn smoke_test_generated_issuer(issuer: &IssuerContext) -> IssuerSecretKeys {
     let exported = issuer.export_secret_key().unwrap();
     assert!(!exported.issuer_id_secret_key.is_empty());
     assert!(!exported.issuance_secret_key.is_empty());
@@ -242,9 +242,11 @@ fn smoke_test_generated_issuer(issuer: &IssuerContext) {
     let mut verifier = VerificationContext::new();
     verifier.add_issuer_authority(&issuer_authority).unwrap();
     verifier.verify_credential(&credential).unwrap();
+
+    exported
 }
 
-fn generate_issuer_for_timing(run: usize, run_count: usize) -> KeygenTiming {
+fn generate_issuer_for_timing(run: usize, run_count: usize) -> (KeygenTiming, IssuerSecretKeys) {
     let started = Instant::now();
     let issuer = IssuerContext::generate().unwrap();
     let elapsed = started.elapsed();
@@ -254,9 +256,24 @@ fn generate_issuer_for_timing(run: usize, run_count: usize) -> KeygenTiming {
         elapsed.as_secs_f64()
     );
 
-    smoke_test_generated_issuer(&issuer);
+    let secrets = smoke_test_generated_issuer(&issuer);
 
-    KeygenTiming { run, elapsed }
+    (KeygenTiming { run, elapsed }, secrets)
+}
+
+/// Compares only unique-value counts so generated secrets never appear in
+/// assertion output.
+fn assert_distinct_secret_values<T: std::hash::Hash + Eq>(values: &[T], field: &str) {
+    let unique = values.iter().collect::<std::collections::HashSet<_>>().len();
+    assert_eq!(
+        unique,
+        values.len(),
+        "{field}: expected {} unique values across {} keygen runs, found {} ({} duplicated)",
+        values.len(),
+        values.len(),
+        unique,
+        values.len() - unique
+    );
 }
 
 fn median_seconds(sorted_seconds: &[f64]) -> f64 {
@@ -644,7 +661,7 @@ fn issuer_context_generate_reports_rsa_keygen_timing() {
     let concurrent = env_bool("RSA_KEYGEN_CONCURRENT") && run_count > 1;
     let wall_started = Instant::now();
 
-    let timings = if concurrent {
+    let results = if concurrent {
         (1..=run_count)
             .map(|run| std::thread::spawn(move || generate_issuer_for_timing(run, run_count)))
             .collect::<Vec<_>>()
@@ -657,5 +674,23 @@ fn issuer_context_generate_reports_rsa_keygen_timing() {
             .collect::<Vec<_>>()
     };
 
+    let timings = results
+        .iter()
+        .map(|(timing, _)| timing.clone())
+        .collect::<Vec<_>>();
     report_keygen_stats(&timings, wall_started.elapsed(), concurrent);
+
+    if run_count > 1 {
+        let identity_keys = results
+            .iter()
+            .map(|(_, secrets)| secrets.issuer_id_secret_key.as_str())
+            .collect::<Vec<_>>();
+        assert_distinct_secret_values(&identity_keys, "issuer_id_secret_key");
+
+        let issuance_keys = results
+            .iter()
+            .map(|(_, secrets)| secrets.issuance_secret_key.as_slice())
+            .collect::<Vec<_>>();
+        assert_distinct_secret_values(&issuance_keys, "issuance_secret_key");
+    }
 }
