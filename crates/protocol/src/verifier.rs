@@ -33,6 +33,26 @@ impl VerificationContext {
         Ok(())
     }
 
+    /// Verify a published issuer authority against the key that published it,
+    /// then trust it for subsequent credential checks.
+    ///
+    /// `claimed_author` is the transport-level author of the publication (for
+    /// Nostr, the event `pubkey`). Requiring it to equal the embedded issuer
+    /// identity key stops another key from republishing a validly self-signed
+    /// authority under its own discovery slot. Fetching authorities and
+    /// verifying publication envelopes stay with the application.
+    pub fn add_issuer_authority_from_author(
+        &mut self,
+        authority: &IssuerAuthority,
+        claimed_author: &IssuerId,
+    ) -> Result<(), CredentialsError> {
+        if *claimed_author != authority.issuer.issuer_id_pubkey {
+            return Err(CredentialsError::AuthorityAuthorMismatch);
+        }
+
+        self.add_issuer_authority(authority)
+    }
+
     /// Verify and store a signed revocation from a trusted issuer.
     pub fn add_revocation(
         &mut self,

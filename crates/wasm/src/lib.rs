@@ -424,6 +424,26 @@ impl VerificationContext {
         Ok(self.inner.add_issuer_authority(&issuer_authority)?)
     }
 
+    /// Verify a published issuer authority against the key that published it.
+    ///
+    /// `claimedAuthorPubkey` is the transport-level author of the publication
+    /// (for Nostr, the event `pubkey` in hex). It must equal the embedded
+    /// issuer identity key before the authority is trusted.
+    #[wasm_bindgen(js_name = addIssuerAuthorityFromAuthor)]
+    pub fn add_issuer_authority_from_author(
+        &mut self,
+        #[wasm_bindgen(unchecked_param_type = "IssuerAuthority")] issuer_authority: JsValue,
+        claimed_author_pubkey: String,
+    ) -> Result<(), JsError> {
+        let issuer_authority: protocol::IssuerAuthority = from_js(issuer_authority)?;
+        let claimed_author: protocol::IssuerId = claimed_author_pubkey
+            .parse()
+            .map_err(protocol::CredentialsError::NostrKey)?;
+        Ok(self
+            .inner
+            .add_issuer_authority_from_author(&issuer_authority, &claimed_author)?)
+    }
+
     /// Verify and store a signed revocation from a trusted issuer.
     #[wasm_bindgen(js_name = addRevocation)]
     pub fn add_revocation(

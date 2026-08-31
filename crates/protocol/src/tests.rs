@@ -3,11 +3,11 @@ use serde_json::json;
 use std::time::{Duration, Instant};
 
 use crate::{
-    Credential, CredentialDigest, CredentialProof, HolderAuthorization, HolderAuthorizationRequest,
-    HolderAuthorizationStatement, HolderContext, HolderId, IssuerAuthority, IssuerContext,
-    IssuerId, IssuerSecretKeys, PendingIssuance, ProtocolV1, Revocation, RevocationLocation,
-    RevocationProof, SchnorrSignatureProof, SignedCredential, SignedRevocation, SubjectPubkey,
-    VerificationContext,
+    Credential, CredentialDigest, CredentialProof, CredentialsError, HolderAuthorization,
+    HolderAuthorizationRequest, HolderAuthorizationStatement, HolderContext, HolderId,
+    IssuerAuthority, IssuerContext, IssuerId, IssuerSecretKeys, PendingIssuance, ProtocolV1,
+    Revocation, RevocationLocation, RevocationProof, SchnorrSignatureProof, SignedCredential,
+    SignedRevocation, SubjectPubkey, VerificationContext,
 };
 
 const TEST_RNG_SEED: u64 = 0x5eed_f00d_cafe_babe;
@@ -658,4 +658,41 @@ fn issuer_context_generate_reports_rsa_keygen_timing() {
     };
 
     report_keygen_stats(&timings, wall_started.elapsed(), concurrent);
+}
+
+#[test]
+fn add_issuer_authority_from_author_enforces_author_binding() {
+    let mut nostr_rng =
+        <NostrRng as nostr::secp256k1::rand::SeedableRng>::seed_from_u64(TEST_RNG_SEED);
+    let mut pbrsa_rng =
+        <PbrsaRng as blind_rsa_signatures::reexports::rand::SeedableRng>::from_seed([7u8; 32]);
+    let issuer = test_issuer_context();
+    let issuer_authority = issuer
+        .issuer_authority_with_rng(vec![], &mut nostr_rng)
+        .unwrap();
+    let holder = HolderContext::generate_with_rng(&mut nostr_rng);
+
+    // A publication authored by a different key must be rejected even though
+    // the embedded authority is validly self-signed: accepting it would let
+    // that key squat the discovery slot for this authority.
+    let squatter = IssuerId(nostr::Keys::generate_with_rng(&mut nostr_rng).public_key());
+    let mut verifier = VerificationContext::new();
+    assert!(matches!(
+        verifier.add_issuer_authority_from_author(&issuer_authority, &squatter),
+        Err(CredentialsError::AuthorityAuthorMismatch)
+    ));
+
+    // The rejected authority must not have been trusted.
+    let credential =
+        issue_credential_for_holder(&issuer, &issuer_authority, &holder, &mut pbrsa_rng);
+    assert!(matches!(
+        verifier.verify_credential(&credential),
+        Err(CredentialsError::UnknownIssuer)
+    ));
+
+    // The genuine author is accepted and the issuer becomes trusted.
+    verifier
+        .add_issuer_authority_from_author(&issuer_authority, &issuer_authority.issuer.issuer_id_pubkey)
+        .unwrap();
+    verifier.verify_credential(&credential).unwrap();
 }
