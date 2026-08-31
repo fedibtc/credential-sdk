@@ -7,8 +7,10 @@ title: Integrate Transport Outside The SDK
 The SDK returns transportable JSON objects. Your application chooses how to move
 those objects between issuers, holders, and verifiers.
 
-The SDK does not fetch, publish, encrypt, store, scan, or display protocol
-objects.
+The core protocol and WASM package do not fetch, publish, encrypt, store, scan,
+or display protocol objects. Rust applications that publish through Nostr can
+use the companion `fedi-credential-sdk-nostr` profile to build and admit events;
+relay I/O and application policy still remain outside the SDK.
 
 ## Issuance Transport
 
@@ -110,8 +112,11 @@ understands the wire format. Do not rename fields, drop `version`, rewrite
 base64url strings, or reorder data through a custom serializer that changes JSON
 values.
 
-QR codes, Nostr events, HTTP APIs, files, and browser storage are all valid
-application transports as long as the same JSON objects reach the next SDK call.
+QR codes, HTTP APIs, files, browser storage, and application-defined transports
+can carry the same JSON objects. Nostr publication of issuer authorities and
+credential revocations has an open wire profile in
+[`crates/nostr`](../../crates/nostr); use that profile rather than assigning an
+application-specific event kind.
 
 ## Transport Examples
 
@@ -137,14 +142,9 @@ const issueResponse = await fetch("/credentials/issue", {
 const response = await issueResponse.json();
 ```
 
-Nostr or another relay can carry the JSON string as event content.
-
-```ts
-await publishRelayEvent({
-  kind: 30078,
-  content: JSON.stringify(signedRevocation),
-});
-```
+The Nostr profile maps `IssuerAuthority` and `SignedRevocation` documents to
+their shared addressable event kinds and tags. It authenticates received events
+without selecting relays or deciding which issuers an application trusts.
 
 Browser storage can keep holder-local state while the request is in flight.
 

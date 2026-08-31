@@ -51,13 +51,15 @@ const PROJECT_DISPLAY_NAME = "Fedi Credential SDK";
 const NPM_MODULE_PAGE = "modules/pkg_fedi_credential_sdk_wasm.html";
 const NPM_MODULE_REFLECTION_NAME = "pkg/fedi_credential_sdk_wasm";
 const NPM_MODULE_DISPLAY_NAME = "Fedi Credential SDK (npm)";
+const RUST_NOSTR_PAGE = "rust/fedi_credential_sdk_nostr/index.html";
 const RUST_PROTOCOL_PAGE = "rust/fedi_credential_sdk_protocol/index.html";
+const RUST_SCHEMAS_PAGE = "rust/fedi_credential_sdk_schemas/index.html";
 const RUST_WASM_PAGE = "rust/fedi_credential_sdk_wasm/index.html";
 
 const PROJECT_OVERVIEW = `
 <div class="docblock fedi-project-overview">
   <p>
-    This is the Fedi credential SDK. The repository contains two Rust crates
+    This is the Fedi credential SDK. The repository contains four Rust crates
     plus a generated npm package for browser and TypeScript applications.
   </p>
   <ul>
@@ -65,6 +67,15 @@ const PROJECT_OVERVIEW = `
       <a href="rust/fedi_credential_sdk_protocol/index.html"><code>fedi-credential-sdk-protocol</code></a>
       is a Rust crate that implements the core issuance, verification,
       canonicalization, and revocation protocol.
+    </li>
+    <li>
+      <a href="rust/fedi_credential_sdk_nostr/index.html"><code>fedi-credential-sdk-nostr</code></a>
+      defines the application-neutral Nostr publication profile for credential
+      documents.
+    </li>
+    <li>
+      <a href="rust/fedi_credential_sdk_schemas/index.html"><code>fedi-credential-sdk-schemas</code></a>
+      defines first-party credential schemas layered on the core protocol.
     </li>
     <li>
       <a href="rust/fedi_credential_sdk_wasm/index.html"><code>fedi-credential-sdk-wasm</code></a>
@@ -142,6 +153,14 @@ function sidebarModuleItems(root) {
     {
       href: `${root}${RUST_PROTOCOL_PAGE}`,
       text: "fedi-credential-sdk-protocol (Rust)",
+    },
+    {
+      href: `${root}${RUST_NOSTR_PAGE}`,
+      text: "fedi-credential-sdk-nostr (Rust)",
+    },
+    {
+      href: `${root}${RUST_SCHEMAS_PAGE}`,
+      text: "fedi-credential-sdk-schemas (Rust)",
     },
     {
       href: `${root}${RUST_WASM_PAGE}`,
@@ -268,6 +287,18 @@ function organizeProjectIndexSections(html) {
       href: RUST_PROTOCOL_PAGE,
       title: "fedi-credential-sdk-protocol (Rust)",
       text: "fedi-credential-sdk-protocol (Rust)",
+    },
+    {
+      className: "mod",
+      href: RUST_NOSTR_PAGE,
+      title: "fedi-credential-sdk-nostr (Rust)",
+      text: "fedi-credential-sdk-nostr (Rust)",
+    },
+    {
+      className: "mod",
+      href: RUST_SCHEMAS_PAGE,
+      title: "fedi-credential-sdk-schemas (Rust)",
+      text: "fedi-credential-sdk-schemas (Rust)",
     },
     {
       className: "mod",

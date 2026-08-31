@@ -4,7 +4,7 @@ Rust-facing protocol crate for issuing, holding, verifying, and revoking Fedi-st
 
 This crate owns the protocol-sensitive pieces: issuer and holder key handling, holder blinding, issuer partial blind signing, holder finalization, holder authorization signing, credential verification, signed issuer metadata, signed revocations, canonicalization, and typed error handling.
 
-It deliberately does not own application concerns such as persistence, QR codes, Nostr relay I/O, HTTP fetching, UI state, subject-key custody, verifier policy, or revocation list refresh jobs. Credential `info` and `blind_msg` are arbitrary `serde_json::Value` objects; callers decide what their schemas and claims mean.
+It deliberately does not own application concerns such as persistence, QR codes, transport publication, HTTP fetching, UI state, subject-key custody, verifier policy, or revocation list refresh jobs. Credential `info` and `blind_msg` are arbitrary `serde_json::Value` objects; callers decide what their schemas and claims mean. The companion [`fedi-credential-sdk-nostr`](../nostr) crate defines the open Nostr publication profile for protocol documents without adding transport policy to this core crate.
 
 ## Usage
 

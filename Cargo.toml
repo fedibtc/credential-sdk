@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/protocol",
+    "crates/nostr",
     "crates/schemas",
     "crates/wasm",
 ]
@@ -15,6 +16,7 @@ readme = "README.md"
 
 [workspace.dependencies]
 fedi-credential-sdk-protocol = { path = "crates/protocol", version = "0.0.5" }
+fedi-credential-sdk-nostr = { path = "crates/nostr", version = "0.0.5" }
 fedi-credential-sdk-schemas = { path = "crates/schemas", version = "0.0.5" }
 
 [profile.release]

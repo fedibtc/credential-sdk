@@ -4,7 +4,7 @@ WebAssembly bindings for a partially blind RSA verifiable credential protocol.
 
 The library is intended to own the protocol-sensitive pieces of credential issuance and verification: holder blinding, issuer partial blind signing, holder finalization, holder authorization signing, runtime validation, and the WASM/TypeScript API surface around those operations.
 
-It deliberately does not own app concerns such as browser storage, QR codes, Nostr relay I/O, HTTP fetching, UI state, subject-key custody, verifier policy, or revocation list refresh jobs.
+It deliberately does not own app concerns such as browser storage, QR codes, Nostr relay I/O, HTTP fetching, UI state, subject-key custody, verifier policy, or revocation list refresh jobs. The Rust workspace includes an application-neutral [`fedi-credential-sdk-nostr`](crates/nostr) publication profile; it defines credential event envelopes and admission without selecting relays or imposing consumer policy.
 
 The generated npm package is `@fedibtc/fedi-credential-sdk-wasm`. In this repository, tests import from the generated `pkg/fedi_credential_sdk_wasm.js` file after `pnpm run build`.
 

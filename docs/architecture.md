@@ -35,11 +35,17 @@ issuer, holder, and verifier.
 
 ## SDK Boundary
 
-The SDK deliberately does not fetch issuer authorities, publish revocations, scan QR
-codes, store pending issuance state, choose which issuers are trusted, or decide
-what application-specific credential fields mean. It also does not store or
-transport holder authorizations, manage external application subject keys, or
-decide verifier credential-schema policy.
+The core protocol deliberately does not fetch issuer authorities, publish
+revocations, scan QR codes, store pending issuance state, choose trusted
+issuers, or decide what application-specific credential fields mean. It also
+does not transport holder authorizations, manage external application subject
+keys, or decide verifier credential-schema policy.
 
-Applications should treat every protocol object as transportable JSON, but they
-should preserve it exactly as returned unless they know the wire format rules.
+The `fedi-credential-sdk-nostr` crate defines one open publication profile for
+`IssuerAuthority` and `SignedRevocation`: event envelopes, wire identifiers, and
+complete event admission. It does not perform relay I/O or impose consumer
+trust policy. Applications can use other transports without changing the core
+credential documents.
+
+Applications should preserve protocol objects exactly as returned unless they
+know the wire format rules.

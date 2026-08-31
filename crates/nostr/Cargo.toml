@@ -1,0 +1,15 @@
+[package]
+name = "fedi-credential-sdk-nostr"
+version.workspace = true
+edition.workspace = true
+description = "Open Nostr publication profile for Fedi credential protocol documents."
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+base64 = "0.22"
+fedi-credential-sdk-protocol.workspace = true
+nostr = "0.44.2"
+serde_json = "1"
+thiserror = "2"
