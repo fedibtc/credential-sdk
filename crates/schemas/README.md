@@ -1,5 +1,8 @@
 # fedi-credential-sdk-schemas
 
+> [!IMPORTANT]
+> This crate has been renamed to `peerbadge-schemas` and moved to [fedibtc/peerbadge-sdk](https://github.com/fedibtc/peerbadge-sdk). This repository is no longer maintained.
+
 Canonical definitions of the first-party credential schemas carried in
 `Credential.info` / `Credential.blind_msg`.
 

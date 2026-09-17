@@ -1,5 +1,8 @@
 # fedi-credential-sdk-protocol
 
+> [!IMPORTANT]
+> This crate has been renamed to `peerbadge-protocol` and moved to [fedibtc/peerbadge-sdk](https://github.com/fedibtc/peerbadge-sdk). This repository is no longer maintained.
+
 Rust-facing protocol crate for issuing, holding, verifying, and revoking Fedi-style privacy-preserving credentials with partially blind RSA signatures.
 
 This crate owns the protocol-sensitive pieces: issuer and holder key handling, holder blinding, issuer partial blind signing, holder finalization, holder authorization signing, credential verification, signed issuer metadata, signed revocations, canonicalization, and typed error handling.
