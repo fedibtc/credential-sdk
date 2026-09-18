@@ -1,3 +1,10 @@
+> [!IMPORTANT]
+> **This project has been renamed to the PeerBadge SDK and moved to [fedibtc/peerbadge-sdk](https://github.com/fedibtc/peerbadge-sdk).** This repository is no longer maintained and will be archived.
+>
+> - Docs: https://fedibtc.github.io/peerbadge-sdk/
+> - npm: `@fedibtc/fedi-credential-sdk-wasm` is now [`@fedibtc/peerbadge-sdk-wasm`](https://www.npmjs.com/package/@fedibtc/peerbadge-sdk-wasm)
+> - Rust crates: `fedi-credential-sdk-protocol`, `fedi-credential-sdk-schemas`, and `fedi-credential-sdk-wasm` are now `peerbadge-protocol`, `peerbadge-schemas`, and `peerbadge-wasm`
+
 # Fedi Credential SDK
 
 WebAssembly bindings for a partially blind RSA verifiable credential protocol.
